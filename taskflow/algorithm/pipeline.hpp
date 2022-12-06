@@ -29,15 +29,25 @@ namespace tf {
 // dpf._dependent_satellites has following two entries
 // {key: 7, value: dpf._dependents.begin()} 
 // {key: 16, value: dpf._dependents.begin()+1}
+//
+/** @private */
 class DeferredPipeflow {
 
 template <typename... Ps>
 friend class Pipeline;
 
 public:
-  DeferredPipeflow() = default;
 
-  DeferredPipeflow(size_t t, size_t n) : _token{t}, _num_deferrals{n} {}
+  DeferredPipeflow() = default;
+  DeferredPipeflow(const DeferredPipeflow&) = delete;
+  DeferredPipeflow(DeferredPipeflow&&) = delete;
+
+  DeferredPipeflow(size_t t, size_t n, std::unordered_set<size_t>&& dep) : 
+    _token{t}, _num_deferrals{n}, _dependents{std::move(dep)} {
+  }
+
+  DeferredPipeflow& operator = (const DeferredPipeflow&) = delete;
+  DeferredPipeflow& operator = (DeferredPipeflow&&) = delete;
 
 private:
 
@@ -48,16 +58,10 @@ private:
   size_t _num_deferrals;  
 
   // dependents
-  std::list<size_t> _dependents;
-
-  // unordered_map of satellite iterators
-  // For example, 
-  // 12.defer(7); 12.defer(16);
-  // 12._dependents = std::list{7, 16}; 
-  // 12._dependent_satellites has the following two entries
-  // {key:  7, value: 12._dependents.begin()} and
-  // {key: 16, value: 12._dependents.begin() + 1}
-  std::unordered_map<size_t, std::list<size_t>::iterator> _dependent_satellites;
+  // For example,
+  // 12.defer(7); 12.defer(16)
+  // _dependents = {7, 16}
+  std::unordered_set<size_t> _dependents;
 };
 
 
@@ -156,7 +160,7 @@ class Pipeflow {
   @brief pushes token in _dependents
   */
   void defer(size_t token) {
-    _dependents.push_back(token);
+    _dependents.insert(token);
   }
   
   private:
@@ -169,7 +173,7 @@ class Pipeflow {
   
   // Data field for token dependencies
   size_t _num_deferrals; 
-  std::list<size_t> _dependents; 
+  std::unordered_set<size_t> _dependents; 
 
 };
 
@@ -491,7 +495,7 @@ class Pipeline {
   std::vector<Task> _tasks;
   std::vector<Pipeflow> _pipeflows;
   
-  // queue of ready tokens
+  // queue of ready tokens (paired with their deferral times)
   // For example,
   // when 12 does not have any dependetns,
   // we put 12 in _ready_tokens queue
@@ -513,7 +517,14 @@ class Pipeline {
   // {key: 12, DeferredPipeflow of 12} and
   // {key: 13, DeferredPipeflow of 13}
   std::unordered_map<size_t, DeferredPipeflow> _deferred_tokens;
-
+  
+  // variable to keep track of the longest deferred tokens
+  // For example,
+  // 2.defer(16)
+  // 5.defer(19)
+  // 5.defer(17),
+  // _longest_deferral will be 19 - after token 19 the pipeline
+  // has almost zero cost on handling deferred pipeflow
   size_t _longest_deferral = 0;  
   
   template <size_t... I>
@@ -678,7 +689,7 @@ void Pipeline<Ps...>::_check_dependents(Pipeflow& pf) {
     // valid (e.g., 12.defer(16)) 
     if (*it >= _num_tokens) {
       _token_dependencies[*it].push_back(pf._token);
-      _longest_deferral = _longest_deferral > *it ? _longest_deferral : *it;
+      _longest_deferral = std::max(_longest_deferral, *it);
       ++it;
     }
     // valid or invalid (e.g., 12.defer(7))
@@ -697,7 +708,6 @@ void Pipeline<Ps...>::_check_dependents(Pipeflow& pf) {
       }
     }
   }
-  //}
 }
 
 // Procedure: _construct_deferred_tokens
@@ -710,19 +720,22 @@ void Pipeline<Ps...>::_check_dependents(Pipeflow& pf) {
 // {key: 12, value: DeferredPipeflow of 12}
 template <typename... Ps>
 void Pipeline<Ps...>::_construct_deferred_tokens(Pipeflow& pf) {
-
-  auto res = _deferred_tokens.emplace(
-    pf._token, DeferredPipeflow{pf._token, pf._num_deferrals}
+  
+  //auto res = _deferred_tokens.emplace(
+  //  pf._token, DeferredPipeflow{pf._token, pf._num_deferrals, std::move(pf._dependents)}
+  //);
+  
+  // construct the deferred pipeflow with zero copy
+  //auto res = _deferred_tokens.emplace(
+  _deferred_tokens.emplace(
+    std::piecewise_construct,
+    std::forward_as_tuple(pf._token),
+    std::forward_as_tuple(
+      pf._token, pf._num_deferrals, std::move(pf._dependents)
+    )
   );
 
-  assert(res.second == true);
-  
-  res.first->second._dependents = std::move(pf._dependents);
-
-  for (auto it = res.first->second._dependents.begin();
-       it != res.first->second._dependents.end(); ++it) {
-    res.first->second._dependent_satellites[*it] = it;
-  }
+  //assert(res.second == true);
 }
 
 // Procedure: _resolve_token_dependencies
@@ -752,15 +765,18 @@ void Pipeline<Ps...>::_resolve_token_dependencies(Pipeflow& pf) {
 
       // erase pf._token from target's _dependents
       // (e.g., remove 16 from 12's dependents)
-      dpf->second._dependents.erase(
-        dpf->second._dependent_satellites[pf._token]);
+      dpf->second._dependents.erase(pf._token);
+      //  dpf->second._dependent_satellites[pf._token]
+      //);
 
       // target has no dependents
       if (dpf->second._dependents.empty()) {
 
         // push target into _ready_tokens queue
-        _ready_tokens.push(
-          std::make_pair(dpf->second._token, dpf->second._num_deferrals));
+        _ready_tokens.emplace(dpf->second._token, dpf->second._num_deferrals);
+        //_ready_tokens.push(
+        //  std::make_pair(dpf->second._token, dpf->second._num_deferrals)
+        //);
         
         // erase target from _deferred_tokens
         _deferred_tokens.erase(dpf);
@@ -799,14 +815,9 @@ void Pipeline<Ps...>::_build() {
       _lines[pf->_line][pf->_pipe].join_counter.store(
         static_cast<size_t>(_meta[pf->_pipe].type), std::memory_order_relaxed
       );
-  
-      pf->_num_deferrals = 0;
-
+      
+      // First pipe does all jobs of initialization and token dependencies
       if (pf->_pipe == 0) {
-        
-        // TODO: verify???
-        //pf->_token = _num_tokens;
-         
         // _ready_tokens queue is not empty
         // substitute pf with the token at the front of the queue
         if (!_ready_tokens.empty()) {
@@ -816,6 +827,7 @@ void Pipeline<Ps...>::_build() {
         }
         else {
           pf->_token = _num_tokens;
+          pf->_num_deferrals = 0;
         }
       
       handle_token_dependency: 
@@ -848,19 +860,15 @@ void Pipeline<Ps...>::_build() {
             goto handle_token_dependency;
           }
         }
-
-        // resolve the dependencies between
-        //  pf->token and the associated deferred tokens 
-
+        
+        // Every token within the deferral range needs to check
+        // if it can resolve dependencies on other tokens.
         if (pf->_token <= _longest_deferral) {
           _resolve_token_dependencies(*pf); 
         }
       }
       else {
         _on_pipe(*pf, rt);
-        if (pf->_pipe == num_pipes()-1) {
-          pf->_num_deferrals = 0;
-        }
       }
 
       size_t c_f = pf->_pipe;

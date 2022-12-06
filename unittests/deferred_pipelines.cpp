@@ -21,17 +21,18 @@ void pipeline_1P_S_DeferPreviousToken(size_t L, unsigned w) {
 
   tf::Executor executor(w);
 
-  const size_t maxN = 100;
+  const size_t maxN = 3;
 
   for(size_t N = 0; N <= maxN; N++) {
     
     std::vector<size_t> collection1;
+    std::vector<size_t> deferrals;
 
     tf::Taskflow taskflow;
 
     tf::Pipeline pl(
       L,
-      tf::Pipe{tf::PipeType::SERIAL, [N, &collection1, L](auto& pf) mutable {
+      tf::Pipe{tf::PipeType::SERIAL, [N, &collection1, L, &deferrals](auto& pf) mutable {
         if(pf.token() == N) {
           pf.stop();
           return;
@@ -42,6 +43,7 @@ void pipeline_1P_S_DeferPreviousToken(size_t L, unsigned w) {
               if (pf.token() == 0) {
                 //printf("Stage 1 : token %zu on line %zu\n", pf.token() ,pf.line());
                 collection1.push_back(pf.token());
+                deferrals.push_back(pf.num_deferrals());
               }
               else {
                 pf.defer(pf.token()-1);
@@ -51,6 +53,7 @@ void pipeline_1P_S_DeferPreviousToken(size_t L, unsigned w) {
             case 1:
               //printf("Stage 1 : token %zu on line %zu\n", pf.token(), pf.line());
               collection1.push_back(pf.token());
+              deferrals.push_back(pf.num_deferrals());
             break;
           }
           REQUIRE(pf.token() % L == pf.line());
@@ -65,12 +68,23 @@ void pipeline_1P_S_DeferPreviousToken(size_t L, unsigned w) {
       for (size_t i = 0; i < N; ++i) {
         REQUIRE(collection1[i] == i);
       }
+
+      REQUIRE(deferrals.size() == N);
+      for (size_t i = 0; i < deferrals.size(); ++i) {
+        if (i == 0) {
+          REQUIRE(deferrals[i] == 0);
+        }
+        else {
+          REQUIRE(deferrals[i] == 1);
+        }
+      }
     }).name("test");
 
     pipeline.precede(test);
 
     executor.run_n(taskflow, 1, [&]() mutable {
       collection1.clear();
+      deferrals.clear();
     }).get();
   }
 }
@@ -157,13 +171,16 @@ void pipeline_2P_SS_DeferPreviousToken(size_t L, unsigned w) {
     
     std::vector<size_t> collection1;
     std::vector<size_t> collection2;
+    std::vector<size_t> deferrals1;
+    std::vector<size_t> deferrals2;
+
     std::mutex mutex;
 
     tf::Taskflow taskflow;
 
     tf::Pipeline pl(
       L,
-      tf::Pipe{tf::PipeType::SERIAL, [N, &collection1, &mybuffer, L](auto& pf) mutable {
+      tf::Pipe{tf::PipeType::SERIAL, [N, &collection1, &mybuffer, L, &deferrals1](auto& pf) mutable {
         if(pf.token() == N) {
           pf.stop();
           return;
@@ -174,7 +191,8 @@ void pipeline_2P_SS_DeferPreviousToken(size_t L, unsigned w) {
               if (pf.token() == 0) {
                 //printf("Stage 1 : token %zu on line %zu\n", pf.token() ,pf.line());
                 collection1.push_back(pf.token());
-                mybuffer[pf.line()][pf.pipe()] = pf.token();           
+                mybuffer[pf.line()][pf.pipe()] = pf.token(); 
+                deferrals1.push_back(pf.num_deferrals());          
               }
               else {
                 pf.defer(pf.token()-1);
@@ -185,17 +203,26 @@ void pipeline_2P_SS_DeferPreviousToken(size_t L, unsigned w) {
               //printf("Stage 1 : token %zu on line %zu\n", pf.token(), pf.line());
               collection1.push_back(pf.token());
               mybuffer[pf.line()][pf.pipe()] = pf.token();           
+              deferrals1.push_back(pf.num_deferrals());          
             break;
           }
           REQUIRE(pf.token() % L == pf.line());
         }
       }},
 
-      tf::Pipe{tf::PipeType::SERIAL, [&mybuffer, &mutex, &collection2, L](auto& pf) mutable {
+      tf::Pipe{tf::PipeType::SERIAL, [&mybuffer, &mutex, &collection2, L, &deferrals2](auto& pf) mutable {
         REQUIRE(pf.token() % L == pf.line());
         {
           std::scoped_lock<std::mutex> lock(mutex);
           collection2.push_back(mybuffer[pf.line()][pf.pipe() - 1]);
+          deferrals2.push_back(pf.num_deferrals());
+        }
+
+        if (pf.token() == 0) {
+          REQUIRE(pf.num_deferrals() == 0);
+        }
+        else {
+          REQUIRE(pf.num_deferrals() == 1);
         }
         //printf("Stage 2 : token %zu at line %zu\n", pf.token(), pf.line());
       }}
@@ -205,10 +232,22 @@ void pipeline_2P_SS_DeferPreviousToken(size_t L, unsigned w) {
     auto test = taskflow.emplace([&](){
       REQUIRE(collection1.size() == N);
       REQUIRE(collection2.size() == N);
-
       for (size_t i = 0; i < N; ++i) {
         REQUIRE(collection1[i] == i);
         REQUIRE(collection2[i] == i);
+      }
+
+      REQUIRE(deferrals1.size() == N);
+      REQUIRE(deferrals2.size() == N);
+      for (size_t i = 0; i < deferrals1.size(); ++i) {
+        if (i == 0) {
+          REQUIRE(deferrals1[i] == 0);
+          REQUIRE(deferrals2[i] == 0);
+        }
+        else {
+          REQUIRE(deferrals1[i] == 1);
+          REQUIRE(deferrals2[i] == 1);
+        }
       }
     }).name("test");
 
@@ -217,6 +256,8 @@ void pipeline_2P_SS_DeferPreviousToken(size_t L, unsigned w) {
     executor.run_n(taskflow, 1, [&]() mutable {
       collection1.clear();
       collection2.clear();
+      deferrals1.clear();
+      deferrals2.clear();
     }).get();
   }
 }
@@ -303,13 +344,15 @@ void pipeline_2P_SP_DeferPreviousToken(size_t L, unsigned w) {
     
     std::vector<size_t> collection1;
     std::vector<size_t> collection2;
+    std::vector<size_t> deferrals1;
+    std::vector<size_t> deferrals2(N);
     std::mutex mutex;
 
     tf::Taskflow taskflow;
 
     tf::Pipeline pl(
       L,
-      tf::Pipe{tf::PipeType::SERIAL, [N, &collection1, &mybuffer, L](auto& pf) mutable {
+      tf::Pipe{tf::PipeType::SERIAL, [N, &collection1, &mybuffer, L, &deferrals1](auto& pf) mutable {
         if(pf.token() == N) {
           pf.stop();
           return;
@@ -320,6 +363,7 @@ void pipeline_2P_SP_DeferPreviousToken(size_t L, unsigned w) {
               if (pf.token() == 0) {
                 //printf("Stage 1 : token %zu on line %zu\n", pf.token() ,pf.line());
                 collection1.push_back(pf.token());
+                deferrals1.push_back(pf.num_deferrals());
                 mybuffer[pf.line()][pf.pipe()] = pf.token();           
               }
               else {
@@ -330,6 +374,7 @@ void pipeline_2P_SP_DeferPreviousToken(size_t L, unsigned w) {
             case 1:
               //printf("Stage 1 : token %zu on line %zu\n", pf.token(), pf.line());
               collection1.push_back(pf.token());
+              deferrals1.push_back(pf.num_deferrals());
               mybuffer[pf.line()][pf.pipe()] = pf.token();           
             break;
           }
@@ -337,12 +382,21 @@ void pipeline_2P_SP_DeferPreviousToken(size_t L, unsigned w) {
         }
       }},
 
-      tf::Pipe{tf::PipeType::PARALLEL, [&mybuffer, &mutex, &collection2, L](auto& pf) mutable {
+      tf::Pipe{tf::PipeType::PARALLEL, [&mybuffer, &mutex, &collection2, L, &deferrals2](auto& pf) mutable {
         REQUIRE(pf.token() % L == pf.line());
         {
           std::scoped_lock<std::mutex> lock(mutex);
           collection2.push_back(mybuffer[pf.line()][pf.pipe() - 1]);
+          deferrals2[pf.token()] = pf.num_deferrals();
         }
+
+        if (pf.token() == 0) {
+          REQUIRE(pf.num_deferrals() == 0);
+        }
+        else {
+          REQUIRE(pf.num_deferrals() == 1);
+        }
+    
         //printf("Stage 2 : token %zu at line %zu\n", pf.token(), pf.line());
       }}
     );
@@ -357,6 +411,19 @@ void pipeline_2P_SP_DeferPreviousToken(size_t L, unsigned w) {
         REQUIRE(collection1[i] == i);
         REQUIRE(collection2[i] == i);
       }
+
+      REQUIRE(deferrals1.size() == N);
+      REQUIRE(deferrals2.size() == N);
+      for (size_t i = 0; i < N; ++i) {
+        if (i == 0) {
+          REQUIRE(deferrals1[0] == 0);
+          REQUIRE(deferrals2[0] == 0);
+        }
+        else {
+          REQUIRE(deferrals1[i] == 1);
+          REQUIRE(deferrals2[i] == 1);
+        }
+      }
     }).name("test");
 
     pipeline.precede(test);
@@ -364,6 +431,8 @@ void pipeline_2P_SP_DeferPreviousToken(size_t L, unsigned w) {
     executor.run_n(taskflow, 1, [&]() mutable {
       collection1.clear();
       collection2.clear();
+      deferrals1.clear();
+      deferrals2.clear();
     }).get();
   }
 }
@@ -440,7 +509,7 @@ TEST_CASE("Pipeline.2P(SP).DeferPreviousToken.4L.4W" * doctest::timeout(300)) {
 // defer to the next token, pf.defer(pf.token()+1) except the max token
 // ----------------------------------------------------------------------------
 
-void pipeline_1P_S_DeferNextToken(size_t L, unsigned w, tf::PipeType second_type) {
+void pipeline_1P_S_DeferNextToken(size_t L, unsigned w, tf::PipeType) {
 
   tf::Executor executor(w);
 
@@ -450,16 +519,16 @@ void pipeline_1P_S_DeferNextToken(size_t L, unsigned w, tf::PipeType second_type
   std::iota(source.begin(), source.end(), 0);
 
   std::vector<size_t> collection1;
+  std::vector<size_t> deferrals;
 
   for(size_t N = 1; N <= maxN; N++) {
 
     tf::Taskflow taskflow;
+    deferrals.resize(N);
 
-    size_t j1 = 0;
-    size_t value = (N-1)%L;
     tf::Pipeline pl(
       L,
-      tf::Pipe{tf::PipeType::SERIAL, [N, &collection1](auto& pf) mutable {
+      tf::Pipe{tf::PipeType::SERIAL, [N, &collection1, &deferrals](auto& pf) mutable {
         if(pf.token() == N) {
           pf.stop();
           return;
@@ -471,26 +540,35 @@ void pipeline_1P_S_DeferNextToken(size_t L, unsigned w, tf::PipeType second_type
                 pf.defer(pf.token()+1);
               }
               else {
+                deferrals[pf.token()] = pf.num_deferrals();
                 collection1.push_back(pf.token());
               }
             break;
 
             case 1:
               collection1.push_back(pf.token());
+              deferrals[pf.token()] = pf.num_deferrals();
             break;
           }
         }
       }}
     );
 
-    auto pipeline = taskflow.composed_of(pl).name("module_of_pipeline");
+    taskflow.composed_of(pl).name("module_of_pipeline");
     executor.run(taskflow).wait();
-   
+ 
+    REQUIRE(deferrals.size() == N); 
+    for (size_t i = 0; i < deferrals.size()-1;++i) {
+      REQUIRE(deferrals[i] == 1);
+    }
+    REQUIRE(deferrals[deferrals.size()-1] == 0);
+
     for (size_t i = 0; i < collection1.size(); ++i) {
       REQUIRE(i + collection1[i] == N-1);
     }
     
     collection1.clear();
+    deferrals.clear();
   }
 }
 
@@ -578,18 +656,21 @@ void pipeline_2P_SS_DeferNextToken(size_t L, unsigned w, tf::PipeType second_typ
 
   std::vector<size_t> collection1;
   std::vector<size_t> collection2;
+  std::vector<size_t> deferrals1;
+  std::vector<size_t> deferrals2;
 
   for(size_t N = 1; N <= maxN; N++) {
 
     tf::Taskflow taskflow;
+    deferrals1.resize(N);
+    deferrals2.resize(N);
 
     size_t j1 = 0, j2 = 0;
-    size_t cnt = 1;
     size_t value = (N-1)%L;
     //std::cout << "N = " << N << ", value = " << value << ", L = " << L << ", W = " << w << '\n';    
     tf::Pipeline pl(
       L,
-      tf::Pipe{tf::PipeType::SERIAL, [value, N, &source, &j1, &mybuffer, L, &collection1](auto& pf) mutable {
+      tf::Pipe{tf::PipeType::SERIAL, [value, N, &source, &j1, &mybuffer, L, &collection1, &deferrals1](auto& pf) mutable {
         if(pf.token() == N) {
           pf.stop();
           return;
@@ -602,24 +683,27 @@ void pipeline_2P_SS_DeferNextToken(size_t L, unsigned w, tf::PipeType second_typ
               }
               else {
                 collection1.push_back(pf.token());
+                deferrals1[pf.token()] = pf.num_deferrals();
                 mybuffer[pf.line()] = pf.token();              
               }
             break;
 
             case 1:
               collection1.push_back(pf.token());
+              deferrals1[pf.token()] = pf.num_deferrals();
               mybuffer[pf.line()] = pf.token();              
             break;
           }
         }
       }},
 
-      tf::Pipe{second_type, [value, N, &source, &j2, &mybuffer, L, &collection2](auto& pf) mutable {
+      tf::Pipe{second_type, [value, N, &source, &j2, &mybuffer, L, &collection2, &deferrals2](auto& pf) mutable {
         collection2.push_back(mybuffer[pf.line()]);
+        deferrals2[pf.token()] = pf.num_deferrals();
       }}
     );
 
-    auto pipeline = taskflow.composed_of(pl).name("module_of_pipeline");
+    taskflow.composed_of(pl).name("module_of_pipeline");
     executor.run(taskflow).wait();
    
     for (size_t i = 0; i < collection1.size(); ++i) {
@@ -627,8 +711,19 @@ void pipeline_2P_SS_DeferNextToken(size_t L, unsigned w, tf::PipeType second_typ
       REQUIRE(i + collection2[i] == N-1);
     }
     
+    REQUIRE(deferrals1.size() == N);
+    REQUIRE(deferrals2.size() == N);
+    for (size_t i = 0; i < deferrals1.size()-1; ++i) {
+      REQUIRE(deferrals1[i] == 1);
+      REQUIRE(deferrals2[i] == 1);
+    }
+    REQUIRE(deferrals1[deferrals1.size()-1] == 0);
+    REQUIRE(deferrals2[deferrals2.size()-1] == 0);
+
     collection1.clear();
     collection2.clear();
+    deferrals1.clear();
+    deferrals2.clear();
   }
 }
 
@@ -715,18 +810,22 @@ void pipeline_2P_SP_DeferNextToken(size_t L, unsigned w) {
 
   std::vector<size_t> collection1;
   std::vector<size_t> collection2;
+  std::vector<size_t> deferrals1;
+  std::vector<size_t> deferrals2;
   std::mutex mtx;
+
   for(size_t N = 1; N <= maxN; N++) {
 
     tf::Taskflow taskflow;
+    deferrals1.resize(N);
+    deferrals2.resize(N);
 
     size_t j1 = 0, j2 = 0;
-    size_t cnt = 1;
     size_t value = (N-1)%L;
     //std::cout << "N = " << N << ", value = " << value << ", L = " << L << ", W = " << w << '\n';    
     tf::Pipeline pl(
       L,
-      tf::Pipe{tf::PipeType::SERIAL, [value, N, &source, &j1, &mybuffer, L, &collection1](auto& pf) mutable {
+      tf::Pipe{tf::PipeType::SERIAL, [value, N, &source, &j1, &mybuffer, L, &collection1, &deferrals1](auto& pf) mutable {
         if(pf.token() == N) {
           pf.stop();
           return;
@@ -739,27 +838,30 @@ void pipeline_2P_SP_DeferNextToken(size_t L, unsigned w) {
               }
               else {
                 collection1.push_back(pf.token());
+                deferrals1[pf.token()] = pf.num_deferrals();
                 mybuffer[pf.line()] = pf.token();              
               }
             break;
 
             case 1:
               collection1.push_back(pf.token());
+              deferrals1[pf.token()] = pf.num_deferrals();
               mybuffer[pf.line()] = pf.token();              
             break;
           }
         }
       }},
 
-      tf::Pipe{tf::PipeType::PARALLEL, [value, N, &source, &j2, &mybuffer, L, &collection2, &mtx](auto& pf) mutable {
+      tf::Pipe{tf::PipeType::PARALLEL, [value, N, &source, &j2, &mybuffer, L, &collection2, &mtx, &deferrals2](auto& pf) mutable {
         {
           std::unique_lock lk(mtx);
           collection2.push_back(mybuffer[pf.line()]);
+          deferrals2[pf.token()] = pf.num_deferrals();
         }
       }}
     );
 
-    auto pipeline = taskflow.composed_of(pl).name("module_of_pipeline");
+    taskflow.composed_of(pl).name("module_of_pipeline");
     executor.run(taskflow).wait();
   
     sort(collection2.begin(), collection2.end()); 
@@ -768,8 +870,19 @@ void pipeline_2P_SP_DeferNextToken(size_t L, unsigned w) {
       REQUIRE(collection2[i] == i);
     }
     
+    REQUIRE(deferrals1.size() == N);
+    REQUIRE(deferrals2.size() == N);
+    for (size_t i = 0; i < deferrals1.size()-1; ++i) {
+      REQUIRE(deferrals1[i] == 1);
+      REQUIRE(deferrals2[i] == 1);
+    }
+    REQUIRE(deferrals1[deferrals1.size()-1] == 0);
+    REQUIRE(deferrals2[deferrals2.size()-1] == 0);
+    
     collection1.clear();
     collection2.clear();
+    deferrals1.clear();
+    deferrals2.clear();
   }
 }
 
@@ -847,7 +960,9 @@ TEST_CASE("Pipeline.2P(SP).DeferNextToken.4L.4W" * doctest::timeout(300)) {
 struct Frames {
   char type;
   size_t id;
+  bool b_defer = false;
   std::vector<size_t> defers;
+  Frames(char t, size_t i, std::vector<size_t> d) : type{t}, id{i}, defers{d} {}
 };
 
 std::vector<char> types{'I','B','B','B','P','P','I','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','I','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','I','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','P','I','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','I','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','P','B','B','P','P','P','P','P','P','P','P','P','P','P','P','P','P','P','P','P','P','P','P','I','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','B','B','B','P','P'};
@@ -932,16 +1047,17 @@ void pipeline_1P_S_264VideoFormat(size_t L, unsigned w) {
     construct_video(video, N);
     
     std::vector<size_t> collection1;
+    std::vector<size_t> deferrals1(N);
     std::mutex mutex;
 
     tf::Taskflow taskflow;
 
     tf::Pipeline pl(
       L,
-      tf::Pipe{tf::PipeType::SERIAL, [N, &collection1, L, &video](auto& pf) mutable {
-        printf("toekn %zu, deferred = %zu, N=%zu\n", pf.token(), pf.num_deferrals(), N);
+      tf::Pipe{tf::PipeType::SERIAL, [N, &collection1, L, &video, &deferrals1](auto& pf) mutable {
+        //printf("toekn %zu, deferred = %zu, N=%zu\n", pf.token(), pf.num_deferrals(), N);
         if(pf.token() == N) {
-          printf("Token %zu stops on line %zu\n", pf.token() ,pf.line());
+          //printf("Token %zu stops on line %zu\n", pf.token() ,pf.line());
           pf.stop();
           return;
         }
@@ -951,6 +1067,7 @@ void pipeline_1P_S_264VideoFormat(size_t L, unsigned w) {
               if (video[pf.token()].type == 'I') {
                 //printf("Stage 1 : token %zu is a I frame on line %zu\n", pf.token() ,pf.line());
                 collection1.push_back(pf.token());
+                deferrals1[pf.token()] = 0;
               }
               else if (video[pf.token()].type == 'P') {
                 //printf("Token %zu is a P frame", pf.token());
@@ -960,7 +1077,7 @@ void pipeline_1P_S_264VideoFormat(size_t L, unsigned w) {
                   index = pf.token()-step;
                   if (video[index].type == 'P' || video[index].type == 'I') {
                     pf.defer(index);
-                    printf(" defers to token %zu which is a %c frame\n", index, video[index].type);
+                    //printf(" defers to token %zu which is a %c frame\n", index, video[index].type);
                     break;
                   }
                   ++step;
@@ -974,7 +1091,7 @@ void pipeline_1P_S_264VideoFormat(size_t L, unsigned w) {
                 while (static_cast<int>(pf.token()-step) >= 0) {
                   index = pf.token()-step;
                   if (video[index].type == 'P' || video[index].type == 'I') {
-                    printf(" defers to token %zu which is a %c frame\n", index, video[index].type);
+                    //printf(" defers to token %zu which is a %c frame\n", index, video[index].type);
                     pf.defer(index);
                     break;
                   }
@@ -996,6 +1113,7 @@ void pipeline_1P_S_264VideoFormat(size_t L, unsigned w) {
             case 1:
               //printf("Stage 1 : token %zu is deferred 1 time at line %zu\n", pf.token(), pf.line());
               collection1.push_back(pf.token());
+              deferrals1[pf.token()] = 1;
             break;
           }
         }
@@ -1014,9 +1132,10 @@ void pipeline_1P_S_264VideoFormat(size_t L, unsigned w) {
         if (video[i].defers.size()) {
           it = std::find(collection1.begin(), collection1.end(), i);
           index_it = std::distance(collection1.begin(), it);
-          if (it == collection1.end()) {
-            printf("Token %zu is missing\n", i);
-          }
+          REQUIRE(it != collection1.end());
+          //if (it == collection1.end()) {
+          //  printf("Token %zu is missing\n", i);
+          //}
           for (size_t j = 0; j < video[i].defers.size(); ++j) {
             it_dep = std::find(collection1.begin(), collection1.end(), video[i].defers[j]);
             index_it_dep = std::distance(collection1.begin(), it_dep);
@@ -1027,12 +1146,23 @@ void pipeline_1P_S_264VideoFormat(size_t L, unsigned w) {
           }
         }
       }
+
+      REQUIRE(deferrals1.size() == N);
+      for (size_t i = 0; i < N; ++i) {
+        if (video[i].type == 'I') {
+          REQUIRE(deferrals1[i] == 0);
+        }
+        else {
+          REQUIRE(deferrals1[i] == 1);
+        }
+      }
     }).name("test");
 
     pipeline.precede(test);
 
     executor.run_n(taskflow, 1, [&]() mutable {
       collection1.clear();
+      deferrals1.clear();
     }).get();
   }
 }
@@ -1104,15 +1234,18 @@ void pipeline_2P_SS_264VideoFormat(size_t L, unsigned w) {
     
     std::vector<size_t> collection1;
     std::vector<size_t> collection2;
+    std::vector<size_t> deferrals1(N);
+    std::vector<size_t> deferrals2(N);
+    
     std::mutex mutex;
 
     tf::Taskflow taskflow;
 
     tf::Pipeline pl(
       L,
-      tf::Pipe{tf::PipeType::SERIAL, [N, &collection1, &mybuffer, L, &video](auto& pf) mutable {
+      tf::Pipe{tf::PipeType::SERIAL, [N, &collection1, &mybuffer, L, &video, &deferrals1](auto& pf) mutable {
         if(pf.token() == N) {
-          printf("Token %zu stops on line %zu\n", pf.token() ,pf.line());
+          //printf("Token %zu stops on line %zu\n", pf.token() ,pf.line());
           pf.stop();
           return;
         }
@@ -1122,7 +1255,8 @@ void pipeline_2P_SS_264VideoFormat(size_t L, unsigned w) {
               if (video[pf.token()].type == 'I') {
                 //printf("Stage 1 : token %zu is a I frame on line %zu\n", pf.token() ,pf.line());
                 collection1.push_back(pf.token());
-                mybuffer[pf.line()][pf.pipe()] = pf.token();           
+                mybuffer[pf.line()][pf.pipe()] = pf.token();
+                deferrals1[pf.token()] = pf.num_deferrals();           
               }
               else if (video[pf.token()].type == 'P') {
                 //printf("Token %zu is a P frame", pf.token());
@@ -1169,25 +1303,27 @@ void pipeline_2P_SS_264VideoFormat(size_t L, unsigned w) {
               //printf("Stage 1 : token %zu is deferred 1 time at line %zu\n", pf.token(), pf.line());
               collection1.push_back(pf.token());
               mybuffer[pf.line()][pf.pipe()] = pf.token();           
+              deferrals1[pf.token()] = pf.num_deferrals();
             break;
           }
         }
       }},
 
-      tf::Pipe{tf::PipeType::SERIAL, [N, &mybuffer, &mutex, &collection2, L](auto& pf) mutable {
+      tf::Pipe{tf::PipeType::SERIAL, [N, &mybuffer, &mutex, &collection2, L, &deferrals2](auto& pf) mutable {
         {
           std::scoped_lock<std::mutex> lock(mutex);
           collection2.push_back(mybuffer[pf.line()][pf.pipe() - 1]);
+          deferrals2[pf.token()] = pf.num_deferrals();
         }
-        printf("Stage 2 : token %zu at line %zu\n", pf.token(), pf.line());
+        //printf("Stage 2 : token %zu at line %zu\n", pf.token(), pf.line());
       }}
     );
 
     auto pipeline = taskflow.composed_of(pl).name("module_of_pipeline");
     auto test = taskflow.emplace([&](){
-      printf("N = %zu and collection1.size() = %zu\n", N, collection1.size());
+      //printf("N = %zu and collection1.size() = %zu\n", N, collection1.size());
       for (size_t i = 0; i < collection1.size(); ++i) {
-        printf("collection1[%zu]=%zu, collection2[%zu]=%zu\n", i, collection1[i], i, collection2[i]);
+        //printf("collection1[%zu]=%zu, collection2[%zu]=%zu\n", i, collection1[i], i, collection2[i]);
         REQUIRE(collection1[i] == collection2[i]);
       }
 
@@ -1200,9 +1336,9 @@ void pipeline_2P_SS_264VideoFormat(size_t L, unsigned w) {
         if (video[i].defers.size()) {
           it = std::find(collection1.begin(), collection1.end(), i);
           index_it = std::distance(collection1.begin(), it);
-          if (it == collection1.end()) {
-            printf("Token %zu is missing\n", i);
-          }
+          //if (it == collection1.end()) {
+          //  printf("Token %zu is missing\n", i);
+          //}
           for (size_t j = 0; j < video[i].defers.size(); ++j) {
             it_dep = std::find(collection1.begin(), collection1.end(), video[i].defers[j]);
             index_it_dep = std::distance(collection1.begin(), it_dep);
@@ -1213,6 +1349,19 @@ void pipeline_2P_SS_264VideoFormat(size_t L, unsigned w) {
           }
         }
       }
+
+      REQUIRE(deferrals1.size() == N);
+      REQUIRE(deferrals2.size() == N);
+      for (size_t i = 0; i < N; ++i) {
+        if (video[i].type == 'I') {
+          REQUIRE(deferrals1[i] == 0);
+          REQUIRE(deferrals2[i] == 0);
+        }
+        else {
+          REQUIRE(deferrals1[i] == 1);
+          REQUIRE(deferrals2[i] == 1);
+        }
+      }
     }).name("test");
 
     pipeline.precede(test);
@@ -1220,6 +1369,8 @@ void pipeline_2P_SS_264VideoFormat(size_t L, unsigned w) {
     executor.run_n(taskflow, 1, [&]() mutable {
       collection1.clear();
       collection2.clear();
+      deferrals1.clear();
+      deferrals2.clear();
     }).get();
   }
 }
@@ -1275,7 +1426,7 @@ TEST_CASE("Pipeline.2P(SS).264VideoFormat.4L.4W" * doctest::timeout(300)) {
 
 
 
-
+// ----------------------------------------------------------------------------
 // two pipes (SP), L lines, W workers, mimic 264 frame patterns
 // ----------------------------------------------------------------------------
 
@@ -1294,13 +1445,16 @@ void pipeline_2P_SP_264VideoFormat(size_t L, unsigned w) {
     
     std::vector<size_t> collection1;
     std::vector<size_t> collection2;
+    std::vector<size_t> deferrals1(N);
+    std::vector<size_t> deferrals2(N);
+    
     std::mutex mutex;
 
     tf::Taskflow taskflow;
 
     tf::Pipeline pl(
       L,
-      tf::Pipe{tf::PipeType::SERIAL, [N, &collection1, &mybuffer, L, &video](auto& pf) mutable {
+      tf::Pipe{tf::PipeType::SERIAL, [N, &collection1, &mybuffer, L, &video, &deferrals1](auto& pf) mutable {
         if(pf.token() == N) {
           pf.stop();
           return;
@@ -1309,9 +1463,10 @@ void pipeline_2P_SP_264VideoFormat(size_t L, unsigned w) {
           switch(pf.num_deferrals()) {
             case 0:
               if (video[pf.token()].type == 'I') {
-                printf("Stage 1 : token %zu is a I frame on line %zu\n", pf.token() ,pf.line());
+                //printf("Stage 1 : token %zu is a I frame on line %zu\n", pf.token() ,pf.line());
                 collection1.push_back(pf.token());
                 mybuffer[pf.line()][pf.pipe()] = pf.token();           
+                deferrals1[pf.token()] = pf.num_deferrals();
               }
               else if (video[pf.token()].type == 'P') {
                 //printf("Token %zu is a P frame", pf.token());
@@ -1355,20 +1510,22 @@ void pipeline_2P_SP_264VideoFormat(size_t L, unsigned w) {
             break;
 
             case 1:
-              printf("Stage 1 : token %zu is deferred 1 time at line %zu\n", pf.token(), pf.line());
+              //printf("Stage 1 : token %zu is deferred 1 time at line %zu\n", pf.token(), pf.line());
               collection1.push_back(pf.token());
               mybuffer[pf.line()][pf.pipe()] = pf.token();           
+              deferrals1[pf.token()] = pf.num_deferrals();
             break;
           }
         }
       }},
 
-      tf::Pipe{tf::PipeType::PARALLEL, [N, &mybuffer, &mutex, &collection2, L](auto& pf) mutable {
+      tf::Pipe{tf::PipeType::PARALLEL, [N, &mybuffer, &mutex, &collection2, L, &deferrals2](auto& pf) mutable {
         {
           std::scoped_lock<std::mutex> lock(mutex);
           collection2.push_back(mybuffer[pf.line()][pf.pipe() - 1]);
+          deferrals2[pf.token()] = pf.num_deferrals();
         }
-        printf("Stage 2 : token %zu at line %zu\n", pf.token(), pf.line());
+        //printf("Stage 2 : token %zu at line %zu\n", pf.token(), pf.line());
       }}
     );
 
@@ -1392,6 +1549,20 @@ void pipeline_2P_SP_264VideoFormat(size_t L, unsigned w) {
           }
         }
       }
+
+      REQUIRE(deferrals1.size() == N);
+      REQUIRE(deferrals2.size() == N);
+      for (size_t i = 0; i < N; ++i) {
+        if (video[i].type == 'I') {
+          REQUIRE(deferrals1[i] == 0);
+          REQUIRE(deferrals2[i] == 0);
+        }
+        else {
+          REQUIRE(deferrals1[i] == 1);
+          REQUIRE(deferrals2[i] == 1);
+        }
+      }
+
     }).name("test");
 
     pipeline.precede(test);
@@ -1399,6 +1570,8 @@ void pipeline_2P_SP_264VideoFormat(size_t L, unsigned w) {
     executor.run_n(taskflow, 1, [&]() mutable {
       collection1.clear();
       collection2.clear();
+      deferrals1.clear();
+      deferrals2.clear();
     }).get();
   }
 }
@@ -1450,5 +1623,252 @@ TEST_CASE("Pipeline.2P(SP).264VideoFormat.4L.3W" * doctest::timeout(300)) {
 }
 TEST_CASE("Pipeline.2P(SP).264VideoFormat.4L.4W" * doctest::timeout(300)) {
   pipeline_2P_SP_264VideoFormat(4,4);
+}
+
+// ----------------------------------------------------------------------------
+// three pipes (SPP), L lines, W workers, mimic 264 frame patterns
+// mainly test pf.num_deferrals()
+// ----------------------------------------------------------------------------
+
+void pipeline_3P_SPP_264VideoFormat(size_t L, unsigned w) {
+
+  tf::Executor executor(w);
+
+  const size_t maxN = 512;
+
+  std::vector<std::array<size_t, 2>> mybuffer(L);
+
+  for(size_t N = 0; N <= maxN; N++) {
+    //std::cout << "N = " << N << '\n';
+    // declare a x264 format video
+    std::vector<Frames> video;
+    construct_video(video, N);
+    
+    std::vector<size_t> collection1;
+    std::vector<size_t> collection2;
+    std::vector<size_t> collection3;
+    std::vector<size_t> deferrals1(N);
+    std::vector<size_t> deferrals2(N);
+    std::vector<size_t> deferrals3(N);
+    
+    std::mutex mutex;
+
+    tf::Taskflow taskflow;
+
+    tf::Pipeline pl(
+      L,
+      tf::Pipe{tf::PipeType::SERIAL, [N, &collection1, &mybuffer, L, &video, &deferrals1](auto& pf) mutable {
+        if(pf.token() == N) {
+          pf.stop();
+          return;
+        }
+        else {
+          switch(pf.num_deferrals()) {
+            case 0:
+              if (video[pf.token()].type == 'I') {
+                //printf("Stage 1 : token %zu is a I frame on line %zu\n", pf.token() ,pf.line());
+                collection1.push_back(pf.token());
+                mybuffer[pf.line()][pf.pipe()] = pf.token();           
+                deferrals1[pf.token()] = pf.num_deferrals();
+              }
+              else if (video[pf.token()].type == 'P') {
+                //printf("Token %zu is a P frame", pf.token());
+                size_t step = 1;
+                size_t index = 0;
+                while (static_cast<int>(pf.token()-step) >= 0) {
+                  index = pf.token()-step;
+                  if (video[index].type == 'P' || video[index].type == 'I') {
+                    pf.defer(index);
+                    //printf(" defers to token %zu which is a %c frame\n", index, video[index].type);
+                    break;
+                  }
+                  ++step;
+                }
+              }
+              else if (video[pf.token()].type == 'B') {
+                //printf("Token %zu is a B frame", pf.token());
+                size_t step = 1;
+                size_t index = 0;
+                
+                while (static_cast<int>(pf.token()-step) >= 0) {
+                  index = pf.token()-step;
+                  if (video[index].type == 'P' || video[index].type == 'I') {
+                    //printf(" defers to token %zu which is a %c frame\n", index, video[index].type);
+                    pf.defer(index);
+                    break;
+                  }
+                  ++step;
+                }
+              }
+            break;
+
+            case 1:
+              if (video[pf.token()].type == 'P') {
+                //printf("Stage 1 : token %zu is deferred 1 time at line %zu\n", pf.token(), pf.line());
+                collection1.push_back(pf.token());
+                mybuffer[pf.line()][pf.pipe()] = pf.token();           
+                deferrals1[pf.token()] = pf.num_deferrals();
+              }
+              else {
+                size_t step = 1;
+                size_t index = 0;
+                while (pf.token()+step < N) {
+                  index = pf.token()+step;
+                  if (video[index].type == 'P' || video[index].type == 'I') {
+                    pf.defer(index);
+                    video[pf.token()].b_defer = true;
+                    //printf(" and token %zu which is a %c frame\n", index, video[index].type);
+                    break;
+                  }
+                  ++step;
+                }
+                if (video[pf.token()].b_defer == false) {
+                  collection1.push_back(pf.token());
+                  mybuffer[pf.line()][pf.pipe()] = pf.token();           
+                  deferrals1[pf.token()] = pf.num_deferrals();
+                }
+              }
+            break;
+
+            case 2:
+              collection1.push_back(pf.token());
+              mybuffer[pf.line()][pf.pipe()] = pf.token();           
+              deferrals1[pf.token()] = pf.num_deferrals();
+            break;
+          }
+        }
+      }},
+
+      tf::Pipe{tf::PipeType::PARALLEL, [N, &mybuffer, &mutex, &collection2, L, &deferrals2](auto& pf) mutable {
+        {
+          std::scoped_lock<std::mutex> lock(mutex);
+          collection2.push_back(mybuffer[pf.line()][pf.pipe() - 1]);
+          deferrals2[pf.token()] = pf.num_deferrals();
+        }
+        //printf("Stage 2 : token %zu at line %zu\n", pf.token(), pf.line());
+      }},
+
+      tf::Pipe{tf::PipeType::PARALLEL, [N, &mybuffer, &mutex, &collection3, L, &deferrals3](auto& pf) mutable {
+        {
+          std::scoped_lock<std::mutex> lock(mutex);
+          collection3.push_back(mybuffer[pf.line()][pf.pipe() - 1]);
+          deferrals3[pf.token()] = pf.num_deferrals();
+        }
+        //printf("Stage 2 : token %zu at line %zu\n", pf.token(), pf.line());
+      }}
+    );
+
+    auto pipeline = taskflow.composed_of(pl).name("module_of_pipeline");
+    auto test = taskflow.emplace([&](){
+      REQUIRE(collection1.size() == N);
+      REQUIRE(collection2.size() == N);
+      REQUIRE(collection3.size() == N);
+
+      for (size_t i = 0; i < N; ++i) {
+        std::vector<size_t>::iterator it;
+        std::vector<size_t>::iterator it_dep;
+
+        if (video[i].defers.size()) {
+          it = std::find(collection1.begin(), collection1.end(), i);
+
+          for (size_t j = 0; j < video[i].defers.size(); ++j) {
+            it_dep = std::find(collection1.begin(), collection1.end(), video[i].defers[j]);
+            
+            REQUIRE(it != collection1.end());
+            REQUIRE(it_dep != collection1.end());
+          }
+        }
+      }
+
+      REQUIRE(deferrals1.size() == N);
+      REQUIRE(deferrals2.size() == N);
+      REQUIRE(deferrals3.size() == N);
+      for (size_t i = 0; i < N; ++i) {
+        if (video[i].type == 'I') {
+          REQUIRE(deferrals1[i] == 0);
+          REQUIRE(deferrals2[i] == 0);
+          REQUIRE(deferrals3[i] == 0);
+        }
+        else if (video[i].type == 'P') {
+          REQUIRE(deferrals1[i] == 1);
+          REQUIRE(deferrals2[i] == 1);
+          REQUIRE(deferrals3[i] == 1);
+        }
+        else {
+          if (video[i].b_defer == true) {
+            REQUIRE(deferrals1[i] == 2);
+            REQUIRE(deferrals2[i] == 2);
+            REQUIRE(deferrals3[i] == 2);
+          }
+          else {
+            REQUIRE(deferrals1[i] == 1);
+            REQUIRE(deferrals2[i] == 1);
+            REQUIRE(deferrals3[i] == 1);
+          }
+        }
+      }
+
+    }).name("test");
+
+    pipeline.precede(test);
+
+    executor.run_n(taskflow, 1, [&]() mutable {
+      collection1.clear();
+      collection2.clear();
+      collection3.clear();
+      deferrals1.clear();
+      deferrals2.clear();
+      deferrals3.clear();
+    }).get();
+  }
+}
+
+TEST_CASE("Pipeline.3P(SPP).264VideoFormat.1L.1W" * doctest::timeout(300)) {
+  pipeline_3P_SPP_264VideoFormat(1,1);
+}
+TEST_CASE("Pipeline.3P(SPP).264VideoFormat.1L.2W" * doctest::timeout(300)) {
+  pipeline_3P_SPP_264VideoFormat(1,2);
+}
+TEST_CASE("Pipeline.3P(SPP).264VideoFormat.1L.3W" * doctest::timeout(300)) {
+  pipeline_3P_SPP_264VideoFormat(1,3);
+}
+TEST_CASE("Pipeline.3P(SPP).264VideoFormat.1L.4W" * doctest::timeout(300)) {
+  pipeline_3P_SPP_264VideoFormat(1,4);
+}
+TEST_CASE("Pipeline.3P(SPP).264VideoFormat.2L.1W" * doctest::timeout(300)) {
+  pipeline_3P_SPP_264VideoFormat(2,1);
+}
+TEST_CASE("Pipeline.3P(SPP).264VideoFormat.2L.2W" * doctest::timeout(300)) {
+  pipeline_3P_SPP_264VideoFormat(2,2);
+}
+TEST_CASE("Pipeline.3P(SPP).264VideoFormat.2L.3W" * doctest::timeout(300)) {
+  pipeline_3P_SPP_264VideoFormat(2,3);
+}
+TEST_CASE("Pipeline.3P(SPP).264VideoFormat.2L.4W" * doctest::timeout(300)) {
+  pipeline_3P_SPP_264VideoFormat(2,4);
+}
+TEST_CASE("Pipeline.3P(SPP).264VideoFormat.3L.1W" * doctest::timeout(300)) {
+  pipeline_3P_SPP_264VideoFormat(3,1);
+}
+TEST_CASE("Pipeline.3P(SPP).264VideoFormat.3L.2W" * doctest::timeout(300)) {
+  pipeline_3P_SPP_264VideoFormat(3,2);
+}
+TEST_CASE("Pipeline.3P(SPP).264VideoFormat.3L.3W" * doctest::timeout(300)) {
+  pipeline_3P_SPP_264VideoFormat(3,3);
+}
+TEST_CASE("Pipeline.3P(SPP).264VideoFormat.3L.4W" * doctest::timeout(300)) {
+  pipeline_3P_SPP_264VideoFormat(3,4);
+}
+TEST_CASE("Pipeline.3P(SPP).264VideoFormat.4L.1W" * doctest::timeout(300)) {
+  pipeline_3P_SPP_264VideoFormat(4,1);
+}
+TEST_CASE("Pipeline.3P(SPP).264VideoFormat.4L.2W" * doctest::timeout(300)) {
+  pipeline_3P_SPP_264VideoFormat(4,2);
+}
+TEST_CASE("Pipeline.3P(SPP).264VideoFormat.4L.3W" * doctest::timeout(300)) {
+  pipeline_3P_SPP_264VideoFormat(4,3);
+}
+TEST_CASE("Pipeline.3P(SPP).264VideoFormat.4L.4W" * doctest::timeout(300)) {
+  pipeline_3P_SPP_264VideoFormat(4,4);
 }
 
