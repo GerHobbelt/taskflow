@@ -8,6 +8,13 @@
 #include <taskflow/cuda/algorithm/for_each.hpp>
 #include <taskflow/cuda/algorithm/transform.hpp>
 
+template <typename T>
+void run_and_wait(T& cf) {
+  tf::cudaStream stream;
+  cf.run(stream);
+  stream.synchronize();
+}
+
 //verify
 template <typename T>
 __global__
@@ -18,6 +25,14 @@ void verify(const T* a, const T* b, bool* check, size_t size) {
       *check = false;
       return;
     }
+  }
+}
+
+template <typename T>
+__global__ void k_add(T* ptr, size_t N, T value) {
+  int i = blockIdx.x*blockDim.x + threadIdx.x;
+  if (i < N) {
+    ptr[i] += value;
   }
 }
 
@@ -41,11 +56,101 @@ void multiply(const T* a, const T* b, T* c, size_t size) {
   }
 }
 
+// ----------------------------------------------------------------------------
+// Incrementality
+// ----------------------------------------------------------------------------
+TEST_CASE("cudaFlowCapturer.Incrementality") {
+
+  unsigned N = 1024;
+  
+  tf::cudaFlowCapturer cf;
+
+  // construct a cudaflow of three tasks
+  auto cpu = static_cast<int*>(std::calloc(N, sizeof(int)));
+  auto gpu = tf::cuda_malloc_device<int>(N);
+  dim3 g = {(N+255)/256, 1, 1};
+  dim3 b = {256, 1, 1};
+  auto h2d = cf.copy(gpu, cpu, N);
+  auto kernel = cf.kernel(g, b, 0, k_add<int>, gpu, N, 17);
+  auto d2h = cf.copy(cpu, gpu, N);
+  h2d.precede(kernel);
+  kernel.precede(d2h);
+
+  REQUIRE(cf.num_tasks() == 3);
+  REQUIRE(cf.empty() == false);
+  REQUIRE(cf.native_executable() == nullptr);
+  
+  // run
+  cf.run(0);
+  cudaStreamSynchronize(0);
+
+  auto native_graph = cf.native_graph();
+  auto native_executable = cf.native_executable();
+
+  REQUIRE(native_graph != nullptr);
+  REQUIRE(native_executable != nullptr);
+  REQUIRE(cf.num_tasks() == 3);
+  REQUIRE(cf.empty() == false);
+  REQUIRE(cf.native_graph() != nullptr);
+  REQUIRE(cf.native_executable() != nullptr);
+  REQUIRE(tf::cuda_graph_get_num_nodes(cf.native_graph()) == cf.num_tasks());
+
+  for(unsigned i=0; i<N; ++i) {
+    REQUIRE(cpu[i] == 17);
+  }
+  
+  // update task without changing topology and run
+  int sum = 17;
+  for(size_t j=0; j<10; j++) {
+    sum += j;
+    cf.kernel(kernel, g, b, 0, k_add<int>, gpu, N, j);
+    cf.run(0);
+    cudaStreamSynchronize(0);
+
+    auto updated_native_graph = cf.native_graph();
+    auto updated_native_executable = cf.native_executable();
+
+    REQUIRE(updated_native_graph != native_graph);
+    REQUIRE(updated_native_executable == native_executable);
+    REQUIRE(cf.num_tasks() == 3);
+    REQUIRE(cf.empty() == false);
+    REQUIRE(cf.native_graph() != nullptr);
+    REQUIRE(cf.native_executable() != nullptr);
+    REQUIRE(tf::cuda_graph_get_num_nodes(cf.native_graph()) == cf.num_tasks());
+    
+    for(unsigned i=0; i<N; ++i) {
+      REQUIRE(cpu[i] == sum);
+    }
+
+    native_graph = updated_native_graph;
+    native_executable = updated_native_executable;
+  }
+
+  // change topology and run
+  auto d2h2 = cf.copy(cpu, gpu, N);
+  d2h.precede(d2h2);
+
+  cf.run(0);
+  cudaStreamSynchronize(0);
+
+  auto updated_native_graph = cf.native_graph();
+  auto updated_native_executable = cf.native_executable();
+
+  REQUIRE(updated_native_graph != native_graph);
+  // CUDA runtime may reuse the previous executable
+  //REQUIRE(updated_native_executable == native_executable);
+  REQUIRE(cf.num_tasks() == 4);
+  REQUIRE(cf.empty() == false);
+  REQUIRE(cf.native_graph() != nullptr);
+  REQUIRE(cf.native_executable() != nullptr);
+  REQUIRE(tf::cuda_graph_get_num_nodes(cf.native_graph()) == cf.num_tasks());
+}
+
 //----------------------------------------------------------------------
 //rebind kernel
 //----------------------------------------------------------------------
 
-template <typename T>
+template <typename T, typename F>
 void rebind_kernel() {
   tf::Executor executor;
 
@@ -83,7 +188,10 @@ void rebind_kernel() {
 
     
     //rebind_kernel
-    auto add_t = taskflow.emplace([&](tf::cudaFlowCapturer& cf) {
+    auto add_t = taskflow.emplace([&]() {
+
+      F cf;
+
       auto multi_t = cf.kernel(
         32, 512, 0,
         multiply<T>,
@@ -98,7 +206,7 @@ void rebind_kernel() {
 
       multi_t.precede(add_t);
 
-      cf.offload();
+      run_and_wait(cf);
 
       cf.kernel(
         multi_t,
@@ -114,7 +222,7 @@ void rebind_kernel() {
         operand[ind[1]], operand[ind[0]], operand[ind[2]], N
       );
 
-      cf.offload();
+      run_and_wait(cf);
 
       cf.kernel(
         multi_t,
@@ -130,11 +238,14 @@ void rebind_kernel() {
         operand[ind[2]], operand[ind[1]], operand[ind[0]], N
       );
 
-      cf.offload();
+      run_and_wait(cf);
     }).name("add");
 
     //verify
-    auto verify_t = taskflow.emplace([&](tf::cudaFlowCapturer& cf) {
+    auto verify_t = taskflow.emplace([&]() {
+
+      F cf;
+
       //auto multi1_t = cf.transform(
       //  ans_operand[ind[2]],  ans_operand[ind[2]]+ N,
       //  [] __device__ (T& v1, T& v2) { return v1 * v2; },
@@ -183,24 +294,12 @@ void rebind_kernel() {
         [] __device__ (T& v1, T& v2) { return v1 + v2; }
       );
 
-      //auto multi3_t = cf.transform(
-      //  ans_operand[ind[1]],  ans_operand[ind[1]]+ N,
-      //  [] __device__ (T& v1, T& v2) { return v1 * v2; },
-      //  ans_operand[ind[0]], ans_operand[ind[2]]
-      //);
-      
       auto multi3_t = cf.transform(
         ans_operand[ind[0]], ans_operand[ind[0]] + N,  ans_operand[ind[2]],
         ans_operand[ind[1]],
         [] __device__ (T& v1, T& v2) { return v1 * v2; }
       );
 
-      //auto add3_t = cf.transform(
-      //  ans_operand[ind[0]],  ans_operand[ind[0]]+ N,
-      //  [] __device__ (T& v1, T& v2) { return v1 + v2; },
-      //  ans_operand[ind[2]], ans_operand[ind[1]]
-      //);
-      
       auto add3_t = cf.transform(
         ans_operand[ind[2]], ans_operand[ind[2]] + N, ans_operand[ind[1]],
         ans_operand[ind[0]],
@@ -232,7 +331,7 @@ void rebind_kernel() {
       multi3_t.precede(add3_t);
       add3_t.precede(verify1_t).precede(verify2_t).precede(verify3_t);
 
-      cf.offload();
+      run_and_wait(cf);
       REQUIRE(*check);
 
     }).name("verify");
@@ -258,22 +357,36 @@ void rebind_kernel() {
 
 }
 
+// cudaflow
+TEST_CASE("cudaFlow.rebind.kernel.int" * doctest::timeout(300)) {
+  rebind_kernel<int, tf::cudaFlow>();
+}
+
+TEST_CASE("cudaFlow.rebind.kernel.float" * doctest::timeout(300)) {
+  rebind_kernel<float, tf::cudaFlow>();
+}
+
+TEST_CASE("cudaFlow.rebind.kernel.double" * doctest::timeout(300)) {
+  rebind_kernel<double, tf::cudaFlow>();
+}
+
+// capturer
 TEST_CASE("cudaFlowCapturer.rebind.kernel.int" * doctest::timeout(300)) {
-  rebind_kernel<int>();
+  rebind_kernel<int, tf::cudaFlowCapturer>();
 }
 
 TEST_CASE("cudaFlowCapturer.rebind.kernel.float" * doctest::timeout(300)) {
-  rebind_kernel<float>();
+  rebind_kernel<float, tf::cudaFlowCapturer>();
 }
 
 TEST_CASE("cudaFlowCapturer.rebind.kernel.double" * doctest::timeout(300)) {
-  rebind_kernel<double>();
+  rebind_kernel<double, tf::cudaFlowCapturer>();
 }
 
 //----------------------------------------------------------------------
 //rebind copy
 //----------------------------------------------------------------------
-template <typename T>
+template <typename T, typename F>
 void rebind_copy() {
   tf::Executor executor;
 
@@ -301,19 +414,22 @@ void rebind_copy() {
 
 
     //rebind_copy
-    auto h2d_t = taskflow.emplace([&](tf::cudaFlowCapturer& cf) {
+    auto h2d_t = taskflow.emplace([&]() {
+
+      F cf;
+
       auto h2d_t = cf.copy(da, ha.data(), N).name("h2d");
-      cf.offload();
+      run_and_wait(cf);
 
       cf.copy(h2d_t, db, hb.data(), N);
-      cf.offload();
+      run_and_wait(cf);
 
       cf.copy(h2d_t, dc, hc.data(), N);
-      cf.offload();
-
+      run_and_wait(cf);
     });
 
-    auto kernel_t = taskflow.emplace([&](tf::cudaFlowCapturer& cf) {
+    auto kernel_t = taskflow.emplace([&]() {
+      F cf;
       //auto add1_t = cf.transform(
       //  dz,  dz + N,
       //  [] __device__ (T& v1, T& v2) { return v1 + v2; },
@@ -339,15 +455,19 @@ void rebind_copy() {
       );
 
       add1_t.precede(add2_t);
+
+      run_and_wait(cf);
     });
 
-    auto d2h_t = taskflow.emplace([&](tf::cudaFlowCapturer& cf) {
+    auto d2h_t = taskflow.emplace([&]() {
+
+      F cf;
+
       auto d2h_t = cf.copy(hc.data(), dc, N).name("d2h");
-      cf.offload();
+      run_and_wait(cf);
 
       cf.copy(d2h_t, hz.data(), dz, N);
-      cf.offload();
-
+      run_and_wait(cf);
     });
 
     //verify
@@ -380,23 +500,37 @@ void rebind_copy() {
   }
 }
 
+// cudaFlow
+TEST_CASE("cudaFlow.rebind.copy.int" * doctest::timeout(300)) {
+  rebind_copy<int, tf::cudaFlow>();
+}
+
+TEST_CASE("cudaFlow.rebind.copy.float" * doctest::timeout(300)) {
+  rebind_copy<float, tf::cudaFlow>();
+}
+
+TEST_CASE("cudaFlow.rebind.copy.double" * doctest::timeout(300)) {
+  rebind_copy<double, tf::cudaFlow>();
+}
+
+// cudaFlowCapturer
 TEST_CASE("cudaFlowCapturer.rebind.copy.int" * doctest::timeout(300)) {
-  rebind_copy<int>();
+  rebind_copy<int, tf::cudaFlowCapturer>();
 }
 
 TEST_CASE("cudaFlowCapturer.rebind.copy.float" * doctest::timeout(300)) {
-  rebind_copy<float>();
+  rebind_copy<float, tf::cudaFlowCapturer>();
 }
 
 TEST_CASE("cudaFlowCapturer.rebind.copy.double" * doctest::timeout(300)) {
-  rebind_copy<double>();
+  rebind_copy<double, tf::cudaFlowCapturer>();
 }
 
 
 //----------------------------------------------------------------------
-//rebind memcpy
+// rebind memcpy
 //----------------------------------------------------------------------
-template <typename T>
+template <typename T, typename F>
 void rebind_memcpy() {
   tf::Executor executor;
 
@@ -424,24 +558,23 @@ void rebind_memcpy() {
 
 
     //rebind_memcpy
-    auto h2d_t = taskflow.emplace([&](tf::cudaFlowCapturer& cf) {
+    auto h2d_t = taskflow.emplace([&]() {
+
+      F cf;
+
       auto h2d_t = cf.memcpy(da, ha.data(), sizeof(T) * N).name("h2d");
-      cf.offload();
+      run_and_wait(cf);
 
       cf.memcpy(h2d_t, db, hb.data(), sizeof(T) * N);
-      cf.offload();
+      run_and_wait(cf);
 
       cf.memcpy(h2d_t, dc, hc.data(), sizeof(T) * N);
-      cf.offload();
+      run_and_wait(cf);
 
     });
 
-    auto kernel_t = taskflow.emplace([&](tf::cudaFlowCapturer& cf) {
-      //auto add1_t = cf.transform(
-      //  dz,  dz + N,
-      //  [] __device__ (T& v1, T& v2) { return v1 + v2; },
-      //  da, db
-      //);
+    auto kernel_t = taskflow.emplace([&]() {
+      F cf;
       
       auto add1_t = cf.transform(
         da, da + N, db,
@@ -449,12 +582,6 @@ void rebind_memcpy() {
         [] __device__ (T& v1, T& v2) { return v1 + v2; }
       );
 
-      //auto add2_t = cf.transform(
-      //  dc,  dc + N,
-      //  [] __device__ (T& v1, T& v2) { return v1 - v2; },
-      //  dc, dz
-      //);
-      
       auto add2_t = cf.transform(
         dc, dc + N, dz,
         dc,
@@ -462,15 +589,15 @@ void rebind_memcpy() {
       );
 
       add1_t.precede(add2_t);
+      run_and_wait(cf);
     });
 
-    auto d2h_t = taskflow.emplace([&](tf::cudaFlowCapturer& cf) {
+    auto d2h_t = taskflow.emplace([&]() {
+      F cf;
       auto d2h_t = cf.memcpy(hc.data(), dc, sizeof(T) * N).name("d2h");
-      cf.offload();
-
+      run_and_wait(cf);
       cf.memcpy(d2h_t, hz.data(), dz, sizeof(T) * N);
-      cf.offload();
-
+      run_and_wait(cf);
     });
 
     //verify
@@ -503,22 +630,36 @@ void rebind_memcpy() {
   }
 }
 
+// cudaflow
+TEST_CASE("cudaFlow.rebind.memcpy.int" * doctest::timeout(300)) {
+  rebind_memcpy<int, tf::cudaFlow>();
+}
+
+TEST_CASE("cudaFlow.rebind.memcpy.float" * doctest::timeout(300)) {
+  rebind_memcpy<float, tf::cudaFlow>();
+}
+
+TEST_CASE("cudaFlow.rebind.memcpy.double" * doctest::timeout(300)) {
+  rebind_memcpy<double, tf::cudaFlow>();
+}
+
+// capturer
 TEST_CASE("cudaFlowCapturer.rebind.memcpy.int" * doctest::timeout(300)) {
-  rebind_memcpy<int>();
+  rebind_memcpy<int, tf::cudaFlowCapturer>();
 }
 
 TEST_CASE("cudaFlowCapturer.rebind.memcpy.float" * doctest::timeout(300)) {
-  rebind_memcpy<float>();
+  rebind_memcpy<float, tf::cudaFlowCapturer>();
 }
 
 TEST_CASE("cudaFlowCapturer.rebind.memcpy.double" * doctest::timeout(300)) {
-  rebind_memcpy<double>();
+  rebind_memcpy<double, tf::cudaFlowCapturer>();
 }
 
 //----------------------------------------------------------------------
 //rebind memset
 //----------------------------------------------------------------------
-template <typename T>
+template <typename T, typename F>
 void rebind_memset() {
 
   tf::Executor executor;
@@ -559,19 +700,21 @@ void rebind_memset() {
     }).name("initialize"); 
 
     //rebind_memset
-    auto memset_t = taskflow.emplace([&](tf::cudaFlowCapturer& cf) {
+    auto memset_t = taskflow.emplace([&]() {
+      F cf;
       auto memset_t = cf.memset(ans_a, 0, N * sizeof(T));
-      cf.offload();
+      run_and_wait(cf);
 
       cf.memset(memset_t, a, 0, N * sizeof(T));
-      cf.offload();
+      run_and_wait(cf);
 
       cf.memset(memset_t, b, 1, (N + 37) * sizeof(T));
-      cf.offload();
+      run_and_wait(cf);
     }).name("memset");
 
     //verify
-    auto verify_t = taskflow.emplace([&](tf::cudaFlowCapturer& cf) {
+    auto verify_t = taskflow.emplace([&]() {
+      F cf;
       cf.kernel(
         32, 512, 0,
         verify<T>,
@@ -584,7 +727,8 @@ void rebind_memset() {
         b, ans_b, check, N + 37
       );
 
-      cf.offload();
+      run_and_wait(cf);
+
       REQUIRE(*check);
     }).name("verify");
 
@@ -606,16 +750,30 @@ void rebind_memset() {
   }
 }
 
+// cudaflow
+TEST_CASE("cudaFlow.rebind.memset.int" * doctest::timeout(300)) {
+  rebind_memset<int, tf::cudaFlow>();
+}
+
+TEST_CASE("cudaFlow.rebind.memset.float" * doctest::timeout(300)) {
+  rebind_memset<float, tf::cudaFlow>();
+}
+
+TEST_CASE("cudaFlow.rebind.memset.double" * doctest::timeout(300)) {
+  rebind_memset<double, tf::cudaFlow>();
+}
+
+// capturer
 TEST_CASE("cudaFlowCapturer.rebind.memset.int" * doctest::timeout(300)) {
-  rebind_memset<int>();
+  rebind_memset<int, tf::cudaFlowCapturer>();
 }
 
 TEST_CASE("cudaFlowCapturer.rebind.memset.float" * doctest::timeout(300)) {
-  rebind_memset<float>();
+  rebind_memset<float, tf::cudaFlowCapturer>();
 }
 
 TEST_CASE("cudaFlowCapturer.rebind.memset.double" * doctest::timeout(300)) {
-  rebind_memset<double>();
+  rebind_memset<double, tf::cudaFlowCapturer>();
 }
 
 // ----------------------------------------------------------------------------
@@ -635,7 +793,7 @@ TEST_CASE("cudaFlowCapturer.rebind.algorithms") {
     }
   );
 
-  capturer.offload();
+  run_and_wait(capturer);
 
   for(int i=0; i<10000; i++) {
     REQUIRE(data[i] == 10);
@@ -645,7 +803,7 @@ TEST_CASE("cudaFlowCapturer.rebind.algorithms") {
   // rebind to single task
   capturer.single_task(task, [=] __device__ () {*data = 2;});
 
-  capturer.offload();
+  run_and_wait(capturer);
   
   REQUIRE(*data == 2);
   for(int i=1; i<10000; i++) {
@@ -660,39 +818,17 @@ TEST_CASE("cudaFlowCapturer.rebind.algorithms") {
     }
   );
 
-  capturer.offload();
+  run_and_wait(capturer);
   
   for(int i=0; i<10000; i++) {
     REQUIRE(data[i] == -23);
   }
   REQUIRE(capturer.num_tasks() == 1);
 
-  // rebind to reduce
-  *res = 10;
-  capturer.reduce(task, data, data + 10000, res, 
-    []__device__(int a, int b){ return a + b; }
-  );
-
-  capturer.offload();
-
-  REQUIRE(*res == -229990);
-  REQUIRE(capturer.num_tasks() == 1);
-  
-  // rebind to uninitialized reduce
-  capturer.uninitialized_reduce(task, data, data + 10000, res, 
-    []__device__(int a, int b){ return a + b; }
-  );
-
-  capturer.offload();
-
-  REQUIRE(*res == -230000);
-  REQUIRE(capturer.num_tasks() == 1);
-  
   // rebind to single task
   capturer.single_task(task, [res]__device__(){ *res = 999; });
-  REQUIRE(*res == -230000);
 
-  capturer.offload();
+  run_and_wait(capturer);
   REQUIRE(*res == 999);
   REQUIRE(capturer.num_tasks() == 1);
 
@@ -700,7 +836,7 @@ TEST_CASE("cudaFlowCapturer.rebind.algorithms") {
   capturer.clear();
   REQUIRE(capturer.num_tasks() == 0);
 
-  capturer.offload();
+  run_and_wait(capturer);
   REQUIRE(*res == 999);
   for(int i=0; i<10000; i++) {
     REQUIRE(data[i] == -23);

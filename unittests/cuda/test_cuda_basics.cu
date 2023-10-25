@@ -33,6 +33,13 @@ __global__ void k_single_add(T* ptr, int i, T value) {
   ptr[i] += value;
 }
 
+template <typename T>
+void run_and_wait(T& cf) {
+  tf::cudaStream stream;
+  cf.run(stream);
+  stream.synchronize();
+}
+
 // --------------------------------------------------------
 // Testcase: Empty
 // --------------------------------------------------------
@@ -44,15 +51,18 @@ void empty() {
   tf::Taskflow taskflow;
   tf::Executor executor;
 
-  taskflow.emplace([&](T&){ 
+  taskflow.emplace([&](){ 
+    T tf;
     ++counter; 
   });
   
-  taskflow.emplace([&](T&){ 
+  taskflow.emplace([&](){ 
+    T tf;
     ++counter; 
   });
   
-  taskflow.emplace([&](T&){ 
+  taskflow.emplace([&](){ 
+    T tf;
     ++counter; 
   });
 
@@ -69,13 +79,130 @@ TEST_CASE("EmptyCapture" * doctest::timeout(300)) {
   empty<tf::cudaFlowCapturer>();
 }
 
-// --------------------------------------------------------
+// ----------------------------------------------------------------------------
+// Move Semantics
+// ----------------------------------------------------------------------------
+
+template <typename F>
+void move_semantics() {
+
+  unsigned N = 1024;
+  
+  F rhs;
+
+  REQUIRE(rhs.num_tasks() == 0);
+  REQUIRE(rhs.empty());
+  REQUIRE(rhs.native_executable() == nullptr);
+
+  // construct a cudaflow of three tasks
+  auto cpu = static_cast<int*>(std::calloc(N, sizeof(int)));
+  auto gpu = tf::cuda_malloc_device<int>(N);
+  dim3 g = {(N+255)/256, 1, 1};
+  dim3 b = {256, 1, 1};
+  auto h2d = rhs.copy(gpu, cpu, N);
+  auto kernel = rhs.kernel(g, b, 0, k_add<int>, gpu, N, 17);
+  auto d2h = rhs.copy(cpu, gpu, N);
+  h2d.precede(kernel);
+  kernel.precede(d2h);
+
+  REQUIRE(rhs.num_tasks() == 3);
+  REQUIRE(rhs.empty() == false);
+  REQUIRE(rhs.native_executable() == nullptr);
+  
+  // construct a rhs
+  F lhs( std::move(rhs) );
+
+  REQUIRE(rhs.num_tasks() == 0);
+  REQUIRE(rhs.empty());
+  REQUIRE(rhs.native_executable() == nullptr);
+  
+  REQUIRE(lhs.num_tasks() == 3);
+  REQUIRE(lhs.empty() == false);
+  REQUIRE(lhs.native_executable() == nullptr);
+
+  // assign lhs to rhs using move semantics
+  rhs = std::move(lhs);
+  
+  REQUIRE(lhs.num_tasks() == 0);
+  REQUIRE(lhs.empty());
+  REQUIRE(lhs.native_executable() == nullptr);
+  
+  REQUIRE(rhs.num_tasks() == 3);
+  REQUIRE(rhs.empty() == false);
+  REQUIRE(rhs.native_executable() == nullptr);
+
+  // run
+  rhs.run(0);
+  cudaStreamSynchronize(0);
+
+  auto native_graph = rhs.native_graph();
+  auto native_executable = rhs.native_executable();
+
+  REQUIRE(native_graph != nullptr);
+  REQUIRE(native_executable != nullptr);
+  REQUIRE(rhs.num_tasks() == 3);
+  REQUIRE(rhs.empty() == false);
+  REQUIRE(rhs.native_graph() != nullptr);
+  REQUIRE(rhs.native_executable() != nullptr);
+  REQUIRE(tf::cuda_graph_get_num_nodes(rhs.native_graph()) == rhs.num_tasks());
+  
+  for(unsigned i=0; i<N; ++i) {
+    REQUIRE(cpu[i] == 17);
+  }
+
+  // assign rhs to lhs using move semantics
+  lhs = std::move(rhs);
+  
+  REQUIRE(lhs.num_tasks() == 3);
+  REQUIRE(lhs.empty() == false);
+  REQUIRE(lhs.native_graph() == native_graph);
+  REQUIRE(lhs.native_executable() == native_executable);
+  REQUIRE(tf::cuda_graph_get_num_nodes(lhs.native_graph()) == lhs.num_tasks());
+  
+  REQUIRE(rhs.num_tasks() == 0);
+  REQUIRE(rhs.empty());
+  REQUIRE(rhs.native_graph() == nullptr);
+  REQUIRE(rhs.native_executable() == nullptr);
+
+  // run the flow again
+  for(size_t j=2; j<=10; j++) {
+
+    lhs.run(0);
+    cudaStreamSynchronize(0);
+    
+    for(unsigned i=0; i<N; ++i) {
+      REQUIRE(cpu[i] == j*17);
+    }
+    
+    REQUIRE(lhs.num_tasks() == 3);
+    REQUIRE(lhs.empty() == false);
+    REQUIRE(lhs.native_graph() == native_graph);
+    REQUIRE(lhs.native_executable() == native_executable);
+    REQUIRE(tf::cuda_graph_get_num_nodes(lhs.native_graph()) == lhs.num_tasks());
+    
+    REQUIRE(rhs.num_tasks() == 0);
+    REQUIRE(rhs.empty());
+    REQUIRE(rhs.native_graph() == nullptr);
+    REQUIRE(rhs.native_executable() == nullptr);
+  }
+}
+
+TEST_CASE("cudaFlow.MoveSemantics" * doctest::timeout(300)) {
+  move_semantics<tf::cudaFlow>();
+}
+
+TEST_CASE("cudaFlowCapturer.MoveSemantics" * doctest::timeout(300)) {
+  move_semantics<tf::cudaFlowCapturer>();
+}
+
+// ----------------------------------------------------------------------------
 // Standalone
-// --------------------------------------------------------
+// ----------------------------------------------------------------------------
 template <typename T>
 void standalone() {
 
   T cf;
+  tf::cudaStream stream;
   REQUIRE(cf.empty());
 
   unsigned N = 1024;
@@ -95,12 +222,17 @@ void standalone() {
     REQUIRE(cpu[i] == 0);
   }
 
-  cf.offload();
+  cf.run(stream);
+  stream.synchronize();
   for(unsigned i=0; i<N; ++i) {
     REQUIRE(cpu[i] == 17);
   }
   
-  cf.offload_n(9);
+  for(size_t i=0; i<9; i++) {
+    cf.run(stream);
+  }
+  stream.synchronize();
+
   for(unsigned i=0; i<N; ++i) {
     REQUIRE(cpu[i] == 170);
   }
@@ -117,16 +249,20 @@ TEST_CASE("Standalone.cudaCapturer") {
   standalone<tf::cudaFlowCapturer>();
 }
 
+
+
 // --------------------------------------------------------
 // Testcase: Set
 // --------------------------------------------------------
 template <typename T>
 void set() {
+    
+  tf::Executor executor;
+  tf::Taskflow taskflow;
 
   for(unsigned n=1; n<=123456; n = n*2 + 1) {
 
-    tf::Taskflow taskflow;
-    tf::Executor executor;
+    taskflow.clear();
     
     T* cpu = nullptr;
     T* gpu = nullptr;
@@ -136,14 +272,16 @@ void set() {
       REQUIRE(cudaMalloc(&gpu, n*sizeof(T)) == cudaSuccess);
     });
 
-    auto gputask = taskflow.emplace([&](tf::cudaFlow& cf) {
-      dim3 g = {(n+255)/256, 1, 1};
-      dim3 b = {256, 1, 1};
+    auto gputask = taskflow.emplace([&]() {
+      tf::cudaFlow cf;
       auto h2d = cf.copy(gpu, cpu, n);
-      auto kernel = cf.kernel(g, b, 0, k_set<T>, gpu, n, (T)17);
+      auto kernel = cf.kernel((n+255)/256, 256, 0, k_set<T>, gpu, n, (T)17);
       auto d2h = cf.copy(cpu, gpu, n);
       h2d.precede(kernel);
       kernel.precede(d2h);
+      run_and_wait(cf);
+
+      REQUIRE(cf.num_tasks() == tf::cuda_graph_get_num_nodes(cf.native_graph()));
     });
 
     cputask.precede(gputask);
@@ -190,7 +328,8 @@ void add() {
       REQUIRE(cudaMalloc(&gpu, n*sizeof(T)) == cudaSuccess);
     });
     
-    auto gputask = taskflow.emplace([&](tf::cudaFlow& cf){
+    auto gputask = taskflow.emplace([&](){
+      tf::cudaFlow cf;
       dim3 g = {(n+255)/256, 1, 1};
       dim3 b = {256, 1, 1};
       auto h2d = cf.copy(gpu, cpu, n);
@@ -204,6 +343,8 @@ void add() {
       ad2.precede(ad3);
       ad3.precede(ad4);
       ad4.precede(d2h);
+      run_and_wait(cf);
+      REQUIRE(cf.num_tasks() == tf::cuda_graph_get_num_nodes(cf.native_graph()));
     });
 
     cputask.precede(gputask);
@@ -256,7 +397,8 @@ void bset() {
     REQUIRE(cudaMalloc(&gpu, n*sizeof(T)) == cudaSuccess);
   });
 
-  auto gputask = taskflow.emplace([&](F& cf) {
+  auto gputask = taskflow.emplace([&]() {
+    F cf;
     dim3 g = {1, 1, 1};
     dim3 b = {1, 1, 1};
     auto h2d = cf.copy(gpu, cpu, n);
@@ -275,6 +417,9 @@ void bset() {
       tasks[i].precede(d2h);
       h2d.precede(tasks[i]);
     }
+
+    run_and_wait(cf);
+    REQUIRE(cf.num_tasks() == tf::cuda_graph_get_num_nodes(cf.native_graph()));
   });
 
   cputask.precede(gputask);
@@ -338,7 +483,8 @@ void memset() {
       cpu[i] = 999;
     }
     
-    taskflow.emplace([&](F& cf){
+    taskflow.emplace([&](){
+      F cf;
       dim3 g = {(unsigned)(N+255)/256, 1, 1};
       dim3 b = {256, 1, 1};
       auto kset = cf.kernel(g, b, 0, k_set<int>, gpu, N, 123);
@@ -346,6 +492,8 @@ void memset() {
       auto zero = cf.memset(gpu+start, 0x3f, (N-start)*sizeof(int));
       kset.precede(zero);
       zero.precede(copy);
+      run_and_wait(cf);
+      REQUIRE(cf.num_tasks() == tf::cuda_graph_get_num_nodes(cf.native_graph()));
     });
     
     executor.run(taskflow).wait();
@@ -394,7 +542,8 @@ void memset0() {
       cpu[i] = (T)999;
     }
     
-    taskflow.emplace([&](F& cf){
+    taskflow.emplace([&](){
+      F cf;
       dim3 g = {(unsigned)(N+255)/256, 1, 1};
       dim3 b = {256, 1, 1};
       auto kset = cf.kernel(g, b, 0, k_set<T>, gpu, N, (T)123);
@@ -402,6 +551,8 @@ void memset0() {
       auto copy = cf.copy(cpu, gpu, N);
       kset.precede(zero);
       zero.precede(copy);
+      run_and_wait(cf);
+      REQUIRE(cf.num_tasks() == tf::cuda_graph_get_num_nodes(cf.native_graph()));
     });
     
     executor.run(taskflow).wait();
@@ -482,7 +633,8 @@ void memcpy() {
       cpu[i] = (T)999;
     }
     
-    taskflow.emplace([&](F& cf){
+    taskflow.emplace([&](){
+      F cf;
       dim3 g = {(unsigned)(N+255)/256, 1, 1};
       dim3 b = {256, 1, 1};
       auto kset = cf.kernel(g, b, 0, k_set<T>, gpu, N, (T)123);
@@ -490,6 +642,8 @@ void memcpy() {
       auto copy = cf.memcpy(cpu, gpu, N*sizeof(T));
       kset.precede(zero);
       zero.precede(copy);
+      run_and_wait(cf);
+      REQUIRE(cf.num_tasks() == tf::cuda_graph_get_num_nodes(cf.native_graph()));
     });
     
     executor.run(taskflow).wait();
@@ -570,7 +724,10 @@ void fill(T value) {
       cpu[i] = (T)999;
     }
     
-    taskflow.emplace([&](tf::cudaFlow& cf){
+    taskflow.emplace([&](){
+
+      tf::cudaFlow cf;
+
       dim3 g = {(unsigned)(N+255)/256, 1, 1};
       dim3 b = {256, 1, 1};
       auto kset = cf.kernel(g, b, 0, k_set<T>, gpu, N, (T)123);
@@ -578,6 +735,9 @@ void fill(T value) {
       auto copy = cf.copy(cpu, gpu, N);
       kset.precede(fill);
       fill.precede(copy);
+
+      run_and_wait(cf);
+      REQUIRE(cf.num_tasks() == tf::cuda_graph_get_num_nodes(cf.native_graph()));
     });
     
     executor.run(taskflow).wait();
@@ -638,7 +798,10 @@ void zero() {
       cpu[i] = (T)999;
     }
     
-    taskflow.emplace([&](tf::cudaFlow& cf){
+    taskflow.emplace([&](){
+
+      tf::cudaFlow cf;
+
       dim3 g = {(unsigned)(N+255)/256, 1, 1};
       dim3 b = {256, 1, 1};
       auto kset = cf.kernel(g, b, 0, k_set<T>, gpu, N, (T)123);
@@ -646,6 +809,9 @@ void zero() {
       auto copy = cf.copy(cpu, gpu, N);
       kset.precede(zero);
       zero.precede(copy);
+
+      run_and_wait(cf);
+      REQUIRE(cf.num_tasks() == tf::cuda_graph_get_num_nodes(cf.native_graph()));
     });
     
     executor.run(taskflow).wait();
@@ -697,7 +863,9 @@ void barrier() {
     REQUIRE(cudaMalloc(&gpu, n*sizeof(T)) == cudaSuccess);
   });
 
-  auto gputask = taskflow.emplace([&](tf::cudaFlow& cf) {
+  auto gputask = taskflow.emplace([&]() {
+    
+    tf::cudaFlow cf;
 
     dim3 g = {1, 1, 1};
     dim3 b = {1, 1, 1};
@@ -720,6 +888,9 @@ void barrier() {
     }
 
     br3.precede(d2h);
+
+    run_and_wait(cf);
+    REQUIRE(cf.num_tasks() == tf::cuda_graph_get_num_nodes(cf.native_graph()));
   });
 
   cputask.precede(gputask);
@@ -769,18 +940,27 @@ void nested_runs() {
     void run(int* cpu, int* gpu, unsigned n) {
       taskflow.clear();
 
-      auto A1 = taskflow.emplace([&](F& cf) {  
+      auto A1 = taskflow.emplace([&]() {  
+        F cf;
         cf.copy(gpu, cpu, n);
+        run_and_wait(cf);
+        REQUIRE(cf.num_tasks() == tf::cuda_graph_get_num_nodes(cf.native_graph()));
       });
 
-      auto A2 = taskflow.emplace([&](F& cf) { 
+      auto A2 = taskflow.emplace([&]() { 
+        F cf;
         dim3 g = {(n+255)/256, 1, 1};
         dim3 b = {256, 1, 1};
         cf.kernel(g, b, 0, k_add<int>, gpu, n, 1);
+        run_and_wait(cf);
+        REQUIRE(cf.num_tasks() == tf::cuda_graph_get_num_nodes(cf.native_graph()));
       });
 
-      auto A3 = taskflow.emplace([&] (F& cf) {
+      auto A3 = taskflow.emplace([&] () {
+        F cf;
         cf.copy(cpu, gpu, n);
+        run_and_wait(cf);
+        REQUIRE(cf.num_tasks() == tf::cuda_graph_get_num_nodes(cf.native_graph()));
       });
 
       A1.precede(A2);
@@ -803,7 +983,8 @@ void nested_runs() {
       taskflow.clear();
       
       auto B0 = taskflow.emplace([] () {});
-      auto B1 = taskflow.emplace([&] (F& cf) { 
+      auto B1 = taskflow.emplace([&] () { 
+        F cf;
         dim3 g = {(n+255)/256, 1, 1};
         dim3 b = {256, 1, 1};
         auto h2d = cf.copy(gpu, cpu, n);
@@ -811,9 +992,11 @@ void nested_runs() {
         auto d2h = cf.copy(cpu, gpu, n);
         h2d.precede(kernel);
         kernel.precede(d2h);
+        run_and_wait(cf);
+        REQUIRE(cf.num_tasks() == tf::cuda_graph_get_num_nodes(cf.native_graph()));
       });
       auto B2 = taskflow.emplace([&] () { a.run(cpu, gpu, n); });
-      auto B3 = taskflow.emplace([&] (F&) { 
+      auto B3 = taskflow.emplace([&] () { 
         for(unsigned i=0; i<n; ++i) {
           cpu[i]++;
         }
@@ -1005,7 +1188,8 @@ void multiruns(unsigned N, unsigned M) {
       REQUIRE(cudaMalloc(&gpu[k], n*sizeof(int)) == cudaSuccess);
     });
     
-    auto gputask = taskflow.emplace([&, k, number](tf::cudaFlow& cf) {
+    auto gputask = taskflow.emplace([&, k, number]() {
+      tf::cudaFlow cf;
       dim3 g = {(n+255)/256, 1, 1};
       dim3 b = {256, 1, 1};
       auto h2d = cf.copy(gpu[k], cpu[k], n);
@@ -1013,6 +1197,8 @@ void multiruns(unsigned N, unsigned M) {
       auto d2h = cf.copy(cpu[k], gpu[k], n);
       h2d.precede(kernel);
       kernel.precede(d2h);
+      run_and_wait(cf);
+      REQUIRE(cf.num_tasks() == tf::cuda_graph_get_num_nodes(cf.native_graph()));
     });
 
     auto chktask = taskflow.emplace([&, k, number] () {
@@ -1114,7 +1300,8 @@ void subflow() {
       REQUIRE(cudaMalloc(&gpu, n*sizeof(int)) == cudaSuccess);
     });
     
-    auto gputask = sf.emplace([&](F& cf) {
+    auto gputask = sf.emplace([&]() {
+      F cf;
       dim3 g = {(n+255)/256, 1, 1};
       dim3 b = {256, 1, 1};
       auto h2d = cf.copy(gpu, cpu, n);
@@ -1122,6 +1309,8 @@ void subflow() {
       auto d2h = cf.copy(cpu, gpu, n);
       h2d.precede(kernel);
       kernel.precede(d2h);
+      run_and_wait(cf);
+      REQUIRE(cf.num_tasks() == tf::cuda_graph_get_num_nodes(cf.native_graph()));
     });
 
     cputask.precede(gputask);
@@ -1171,7 +1360,8 @@ void nested_subflow() {
 
   auto partask = taskflow.emplace([&](tf::Subflow& sf){
     
-    auto gputask1 = sf.emplace([&](F& cf) {
+    auto gputask1 = sf.emplace([&]() {
+      F cf;
       dim3 g = {(n+255)/256, 1, 1};
       dim3 b = {256, 1, 1};
       auto h2d = cf.copy(gpu, cpu, n);
@@ -1179,10 +1369,13 @@ void nested_subflow() {
       auto d2h = cf.copy(cpu, gpu, n);
       h2d.precede(kernel);
       kernel.precede(d2h);
+      run_and_wait(cf);
+      REQUIRE(cf.num_tasks() == tf::cuda_graph_get_num_nodes(cf.native_graph()));
     });
 
     auto subtask1 = sf.emplace([&](tf::Subflow& sf) {
-      auto gputask2 = sf.emplace([&](F& cf) {
+      auto gputask2 = sf.emplace([&]() {
+        F cf;
         dim3 g = {(n+255)/256, 1, 1};
         dim3 b = {256, 1, 1};
         auto h2d = cf.copy(gpu, cpu, n);
@@ -1190,10 +1383,13 @@ void nested_subflow() {
         auto d2h = cf.copy(cpu, gpu, n);
         h2d.precede(kernel);
         kernel.precede(d2h);
+        run_and_wait(cf);
+        REQUIRE(cf.num_tasks() == tf::cuda_graph_get_num_nodes(cf.native_graph()));
       });
       
       auto subtask2 = sf.emplace([&](tf::Subflow& sf){
-        sf.emplace([&](F& cf) {
+        sf.emplace([&]() {
+          F cf;
           dim3 g = {(n+255)/256, 1, 1};
           dim3 b = {256, 1, 1};
           auto h2d = cf.copy(gpu, cpu, n);
@@ -1201,6 +1397,8 @@ void nested_subflow() {
           auto d2h = cf.copy(cpu, gpu, n);
           h2d.precede(kernel);
           kernel.precede(d2h);
+          run_and_wait(cf);
+          REQUIRE(cf.num_tasks() == tf::cuda_graph_get_num_nodes(cf.native_graph()));
         });
       });
 
@@ -1256,7 +1454,8 @@ void detached_subflow() {
       REQUIRE(cudaMalloc(&gpu, n*sizeof(int)) == cudaSuccess);
     });
     
-    auto gputask = sf.emplace([&](F& cf) {
+    auto gputask = sf.emplace([&]() {
+      F cf;
       dim3 g = {(n+255)/256, 1, 1};
       dim3 b = {256, 1, 1};
       auto h2d = cf.copy(gpu, cpu, n);
@@ -1264,6 +1463,8 @@ void detached_subflow() {
       auto d2h = cf.copy(cpu, gpu, n);
       h2d.precede(kernel);
       kernel.precede(d2h);
+      run_and_wait(cf);
+      REQUIRE(cf.num_tasks() == tf::cuda_graph_get_num_nodes(cf.native_graph()));
     });
 
     cputask.precede(gputask);
@@ -1308,7 +1509,8 @@ void loop() {
     REQUIRE(cudaMalloc(&gpu, n*sizeof(int)) == cudaSuccess);
   });
 
-  auto gputask = taskflow.emplace([&](F& cf) {
+  auto gputask = taskflow.emplace([&]() {
+    F cf;
     dim3 g = {(n+255)/256, 1, 1};
     dim3 b = {256, 1, 1};
     auto h2d = cf.copy(gpu, cpu, n);
@@ -1316,6 +1518,8 @@ void loop() {
     auto d2h = cf.copy(cpu, gpu, n);
     h2d.precede(kernel);
     kernel.precede(d2h);
+    run_and_wait(cf);
+    REQUIRE(cf.num_tasks() == tf::cuda_graph_get_num_nodes(cf.native_graph()));
   });
 
   auto condition = taskflow.emplace([&cpu, round=0] () mutable {
@@ -1367,13 +1571,19 @@ TEST_CASE("Predicate") {
     REQUIRE(cudaMemcpy(gpu, cpu, n*sizeof(int), cudaMemcpyHostToDevice) == cudaSuccess);
   });
 
-  auto gputask = taskflow.emplace([&](tf::cudaFlow& cf) {
+  auto gputask = taskflow.emplace([&]() {
+    tf::cudaFlow cf;
     dim3 g = {(n+255)/256, 1, 1};
     dim3 b = {256, 1, 1};
     auto kernel = cf.kernel(g, b, 0, k_add<int>, gpu, n, 1);
     auto copy = cf.copy(cpu, gpu, n);
     kernel.precede(copy);
-    cf.offload_until([i=100]() mutable { return i-- == 0; });
+
+    tf::cudaStream stream;
+    for(int i=0; i<100; i++) {
+      cf.run(stream);
+    }
+    stream.synchronize();
   });
 
   auto freetask = taskflow.emplace([&](){
@@ -1410,13 +1620,19 @@ TEST_CASE("Repeat") {
     REQUIRE(cudaMemcpy(gpu, cpu, n*sizeof(int), cudaMemcpyHostToDevice) == cudaSuccess);
   });
 
-  auto gputask = taskflow.emplace([&](tf::cudaFlow& cf) {
+  auto gputask = taskflow.emplace([&]() {
+    tf::cudaFlow cf;
     dim3 g = {(n+255)/256, 1, 1};
     dim3 b = {256, 1, 1};
     auto kernel = cf.kernel(g, b, 0, k_add<int>, gpu, n, 1);
     auto copy = cf.copy(cpu, gpu, n);
     kernel.precede(copy);
-    cf.offload_n(100);
+    
+    tf::cudaStream stream;
+    for(int i=0; i<100; i++) {
+      cf.run(stream);
+    }
+    stream.synchronize();
   });
 
   auto freetask = taskflow.emplace([&](){
