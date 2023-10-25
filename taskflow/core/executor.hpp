@@ -59,23 +59,15 @@ class Executor {
   /**
   @brief constructs the executor with @c N worker threads
 
-
-  @param N number of workers (default std::thread::hardware_concurrency)
-  @param wix worker interface class to alter worker (thread) behaviors
+  @param N the number of workers (default std::thread::hardware_concurrency)
   
   The constructor spawns @c N worker threads to run tasks in a
   work-stealing loop. The number of workers must be greater than zero
   or an exception will be thrown.
   By default, the number of worker threads is equal to the maximum
   hardware concurrency returned by std::thread::hardware_concurrency.
-
-  Users can alter the worker behavior, such as changing thread affinity,
-  via deriving an instance from tf::WorkerInterface.
   */
-  explicit Executor(
-    size_t N = std::thread::hardware_concurrency(),
-    std::shared_ptr<WorkerInterface> wix = nullptr 
-  );
+  explicit Executor(size_t N = std::thread::hardware_concurrency());
 
   /**
   @brief destructs the executor
@@ -1043,7 +1035,7 @@ class Executor {
 
 #ifdef __cpp_lib_atomic_wait
   std::atomic<size_t> _num_topologies {0};
-  std::atomic_flag _all_spawned {false};
+  std::atomic_flag _all_spawned = ATOMIC_FLAG_INIT;
 #else
   std::condition_variable _topology_cv;
   std::mutex _topology_mutex;
@@ -1061,7 +1053,6 @@ class Executor {
 
   std::atomic<bool> _done {0};
 
-  std::shared_ptr<WorkerInterface> _worker_interface;
   std::unordered_set<std::shared_ptr<ObserverInterface>> _observers;
 
   Worker* _this_worker();
@@ -1105,13 +1096,27 @@ class Executor {
   void _corun_until(Worker&, P&&);
 };
 
+#ifdef TF_DISABLE_EXCEPTION_HANDLING
+
+#define TF_EXECUTOR_EXCEPTION_HANDLER(worker, node, code_block) \
+    do { code_block; } while(0)
+#else
+
+#define TF_EXECUTOR_EXCEPTION_HANDLER(worker, node, code_block)  \
+    try {                                            \
+        code_block;                                  \
+    } catch(...) {                                   \
+        _process_exception(worker, node);            \
+    }
+#endif
+
+
 // Constructor
-inline Executor::Executor(size_t N, std::shared_ptr<WorkerInterface> wix) :
+inline Executor::Executor(size_t N) :
   _MAX_STEALS {((N+1) << 1)},
   _threads    {N},
   _workers    {N},
-  _notifier   {N},
-  _worker_interface {std::move(wix)} {
+  _notifier   {N} {
 
   if(N == 0) {
     TF_THROW("no cpu workers to execute taskflows");
@@ -1209,35 +1214,15 @@ inline void Executor::_spawn(size_t N) {
 
       Node* t = nullptr;
       
-      // before entering the scheduler (work-stealing loop), 
-      // call the user-specified prologue function
-      if(_worker_interface) {
-        _worker_interface->scheduler_prologue(w);
-      }
-      
-      // must use 1 as condition instead of !done because
-      // the previous worker may stop while the following workers
-      // are still preparing for entering the scheduling loop
-      std::exception_ptr ptr{nullptr};
-      try {
-        while(1) {
+      while(1) {
 
-          // execute the tasks.
-          _exploit_task(w, t);
+        // execute the tasks.
+        _exploit_task(w, t);
 
-          // wait for tasks
-          if(_wait_for_task(w, t) == false) {
-            break;
-          }
+        // wait for tasks
+        if(_wait_for_task(w, t) == false) {
+          break;
         }
-      } 
-      catch(...) {
-        ptr = std::current_exception();
-      }
-      
-      // call the user-specified epilogue function
-      if(_worker_interface) {
-        _worker_interface->scheduler_epilogue(w, ptr);
       }
 
     });
@@ -1758,6 +1743,7 @@ inline void Executor::_observer_epilogue(Worker& worker, Node* node) {
 
 // Procedure: _process_exception
 inline void Executor::_process_exception(Worker&, Node* node) {
+
   constexpr static auto flag = Topology::EXCEPTION | Topology::CANCELLED;
 
   // multiple tasks may throw, so we only take the first thrown exception
@@ -1772,7 +1758,7 @@ inline void Executor::_process_exception(Worker&, Node* node) {
 // Procedure: _invoke_static_task
 inline void Executor::_invoke_static_task(Worker& worker, Node* node) {
   _observer_prologue(worker, node);
-  try {
+  TF_EXECUTOR_EXCEPTION_HANDLER(worker, node, {
     auto& work = std::get_if<Node::Static>(&node->_handle)->work;
     switch(work.index()) {
       case 0:
@@ -1784,9 +1770,7 @@ inline void Executor::_invoke_static_task(Worker& worker, Node* node) {
         std::get_if<1>(&work)->operator()(rt);
       break;
     }
-  } catch(...) {
-    _process_exception(worker, node);
-  }
+  });
   _observer_epilogue(worker, node);
 }
 
@@ -1800,12 +1784,10 @@ inline void Executor::_invoke_dynamic_task(Worker& w, Node* node) {
   handle->subgraph._clear();
 
   Subflow sf(*this, w, node, handle->subgraph);
-  
-  try {
+
+  TF_EXECUTOR_EXCEPTION_HANDLER(w, node, {
     handle->work(sf);
-  } catch(...) {
-    _process_exception(w, node);
-  }
+  });
 
   if(sf._joinable) {
     _consume_graph(w, node, handle->subgraph);
@@ -1859,7 +1841,7 @@ inline void Executor::_invoke_condition_task(
   Worker& worker, Node* node, SmallVector<int>& conds
 ) {
   _observer_prologue(worker, node);
-  try {
+  TF_EXECUTOR_EXCEPTION_HANDLER(worker, node, {
     auto& work = std::get_if<Node::Condition>(&node->_handle)->work;
     switch(work.index()) {
       case 0:
@@ -1871,9 +1853,7 @@ inline void Executor::_invoke_condition_task(
         conds = { std::get_if<1>(&work)->operator()(rt) };
       break;
     }
-  } catch (...) {
-    _process_exception(worker, node);
-  }
+  });
   _observer_epilogue(worker, node);
 }
 
@@ -1882,7 +1862,7 @@ inline void Executor::_invoke_multi_condition_task(
   Worker& worker, Node* node, SmallVector<int>& conds
 ) {
   _observer_prologue(worker, node);
-  try {
+  TF_EXECUTOR_EXCEPTION_HANDLER(worker, node, {
     auto& work = std::get_if<Node::MultiCondition>(&node->_handle)->work;
     switch(work.index()) {
       case 0:
@@ -1894,9 +1874,7 @@ inline void Executor::_invoke_multi_condition_task(
         conds = std::get_if<1>(&work)->operator()(rt);
       break;
     }
-  } catch(...) {
-    _process_exception(worker, node);
-  }
+  });
   _observer_epilogue(worker, node);
 }
 
@@ -1929,7 +1907,7 @@ inline bool Executor::_invoke_module_task_internal(Worker& w, Node* p) {
 // Procedure: _invoke_async_task
 inline void Executor::_invoke_async_task(Worker& worker, Node* node) {
   _observer_prologue(worker, node);
-  try {
+  TF_EXECUTOR_EXCEPTION_HANDLER(worker, node, {
     auto& work = std::get_if<Node::Async>(&node->_handle)->work;
     switch(work.index()) {
       case 0:
@@ -1941,16 +1919,14 @@ inline void Executor::_invoke_async_task(Worker& worker, Node* node) {
         std::get_if<1>(&work)->operator()(rt);
       break;
     }
-  } catch(...) {
-    _process_exception(worker, node);
-  }
+  });
   _observer_epilogue(worker, node);
 }
 
 // Procedure: _invoke_dependent_async_task
 inline void Executor::_invoke_dependent_async_task(Worker& worker, Node* node) {
   _observer_prologue(worker, node);
-  try {
+  TF_EXECUTOR_EXCEPTION_HANDLER(worker, node, {
     auto& work = std::get_if<Node::DependentAsync>(&node->_handle)->work;
     switch(work.index()) {
       case 0:
@@ -1962,9 +1938,7 @@ inline void Executor::_invoke_dependent_async_task(Worker& worker, Node* node) {
         std::get_if<1>(&work)->operator()(rt);
       break;
     }
-  } catch(...) {
-    _process_exception(worker, node);
-  }
+  });
   _observer_epilogue(worker, node);
 }
 
@@ -2242,7 +2216,7 @@ inline void Executor::_tear_down_topology(Worker& worker, Topology* tpg) {
       // TODO: in the future, we may need to synchronize on wait
       // (which means the following code should the moved before set_value)
       if(satellite) {
-        std::scoped_lock<std::mutex> lock(_taskflows_mutex);
+        std::scoped_lock<std::mutex> satellite_lock(_taskflows_mutex);
         _taskflows.erase(*satellite);
       }
     }
