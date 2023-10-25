@@ -1042,7 +1042,8 @@ class Executor {
   std::mutex _taskflows_mutex;
 
 #ifdef __cpp_lib_atomic_wait
-  std::atomic<size_t> _num_topologies{0};
+  std::atomic<size_t> _num_topologies {0};
+  std::atomic_flag _all_spawned {false};
 #else
   std::condition_variable _topology_cv;
   std::mutex _topology_mutex;
@@ -1176,9 +1177,12 @@ inline int Executor::this_worker_id() const {
 // Procedure: _spawn
 inline void Executor::_spawn(size_t N) {
 
+#ifdef __cpp_lib_atomic_wait
+#else
   std::mutex mutex;
   std::condition_variable cond;
   size_t n=0;
+#endif
 
   for(size_t id=0; id<N; ++id) {
 
@@ -1187,14 +1191,15 @@ inline void Executor::_spawn(size_t N) {
     _workers[id]._executor = this;
     _workers[id]._waiter = &_notifier._waiters[id];
 
-    _threads[id] = std::thread([this] (
-      Worker& w, std::mutex& mutex, std::condition_variable& cond, size_t& n
-    ) -> void {
-      
-      // assign the thread
-      w._thread = &_threads[w._id];
+    _threads[id] = std::thread([&, &w=_workers[id]] () {
 
-      // enables the mapping
+#ifdef __cpp_lib_atomic_wait
+      // wait for the caller thread to initialize the ID mapping
+      _all_spawned.wait(false, std::memory_order_acquire);
+      w._thread = &_threads[w._id];
+#else
+      // update the ID mapping of this thread
+      w._thread = &_threads[w._id];
       {
         std::scoped_lock lock(mutex);
         _wids[std::this_thread::get_id()] = w._id;
@@ -1202,6 +1207,7 @@ inline void Executor::_spawn(size_t N) {
           cond.notify_one();
         }
       }
+#endif
 
       Node* t = nullptr;
       
@@ -1236,7 +1242,7 @@ inline void Executor::_spawn(size_t N) {
         _worker_interface->scheduler_epilogue(w, ptr);
       }
 
-    }, std::ref(_workers[id]), std::ref(mutex), std::ref(cond), std::ref(n));
+    });
     
     // POSIX-like system can use the following to affine threads to cores 
     //cpu_set_t cpuset;
@@ -1245,10 +1251,21 @@ inline void Executor::_spawn(size_t N) {
     //pthread_setaffinity_np(
     //  _threads[id].native_handle(), sizeof(cpu_set_t), &cpuset
     //);
+#ifdef __cpp_lib_atomic_wait
+    //_wids[_threads[id].get_id()] = id;
+    _wids.emplace(std::piecewise_construct,
+      std::forward_as_tuple(_threads[id].get_id()), std::forward_as_tuple(id)
+    );
+#endif
   }
-
+  
+#ifdef __cpp_lib_atomic_wait
+  _all_spawned.test_and_set(std::memory_order_release);
+  _all_spawned.notify_all();
+#else
   std::unique_lock<std::mutex> lock(mutex);
   cond.wait(lock, [&](){ return n==N; });
+#endif
 }
 
 // Function: _corun_until
@@ -1885,17 +1902,37 @@ inline bool Executor::_invoke_module_task_internal(Worker& w, Node* p) {
 }
 
 // Procedure: _invoke_async_task
-inline void Executor::_invoke_async_task(Worker& w, Node* node) {
-  _observer_prologue(w, node);
-  std::get_if<Node::Async>(&node->_handle)->work();
-  _observer_epilogue(w, node);
+inline void Executor::_invoke_async_task(Worker& worker, Node* node) {
+  _observer_prologue(worker, node);
+  auto& work = std::get_if<Node::Async>(&node->_handle)->work;
+  switch(work.index()) {
+    case 0:
+      std::get_if<0>(&work)->operator()();
+    break;
+
+    case 1:
+      Runtime rt(*this, worker, node);
+      std::get_if<1>(&work)->operator()(rt);
+    break;
+  }
+  _observer_epilogue(worker, node);
 }
 
 // Procedure: _invoke_dependent_async_task
-inline void Executor::_invoke_dependent_async_task(Worker& w, Node* node) {
-  _observer_prologue(w, node);
-  std::get_if<Node::DependentAsync>(&node->_handle)->work();
-  _observer_epilogue(w, node);
+inline void Executor::_invoke_dependent_async_task(Worker& worker, Node* node) {
+  _observer_prologue(worker, node);
+  auto& work = std::get_if<Node::DependentAsync>(&node->_handle)->work;
+  switch(work.index()) {
+    case 0:
+      std::get_if<0>(&work)->operator()();
+    break;
+
+    case 1:
+      Runtime rt(*this, worker, node);
+      std::get_if<1>(&work)->operator()(rt);
+    break;
+  }
+  _observer_epilogue(worker, node);
 }
 
 // Function: run
