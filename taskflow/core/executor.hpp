@@ -973,7 +973,7 @@ inline void Executor::_spawn(size_t N) {
 
 // Function: _corun_until
 template <typename P>
-inline void Executor::_corun_until(Worker& w, P&& stop_predicate) {
+void Executor::_corun_until(Worker& w, P&& stop_predicate) {
   
   std::uniform_int_distribution<size_t> rdvtm(0, _workers.size()-1);
 
@@ -1978,17 +1978,10 @@ inline void Subflow::detach() {
   _joinable = false;
 }
 
-// Function: named_async
-template <typename F, typename... ArgsT>
-auto Subflow::named_async(const std::string& name, F&& f, ArgsT&&... args) {
-  return _named_async(
-    *_executor._this_worker(), name, std::forward<F>(f), std::forward<ArgsT>(args)...
-  );
-}
 
-// Function: _named_async
+// Function: _async
 template <typename F, typename... ArgsT>
-auto Subflow::_named_async(
+auto Subflow::_async(
   Worker& w,
   const std::string& name,
   F&& f,
@@ -2032,15 +2025,23 @@ auto Subflow::_named_async(
   return fu;
 }
 
+// Function: named_async
+template <typename F, typename... ArgsT>
+auto Subflow::named_async(const std::string& name, F&& f, ArgsT&&... args) {
+  return _async(
+    *_executor._this_worker(), name, std::forward<F>(f), std::forward<ArgsT>(args)...
+  );
+}
+
 // Function: async
 template <typename F, typename... ArgsT>
 auto Subflow::async(F&& f, ArgsT&&... args) {
   return named_async("", std::forward<F>(f), std::forward<ArgsT>(args)...);
 }
 
-// Function: _named_silent_async
+// Function: _silent_async
 template <typename F, typename... ArgsT>
-void Subflow::_named_silent_async(
+void Subflow::_silent_async(
   Worker& w, const std::string& name, F&& f, ArgsT&&... args
 ) {
 
@@ -2060,15 +2061,15 @@ void Subflow::_named_silent_async(
   _executor._schedule(w, node);
 }
 
-// Function: silent_async
+// Function: named_silent_async
 template <typename F, typename... ArgsT>
 void Subflow::named_silent_async(const std::string& name, F&& f, ArgsT&&... args) {
-  _named_silent_async(
+  _silent_async(
     *_executor._this_worker(), name, std::forward<F>(f), std::forward<ArgsT>(args)...
   );
 }
 
-// Function: named_silent_async
+// Function: silent_async
 template <typename F, typename... ArgsT>
 void Subflow::silent_async(F&& f, ArgsT&&... args) {
   named_silent_async("", std::forward<F>(f), std::forward<ArgsT>(args)...);
@@ -2093,7 +2094,7 @@ inline void Runtime::schedule(Task task) {
   _executor._schedule(_worker, node);
 }
 
-// Procedure: emplace
+// Procedure: corun
 template <typename T>
 void Runtime::corun(T&& target) {
 
@@ -2110,6 +2111,114 @@ void Runtime::corun(T&& target) {
   else {
     _executor._consume_graph(_worker, _parent, target.graph());
   }
+}
+
+// Procedure: corun_until
+template <typename P>
+void Runtime::corun_until(P&& predicate) {
+  _executor._corun_until(_worker, std::forward<P>(predicate));
+}
+
+// Function: _silent_async
+template <typename F, typename... ArgsT>
+void Runtime::_silent_async(
+  Worker& w, const std::string& name, F&& f, ArgsT&&... args
+) {
+
+  _parent->_join_counter.fetch_add(1);
+
+  auto node = node_pool.animate(
+    std::in_place_type_t<Node::SilentAsync>{},
+    [f=std::forward<F>(f), args...] () mutable {
+      f(args...);
+    }
+  );
+
+  node->_name = name;
+  node->_topology = _parent->_topology;
+  node->_parent = _parent; 
+
+  _executor._schedule(w, node);
+}
+
+// Function: silent_async
+template <typename F, typename... ArgsT>
+void Runtime::silent_async(F&& f, ArgsT&&... args) {
+  _silent_async(
+    *_executor._this_worker(), "", std::forward<F>(f), std::forward<ArgsT>(args)...
+  );
+}
+
+// Function: named_silent_async
+template <typename F, typename... ArgsT>
+void Runtime::named_silent_async(const std::string& name, F&& f, ArgsT&&... args) {
+  _silent_async(
+    *_executor._this_worker(), name, std::forward<F>(f), std::forward<ArgsT>(args)...
+  );
+}
+
+// Function: _async
+template <typename F, typename... ArgsT>
+auto Runtime::_async(
+  Worker& w, const std::string& name, F&& f, ArgsT&&... args
+) {
+
+  _parent->_join_counter.fetch_add(1);
+
+  using T = std::invoke_result_t<F, ArgsT...>;
+  using R = std::conditional_t<std::is_same_v<T, void>, void, std::optional<T>>;
+
+  std::promise<R> p;
+
+  auto tpg = std::make_shared<AsyncTopology>();
+
+  Future<R> fu(p.get_future(), tpg);
+
+  auto node = node_pool.animate(
+    std::in_place_type_t<Node::Async>{},
+    [p=make_moc(std::move(p)), f=std::forward<F>(f), args...]
+    (bool cancel) mutable {
+      if constexpr(std::is_same_v<R, void>) {
+        if(!cancel) {
+          f(args...);
+        }
+        p.object.set_value();
+      }
+      else {
+        p.object.set_value(cancel ? std::nullopt : std::make_optional(f(args...)));
+      }
+    },
+    std::move(tpg)
+  );
+
+  node->_name = name;
+  node->_topology = _parent->_topology;
+  node->_parent = _parent;
+
+  _executor._schedule(w, node);
+
+  return fu;
+}
+
+// Function: async
+template <typename F, typename... ArgsT>
+auto Runtime::async(F&& f, ArgsT&&... args) {
+  return _async(
+    *_executor._this_worker(), "", std::forward<F>(f), std::forward<ArgsT>(args)...
+  );
+}
+
+// Function: async
+template <typename F, typename... ArgsT>
+auto Runtime::named_async(const std::string& name, F&& f, ArgsT&&... args) {
+  return _async(
+    *_executor._this_worker(), name, std::forward<F>(f), std::forward<ArgsT>(args)...
+  );
+}
+
+// Function: join
+inline void Runtime::join() {
+  corun_until([this] () -> bool { return _parent->_join_counter == 0; });
 }
 
 }  // end of namespace tf -----------------------------------------------------

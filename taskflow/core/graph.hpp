@@ -22,21 +22,6 @@
 namespace tf {
 
 // ----------------------------------------------------------------------------
-// Class: CustomGraphBase
-// ----------------------------------------------------------------------------
-
-/**
-@private
-*/
-class CustomGraphBase {
-
-  public:
-
-  virtual void dump(std::ostream&, const void*, const std::string&) const = 0;
-  virtual ~CustomGraphBase() = default;
-};
-
-// ----------------------------------------------------------------------------
 // Class: Graph
 // ----------------------------------------------------------------------------
 
@@ -158,6 +143,7 @@ that runs the task.
 class Runtime {
 
   friend class Executor;
+  friend class FlowBuilder;
 
   public:
 
@@ -214,6 +200,74 @@ class Runtime {
   When the taskflow finishes, we will see both @c B and @c C in the output.
   */
   void schedule(Task task);
+  
+  /**
+  @brief runs the given function asynchronously
+    
+  The method creates an asynchronous task to launch the given
+  function on the given arguments.
+  The difference to tf::Executor::async is that the created asynchronous task
+  pertains to the runtime.
+  When the runtime joins, all asynchronous tasks created from the runtime
+  are guaranteed to finish after the join returns.
+  For example:
+
+  @code{.cpp}
+  std::atomic<int> counter(0);
+  taskflow.empalce([&](tf::Runtime& rt){
+    auto fu1 = rt.async([&](){ counter++; });
+    auto fu2 = rt.async([&](){ counter++; });
+    fu1.get();
+    fu2.get();
+    assert(counter == 2);
+    
+    // explicit join 100 asynchronous tasks
+    for(int i=0; i<100; i++) {
+      rt.async([&](){ counter++; });
+    }
+    rt.join();
+    assert(counter == 102);
+  });
+  @endcode
+
+  This method is thread-safe.
+  */
+  template <typename F, typename... ArgsT>
+  auto async(F&& f, ArgsT&&... args);
+  
+  /**
+  @brief similar to tf::Runtime::async but assign the task a name
+  */
+  template <typename F, typename... ArgsT>
+  auto named_async(const std::string& name, F&& f, ArgsT&&... args);
+    
+  /**
+  @brief runs the given function asynchronously without returning any future object
+
+  This member function is more efficient than tf::Runtime::async
+  and is encouraged to use when there is no data returned.
+
+  @code{.cpp}
+  std::atomic<int> counter(0);
+  taskflow.empalce([&](tf::Runtime& rt){
+    for(int i=0; i<100; i++) {
+      rt.silent_async([&](){ counter++; });
+    }
+    rt.join();
+    assert(counter == 100);
+  });
+  @endcode
+
+  This member function is thread-safe.
+  */
+  template <typename F, typename... ArgsT>
+  void silent_async(F&& f, ArgsT&&... args);
+  
+  /**
+  @brief similar to tf::Runtime::silent_async but assigns the task a name
+  */
+  template <typename F, typename... ArgsT>
+  void named_silent_async(const std::string& name, F&& f, ArgsT&&... args);
 
   /**
   @brief co-runs the given target and waits until it completes
@@ -250,6 +304,47 @@ class Runtime {
   void corun(T&& target);
 
   /**
+  @brief keeps running the work-stealing loop until the predicate becomes true
+  
+  @tparam P predicate type
+  @param predicate a boolean predicate to indicate when to stop the loop
+
+  The method keeps the caller worker running in the work-stealing loop
+  until the stop predicate becomes true.
+  */
+  template <typename P>
+  void corun_until(P&& predicate);
+  
+  /**
+  @brief joins all asynchronous tasks spawned by this runtime
+
+  Immediately joins all asynchronous tasks (tf::Runtime::async,
+  tf::Runtime::silent_async).
+  Unlike tf::Subflow::join, you can join multiples times from
+  a tf::Runtime object.
+    
+  @code{.cpp}
+  std::atomic<size_t> counter{0};
+  taskflow.empalce([&](tf::Runtime& rt){
+    // spawn 100 async tasks and join
+    for(int i=0; i<100; i++) {
+      rt.silent_async([&](){ counter++; });
+    }
+    rt.join();
+    assert(counter == 100);
+    
+    // spawn another 100 async tasks and join
+    for(int i=0; i<100; i++) {
+      rt.silent_async([&](){ counter++; });
+    }
+    rt.join();
+    assert(counter == 200);
+  });
+  @endcode
+  */
+  inline void join();
+
+  /**
   @brief acquire a reference to the underlying worker
   */
   inline Worker& worker();
@@ -261,6 +356,12 @@ class Runtime {
   Executor& _executor;
   Worker& _worker;
   Node* _parent;
+  
+  template <typename F, typename... ArgsT>
+  void _silent_async(Worker& w, const std::string& name, F&& f, ArgsT&&... args);
+  
+  template <typename F, typename... ArgsT>
+  auto _async(Worker& w, const std::string& name, F&& f, ArgsT&&... args);
 };
 
 // constructor

@@ -885,7 +885,7 @@ class Subflow : public FlowBuilder {
     The difference to tf::Executor::async is that the created asynchronous task
     pertains to the subflow.
     When the subflow joins, all asynchronous tasks created from the subflow
-    are guaranteed to finish before the join.
+    are guaranteed to finish after the join returns.
     For example:
 
     @code{.cpp}
@@ -933,7 +933,7 @@ class Subflow : public FlowBuilder {
     std::atomic<int> counter(0);
     taskflow.empalce([&](tf::Subflow& sf){
       for(int i=0; i<100; i++) {
-        sf.async("name", [&](){ counter++; });
+        sf.named_async("name", [&](){ counter++; });
       }
       sf.join();
       assert(counter == 100);
@@ -957,6 +957,7 @@ class Subflow : public FlowBuilder {
     and is encouraged to use when there is no data returned.
 
     @code{.cpp}
+    std::atomic<size_t> counter{0};
     taskflow.empalce([&](tf::Subflow& sf){
       for(int i=0; i<100; i++) {
         sf.silent_async([&](){ counter++; });
@@ -1012,10 +1013,10 @@ class Subflow : public FlowBuilder {
     Subflow(Executor&, Worker&, Node*, Graph&);
 
     template <typename F, typename... ArgsT>
-    auto _named_async(Worker& w, const std::string& name, F&& f, ArgsT&&... args);
+    auto _async(Worker& w, const std::string& name, F&& f, ArgsT&&... args);
 
     template <typename F, typename... ArgsT>
-    void _named_silent_async(Worker& w, const std::string& name, F&& f, ArgsT&&... args);
+    void _silent_async(Worker& w, const std::string& name, F&& f, ArgsT&&... args);
 };
 
 // Constructor
