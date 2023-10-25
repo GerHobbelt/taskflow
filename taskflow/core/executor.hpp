@@ -557,7 +557,7 @@ class Executor {
   @endcode
   */
   int this_worker_id() const;
-  
+
   /**
   @brief runs a given function asynchronously
 
@@ -687,15 +687,26 @@ class Executor {
   @brief queries the number of observers
   */
   size_t num_observers() const noexcept;
+  
+
+  template <typename F>
+  tf::AsyncTask silent_dependent_async(const std::string& name, F&& func);
+
+  template <typename F, typename R>
+  tf::AsyncTask silent_dependent_async(const std::string& name, F&& func, R first, R last);
+  
+  template <typename F, typename I>
+  auto dependent_async(const std::string& name, F&& func, I first, I last);
 
   private:
     
   const size_t _MAX_STEALS;
 
   std::condition_variable _topology_cv;
-  std::mutex _taskflow_mutex;
+  std::mutex _taskflows_mutex;
   std::mutex _topology_mutex;
   std::mutex _wsq_mutex;
+  std::mutex _asyncs_mutex;
 
   size_t _num_topologies {0};
   
@@ -703,6 +714,8 @@ class Executor {
   std::vector<std::thread> _threads;
   std::vector<Worker> _workers;
   std::list<Taskflow> _taskflows;
+
+  std::unordered_set<std::shared_ptr<Node>> _asyncs;
 
   Notifier _notifier;
 
@@ -729,6 +742,7 @@ class Executor {
   void _set_up_topology(Worker*, Topology*);
   void _tear_down_topology(Worker&, Topology*);
   void _tear_down_async(Node*);
+  void _tear_down_dependent_async(Worker&, Node*);
   void _tear_down_invoke(Worker&, Node*);
   void _cancel_invoke(Worker&, Node*);
   void _increment_topology();
@@ -744,6 +758,7 @@ class Executor {
   void _invoke_module_task(Worker&, Node*);
   void _invoke_async_task(Worker&, Node*);
   void _invoke_silent_async_task(Worker&, Node*);
+  void _invoke_silent_dependent_async_task(Worker&, Node*);
   
   template <typename P>
   void _corun_until(Worker&, P&&);
@@ -822,7 +837,7 @@ auto Executor::async(const std::string& name, F&& f) {
   Future<R> fu(p.get_future(), tpg);
 
   auto node = node_pool.animate(
-    name, 0, nullptr, nullptr,
+    name, 0, nullptr, nullptr, 0,
     std::in_place_type_t<Node::Async>{},
     [p=make_moc(std::move(p)), f=std::forward<F>(f)]
     (bool cancel) mutable {
@@ -862,11 +877,8 @@ void Executor::silent_async(const std::string& name, F&& f) {
   _increment_topology();
 
   auto node = node_pool.animate(
-    name, 0, nullptr, nullptr,
-    std::in_place_type_t<Node::SilentAsync>{},
-    [f=std::forward<F>(f)] () mutable {
-      f();
-    }
+    name, 0, nullptr, nullptr, 0,
+    std::in_place_type_t<Node::SilentAsync>{}, std::forward<F>(f)
   );
 
   if(auto w = _this_worker(); w) {
@@ -881,6 +893,96 @@ void Executor::silent_async(const std::string& name, F&& f) {
 template <typename F>
 void Executor::silent_async(F&& f) {
   silent_async("", std::forward<F>(f));
+}
+
+
+// Function: dependent_async
+template <typename F, typename I>
+auto Executor::dependent_async(
+  const std::string& name, F&& f, I first, I last
+) {
+  
+  _increment_topology();
+  
+  using T = std::invoke_result_t<std::decay_t<F>>;
+  using R = std::conditional_t<std::is_same_v<T, void>, void, std::optional<T>>;
+
+  std::promise<R> p;
+
+  auto tpg = std::make_shared<AsyncTopology>();
+
+  Future<R> fu(p.get_future(), tpg);
+
+  size_t num_dependents = std::distance(first, last);
+
+  std::shared_ptr<Node> node(
+    node_pool.animate(
+      name, 0, nullptr, nullptr, num_dependents,
+      std::in_place_type_t<Node::DependentAsync>{},
+      [p=make_moc(std::move(p)), f=std::forward<F>(f)]
+      (bool cancel) mutable {
+        if constexpr(std::is_same_v<R, void>) {
+          if(!cancel) {
+            f();
+          }
+          p.object.set_value();
+        }
+        else {
+          p.object.set_value(cancel ? std::nullopt : std::make_optional(f()));
+        }
+      },
+      std::move(tpg)
+    ),
+    [&](Node* ptr){ node_pool.recycle(ptr); }
+  );
+  
+  {
+    std::scoped_lock lock(_asyncs_mutex);
+    _asyncs.insert(node);
+  }
+  
+  for(; first != last; first++){
+    std::shared_ptr<Node> dep;
+    {
+      std::scoped_lock lock(_asyncs_mutex);
+      if(auto itr = _asyncs.find(first->_node); itr != _asyncs.end()){
+        dep = *itr;
+      }
+    }
+    
+    // if the dependent task exists
+    if(dep) {
+      auto& state = std::get_if<Node::DependentAsync>(&(dep->_handle))->state;
+      auto target = Node::AsyncState::UNFINISHED;
+      if(state.compare_exchange_strong(target, Node::AsyncState::LOCKED,
+                                       std::memory_order_relaxed,
+                                       std::memory_order_relaxed)) {
+        dep->_successors.push_back(node.get());
+        state.store(Node::AsyncState::UNFINISHED, std::memory_order_release);
+      }
+      // dep's state is FINISHED, which means dep finished its callable already
+      // thus decrement the node's join counter by 1
+      else {
+        num_dependents = node->_join_counter.fetch_sub(1) - 1;
+      }
+    }
+    // dep is removed from the queue - since there is a lock, we do not care
+    // the oerder and can be memory-relaxed
+    else {
+      num_dependents = node->_join_counter.fetch_sub(1, std::memory_order_relaxed) - 1;
+    }
+  }
+
+  if(num_dependents == 0) {
+    if(auto w = _this_worker(); w) {
+      _schedule(*w, node.get());
+    }
+    else {
+      _schedule(node.get());
+    }
+  }
+
+  return std::make_pair(AsyncTask(std::move(node)), std::move(fu));
 }
 
 // Function: this_worker_id
@@ -1357,6 +1459,14 @@ inline void Executor::_invoke(Worker& worker, Node* node) {
     }
     break;
 
+    // silent dependent async task
+    case Node::SILENT_DEPENDENT_ASYNC: {
+      _invoke_silent_dependent_async_task(worker, node);
+      _tear_down_dependent_async(worker, node);
+      return;
+    }
+    break;
+
     // monostate (placeholder)
     default:
     break;
@@ -1374,10 +1484,10 @@ inline void Executor::_invoke(Worker& worker, Node* node) {
   //   because the user-space call on "invoke" may explicitly schedule 
   //   this task again (e.g., pipeline) which can access the join_counter.
   if((node->_state.load(std::memory_order_relaxed) & Node::CONDITIONED)) {
-    node->_join_counter.fetch_add(node->num_strong_dependents());
+    node->_join_counter.fetch_add(node->num_strong_dependents(), std::memory_order_relaxed);
   }
   else {
-    node->_join_counter.fetch_add(node->num_dependents());
+    node->_join_counter.fetch_add(node->num_dependents(), std::memory_order_relaxed);
   }
 
   // acquire the parent flow counter
@@ -1399,7 +1509,7 @@ inline void Executor::_invoke(Worker& worker, Node* node) {
           auto s = node->_successors[cond];
           // zeroing the join counter for invariant
           s->_join_counter.store(0, std::memory_order_relaxed);
-          j.fetch_add(1);
+          j.fetch_add(1, std::memory_order_relaxed);
           if(s->_priority <= max_p) {
             if(cache) {
               _schedule(worker, cache);
@@ -1418,8 +1528,10 @@ inline void Executor::_invoke(Worker& worker, Node* node) {
     // non-condition task
     default: {
       for(size_t i=0; i<node->_successors.size(); ++i) {
-        if(auto s = node->_successors[i]; --(s->_join_counter) == 0) {
-          j.fetch_add(1);
+        //if(auto s = node->_successors[i]; --(s->_join_counter) == 0) {
+        if(auto s = node->_successors[i]; 
+          s->_join_counter.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+          j.fetch_add(1, std::memory_order_relaxed);
           if(s->_priority <= max_p) {
             if(cache) {
               _schedule(worker, cache);
@@ -1450,9 +1562,11 @@ inline void Executor::_invoke(Worker& worker, Node* node) {
 
 // Procedure: _tear_down_async
 inline void Executor::_tear_down_async(Node* node) {
+  // from runtime
   if(node->_parent) {
-    node->_parent->_join_counter.fetch_sub(1);
+    node->_parent->_join_counter.fetch_sub(1, std::memory_order_release);
   }
+  // from executor
   else {
     _decrement_topology_and_notify();
   }
@@ -1464,13 +1578,13 @@ inline void Executor::_tear_down_invoke(Worker& worker, Node* node) {
   // we must check parent first before substracting the join counter,
   // or it can introduce data race
   if(node->_parent == nullptr) {
-    if(node->_topology->_join_counter.fetch_sub(1) == 1) {
+    if(node->_topology->_join_counter.fetch_sub(1, std::memory_order_acq_rel) == 1) {
       _tear_down_topology(worker, node->_topology);
     }
   }
   // joined subflow
   else {  
-    node->_parent->_join_counter.fetch_sub(1);
+    node->_parent->_join_counter.fetch_sub(1, std::memory_order_release);
   }
 }
 
@@ -1554,7 +1668,7 @@ inline void Executor::_detach_dynamic_task(
 ) {
 
   // graph is empty and has no async tasks
-  if(g.empty() && p->_join_counter == 0) {
+  if(g.empty() && p->_join_counter.load(std::memory_order_acquire) == 0) {
     return;
   }
 
@@ -1577,7 +1691,7 @@ inline void Executor::_detach_dynamic_task(
     p->_topology->_taskflow._graph._merge(std::move(g));
   }
 
-  p->_topology->_join_counter.fetch_add(src.size());
+  p->_topology->_join_counter.fetch_add(src.size(), std::memory_order_relaxed);
   _schedule(w, src);
 }
 
@@ -1585,7 +1699,7 @@ inline void Executor::_detach_dynamic_task(
 inline void Executor::_consume_graph(Worker& w, Node* p, Graph& g) {
 
   // graph is empty and has no async tasks
-  if(g.empty() && p->_join_counter == 0) {
+  if(g.empty() && p->_join_counter.load(std::memory_order_acquire) == 0) {
     return;
   }
 
@@ -1600,10 +1714,10 @@ inline void Executor::_consume_graph(Worker& w, Node* p, Graph& g) {
       src.push_back(n);
     }
   }
-  p->_join_counter.fetch_add(src.size());
+  p->_join_counter.fetch_add(src.size(), std::memory_order_relaxed);
   
   _schedule(w, src);
-  _corun_until(w, [p] () -> bool { return p->_join_counter == 0; });
+  _corun_until(w, [p] () -> bool { return p->_join_counter.load(std::memory_order_acquire) == 0; });
 }
 
 // Procedure: _invoke_condition_task
@@ -1664,6 +1778,13 @@ inline void Executor::_invoke_async_task(Worker& w, Node* node) {
 inline void Executor::_invoke_silent_async_task(Worker& w, Node* node) {
   _observer_prologue(w, node);
   std::get_if<Node::SilentAsync>(&node->_handle)->work();
+  _observer_epilogue(w, node);
+}
+
+// Procedure: _invoke_silent_dependent_async_task
+inline void Executor::_invoke_silent_dependent_async_task(Worker& w, Node* node) {
+  _observer_prologue(w, node);
+  std::get_if<Node::SilentDependentAsync>(&node->_handle)->work();
   _observer_epilogue(w, node);
 }
 
@@ -1775,7 +1896,7 @@ tf::Future<void> Executor::run_until(Taskflow&& f, P&& pred, C&& c) {
   std::list<Taskflow>::iterator itr;
 
   {
-    std::scoped_lock<std::mutex> lock(_taskflow_mutex);
+    std::scoped_lock<std::mutex> lock(_taskflows_mutex);
     itr = _taskflows.emplace(_taskflows.end(), std::move(f));
     itr->_satellite = itr;
   }
@@ -1858,7 +1979,7 @@ inline void Executor::_set_up_topology(Worker* worker, Topology* tpg) {
     node->_set_up_join_counter();
   }
 
-  tpg->_join_counter = tpg->_sources.size();
+  tpg->_join_counter.store(tpg->_sources.size(), std::memory_order_relaxed);
 
   if(worker) {
     _schedule(*worker, tpg->_sources);
@@ -1879,7 +2000,7 @@ inline void Executor::_tear_down_topology(Worker& worker, Topology* tpg) {
   if(!tpg->_is_cancelled && !tpg->_pred()) {
     //assert(tpg->_join_counter == 0);
     std::lock_guard<std::mutex> lock(f._mutex);
-    tpg->_join_counter = tpg->_sources.size();
+    tpg->_join_counter.store(tpg->_sources.size(), std::memory_order_relaxed);
     _schedule(worker, tpg->_sources);
   }
   // case 2: the final run of this topology
@@ -1937,7 +2058,7 @@ inline void Executor::_tear_down_topology(Worker& worker, Topology* tpg) {
       // TODO: in the future, we may need to synchronize on wait
       // (which means the following code should the moved before set_value)
       if(s) {
-        std::scoped_lock<std::mutex> lock(_taskflow_mutex);
+        std::scoped_lock<std::mutex> lock(_taskflows_mutex);
         _taskflows.erase(*s);
       }
     }
@@ -1989,7 +2110,7 @@ inline void Runtime::schedule(Task task) {
 
   auto& j = node->_parent ? node->_parent->_join_counter :
                             node->_topology->_join_counter;
-  j.fetch_add(1);
+  j.fetch_add(1, std::memory_order_relaxed);
   _executor._schedule(_worker, node);
 }
 
@@ -2024,14 +2145,11 @@ void Runtime::_silent_async(
   Worker& w, const std::string& name, F&& f
 ) {
 
-  _parent->_join_counter.fetch_add(1);
+  _parent->_join_counter.fetch_add(1, std::memory_order_relaxed);
 
   auto node = node_pool.animate(
-    name, 0, _parent->_topology, _parent,
-    std::in_place_type_t<Node::SilentAsync>{},
-    [f=std::forward<F>(f)] () mutable {
-      f();
-    }
+    name, 0, _parent->_topology, _parent, 0,
+    std::in_place_type_t<Node::SilentAsync>{}, std::forward<F>(f)
   );
 
   _executor._schedule(w, node);
@@ -2059,7 +2177,7 @@ void Runtime::silent_async_unchecked(const std::string& name, F&& f) {
 template <typename F>
 auto Runtime::_async(Worker& w, const std::string& name, F&& f) {
 
-  _parent->_join_counter.fetch_add(1);
+  _parent->_join_counter.fetch_add(1, std::memory_order_relaxed);
 
   using T = std::invoke_result_t<std::decay_t<F>>;
   using R = std::conditional_t<std::is_same_v<T, void>, void, std::optional<T>>;
@@ -2071,7 +2189,7 @@ auto Runtime::_async(Worker& w, const std::string& name, F&& f) {
   Future<R> fu(p.get_future(), tpg);
 
   auto node = node_pool.animate(
-    name, 0, _parent->_topology, _parent,
+    name, 0, _parent->_topology, _parent, 0,
     std::in_place_type_t<Node::Async>{},
     [p=make_moc(std::move(p)), f=std::forward<F>(f)]
     (bool cancel) mutable {
@@ -2107,7 +2225,9 @@ auto Runtime::async(const std::string& name, F&& f) {
 
 // Function: join
 inline void Runtime::join() {
-  corun_until([this] () -> bool { return _parent->_join_counter == 0; });
+  corun_until([this] () -> bool { 
+    return _parent->_join_counter.load(std::memory_order_acquire) == 0; 
+  });
 }
 
 }  // end of namespace tf -----------------------------------------------------

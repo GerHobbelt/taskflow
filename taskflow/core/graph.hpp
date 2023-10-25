@@ -499,6 +499,12 @@ class Node {
   friend class Subflow;
   friend class Runtime;
 
+  enum class AsyncState : int {
+    UNFINISHED = 0,
+    LOCKED = 1,
+    FINISHED = 2
+  };
+
   TF_ENABLE_POOLABLE_ON_THIS;
 
   // state bit flag
@@ -506,7 +512,6 @@ class Node {
   constexpr static int DETACHED    = 2;
   constexpr static int ACQUIRED    = 4;
   constexpr static int READY       = 8;
-  constexpr static int DEFERRED    = 16;
 
   using Placeholder = std::monostate;
 
@@ -581,16 +586,41 @@ class Node {
 
     std::function<void()> work;
   };
+  
+  // silent dependent async
+  struct DependentAsync {
+    
+    template <typename C>
+    DependentAsync(C&&, std::shared_ptr<AsyncTopology>);
+    
+    std::function<void()> work;
+    
+    std::shared_ptr<AsyncTopology> topology;
+    std::atomic<AsyncState> state {AsyncState::UNFINISHED};
+  };
+  
+  // silent dependent async
+  struct SilentDependentAsync {
+    
+    template <typename C>
+    SilentDependentAsync(C&&);
+    
+    std::function<void()> work;
+    
+    std::atomic<AsyncState> state {AsyncState::UNFINISHED};
+  };
 
   using handle_t = std::variant<
-    Placeholder,     // placeholder
-    Static,          // static tasking
-    Dynamic,         // dynamic tasking
-    Condition,       // conditional tasking
-    MultiCondition,  // multi-conditional tasking
-    Module,          // composable tasking
-    Async,           // async tasking
-    SilentAsync      // async tasking (no future)
+    Placeholder,            // placeholder
+    Static,                 // static tasking
+    Dynamic,                // dynamic tasking
+    Condition,              // conditional tasking
+    MultiCondition,         // multi-conditional tasking
+    Module,                 // composable tasking
+    Async,                  // async tasking
+    SilentAsync,            // async tasking (no future)
+    DependentAsync,         // dependent async tasking
+    SilentDependentAsync    // dependent async tasking (no future)
   >;
 
   struct Semaphores {
@@ -609,11 +639,13 @@ class Node {
   constexpr static auto MODULE          = get_index_v<Module, handle_t>;
   constexpr static auto ASYNC           = get_index_v<Async, handle_t>;
   constexpr static auto SILENT_ASYNC    = get_index_v<SilentAsync, handle_t>;
+  constexpr static auto DEPENDENT_ASYNC = get_index_v<DependentAsync, handle_t>;
+  constexpr static auto SILENT_DEPENDENT_ASYNC = get_index_v<SilentDependentAsync, handle_t>;
 
   Node() = default;
 
   template <typename... Args>
-  Node(const std::string&, unsigned, Topology*, Node*, Args&&... args);
+  Node(const std::string&, unsigned, Topology*, Node*, size_t, Args&&... args);
 
   ~Node();
 
@@ -635,8 +667,6 @@ class Node {
 
   void* _data {nullptr};
 
-  handle_t _handle;
-
   SmallVector<Node*> _successors;
   SmallVector<Node*> _dependents;
 
@@ -644,6 +674,8 @@ class Node {
   std::atomic<size_t> _join_counter {0};
 
   std::unique_ptr<Semaphores> _semaphores;
+  
+  handle_t _handle;
 
   void _precede(Node*);
   void _set_up_join_counter();
@@ -730,6 +762,23 @@ Node::SilentAsync::SilentAsync(C&& c) :
   work {std::forward<C>(c)} {
 }
 
+// Constructor
+template <typename C>
+Node::DependentAsync::DependentAsync(C&& c, std::shared_ptr<AsyncTopology>tpg) :
+  work     {std::forward<C>(c)},
+  topology {std::move(tpg)} {
+}
+
+// ----------------------------------------------------------------------------
+// Definition for Node::SilentDependentAsync
+// ----------------------------------------------------------------------------
+
+// Constructor
+template <typename C>
+Node::SilentDependentAsync::SilentDependentAsync(C&& c) :
+  work {std::forward<C>(c)} {
+}
+
 // ----------------------------------------------------------------------------
 // Definition for Node
 // ----------------------------------------------------------------------------
@@ -741,13 +790,15 @@ Node::Node(
   unsigned priority,
   Topology* topology, 
   Node* parent, 
+  size_t join_counter,
   Args&&... args
 ) :
-  _name     {name},
-  _priority {priority},
-  _topology {topology},
-  _parent   {parent},
-  _handle   {std::forward<Args>(args)...} {
+  _name         {name},
+  _priority     {priority},
+  _topology     {topology},
+  _parent       {parent},
+  _join_counter {join_counter},
+  _handle       {std::forward<Args>(args)...} {
 }
 
 //Node::Node(Args&&... args): _handle{std::forward<Args>(args)...} {
@@ -902,6 +953,19 @@ inline SmallVector<Node*> Node::_release_all() {
 
   return nodes;
 }
+
+// ----------------------------------------------------------------------------
+// Node Deleter
+// ----------------------------------------------------------------------------
+
+/**
+@private
+*/
+struct NodeDeleter {
+  void operator ()(Node* ptr) {
+    node_pool.recycle(ptr);
+  }
+};
 
 // ----------------------------------------------------------------------------
 // Graph definition

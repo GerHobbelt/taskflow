@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../core/executor.hpp"
+#include "launch.hpp"
 
 namespace tf {
 
@@ -90,8 +91,7 @@ TF_FORCE_INLINE auto make_inclusive_scan_task(B first, E last, D d_first, BOP bo
       chunk_size = std::min(Q + (w < R), N - curr_b);
 
       // block scan
-      auto loop = 
-      [W, w, s_beg, d_beg, chunk_size, &rt, &bop, &buf, &counter] () mutable {
+      launch_loop(W, w, rt, [=, &rt, &bop, &buf, &counter] () mutable {
 
         auto result = d_beg;
 
@@ -128,14 +128,7 @@ TF_FORCE_INLINE auto make_inclusive_scan_task(B first, E last, D d_first, BOP bo
         //    prev_e = curr_e;
         //  }
         //);
-      };
-
-      if(w == W-1) {
-        loop();
-      }
-      else {
-        rt.silent_async_unchecked("loop-"s + std::to_string(w), loop);
-      }
+      });
       
       std::advance(s_beg, chunk_size);
       std::advance(d_beg, chunk_size);
@@ -194,7 +187,7 @@ TF_FORCE_INLINE auto make_inclusive_scan_task(B first, E last, D d_first, BOP bo
       chunk_size = std::min(Q + (w < R), N - curr_b);
 
       // block scan
-      auto loop = [W, w, d_beg, s_beg, chunk_size, &rt, &bop, &buf, &counter] () mutable {
+      launch_loop(W, w, rt, [=, &rt, &bop, &buf, &counter] () mutable {
 
         auto result = d_beg;
 
@@ -208,15 +201,8 @@ TF_FORCE_INLINE auto make_inclusive_scan_task(B first, E last, D d_first, BOP bo
         
         // block scan
         detail::scan_loop(rt, counter, buf, bop, result, W, w, chunk_size);
-      };
+      });
 
-      if(w == W-1) {
-        loop();
-      }
-      else {
-        rt.silent_async_unchecked("loop-"s + std::to_string(w), loop);
-      }
-      
       std::advance(s_beg, chunk_size);
       std::advance(d_beg, chunk_size);
       curr_b += chunk_size;
@@ -277,7 +263,7 @@ TF_FORCE_INLINE auto make_transform_inclusive_scan_task(
       chunk_size = std::min(Q + (w < R), N - curr_b);
 
       // block scan
-      auto loop = [W, w, d_beg, s_beg, chunk_size, &rt, &bop, &uop, &buf, &counter] () mutable {
+      launch_loop(W, w, rt, [=, &rt, &bop, &uop, &buf, &counter] () mutable {
 
         auto result = d_beg;
 
@@ -291,14 +277,7 @@ TF_FORCE_INLINE auto make_transform_inclusive_scan_task(
 
         // block scan
         detail::scan_loop(rt, counter, buf, bop, result, W, w, chunk_size);
-      };
-
-      if(w == W-1) {
-        loop();
-      }
-      else {
-        rt.silent_async_unchecked("loop-"s + std::to_string(w), loop);
-      }
+      });
       
       std::advance(s_beg, chunk_size);
       std::advance(d_beg, chunk_size);
@@ -359,7 +338,7 @@ TF_FORCE_INLINE auto make_transform_inclusive_scan_task(
       chunk_size = std::min(Q + (w < R), N - curr_b);
 
       // block scan
-      auto loop = [W, w, d_beg, s_beg, chunk_size, &rt, &bop, &uop, &buf, &counter] () mutable {
+      launch_loop(W, w, rt, [=, &rt, &bop, &uop, &buf, &counter] () mutable {
 
         auto result = d_beg;
 
@@ -373,15 +352,8 @@ TF_FORCE_INLINE auto make_transform_inclusive_scan_task(
         
         // block scan
         detail::scan_loop(rt, counter, buf, bop, result, W, w, chunk_size);
-      };
+      });
 
-      if(w == W-1) {
-        loop();
-      }
-      else {
-        rt.silent_async_unchecked("loop-"s + std::to_string(w), loop);
-      }
-      
       std::advance(s_beg, chunk_size);
       std::advance(d_beg, chunk_size);
       curr_b += chunk_size;
@@ -452,7 +424,7 @@ TF_FORCE_INLINE auto make_exclusive_scan_task(
       chunk_size = std::min(Q + (w < R), N - curr_b);
 
       // block scan
-      auto loop = [W, w, d_beg, s_beg, chunk_size, &rt, &bop, &buf, &counter] () mutable {
+      launch_loop(W, w, rt, [=, &rt, &bop, &buf, &counter] () mutable {
 
         auto result = d_beg;
 
@@ -468,14 +440,7 @@ TF_FORCE_INLINE auto make_exclusive_scan_task(
         
         // block scan
         detail::scan_loop(rt, counter, buf, bop, result, W, w, chunk_size);
-      };
-
-      if(w == W-1) {
-        loop();
-      }
-      else {
-        rt.silent_async_unchecked("loop-"s + std::to_string(w), loop);
-      }
+      });
       
       std::advance(s_beg, chunk_size);
       std::advance(d_beg, chunk_size);
@@ -547,7 +512,7 @@ TF_FORCE_INLINE auto make_transform_exclusive_scan_task(
       chunk_size = std::min(Q + (w < R), N - curr_b);
 
       // block scan
-      auto loop = [W, w, d_beg, s_beg, chunk_size, &rt, &bop, &uop, &buf, &counter] () mutable {
+      launch_loop(W, w, rt, [=, &rt, &bop, &uop, &buf, &counter] () mutable {
 
         auto result = d_beg;
 
@@ -563,14 +528,7 @@ TF_FORCE_INLINE auto make_transform_exclusive_scan_task(
         
         // block scan
         detail::scan_loop(rt, counter, buf, bop, result, W, w, chunk_size);
-      };
-
-      if(w == W-1) {
-        loop();
-      }
-      else {
-        rt.silent_async_unchecked("loop-"s + std::to_string(w), loop);
-      }
+      });
       
       std::advance(s_beg, chunk_size);
       std::advance(d_beg, chunk_size);
