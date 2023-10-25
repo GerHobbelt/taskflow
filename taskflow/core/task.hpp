@@ -517,7 +517,7 @@ inline TaskType Task::type() const {
     case Node::MULTI_CONDITION: return TaskType::CONDITION;
     case Node::MODULE:          return TaskType::MODULE;
     case Node::ASYNC:           return TaskType::ASYNC;
-    case Node::SILENT_ASYNC:    return TaskType::ASYNC;
+    case Node::DEPENDENT_ASYNC: return TaskType::ASYNC;
     default:                    return TaskType::UNDEFINED;
   }
 }
@@ -605,48 +605,6 @@ inline TaskPriority Task::priority() const {
 inline std::ostream& operator << (std::ostream& os, const Task& task) {
   task.dump(os);
   return os;
-}
-
-// ----------------------------------------------------------------------------
-// AsyncTask
-// ----------------------------------------------------------------------------
-
-class AsyncTask {
-  
-  friend class FlowBuilder;
-  friend class Runtime;
-  friend class Taskflow;
-  friend class TaskView;
-  friend class Executor;
-  
-  public:
-
-    AsyncTask() = default;
-
-    ~AsyncTask() = default;
-
-    AsyncTask(const AsyncTask&) = default;
-    AsyncTask(AsyncTask&&) = default;
-
-    AsyncTask& operator = (const AsyncTask&) = default;
-    AsyncTask& operator = (AsyncTask&&) = default;
-
-    bool empty() const;
-
-  private:
-
-    AsyncTask(std::shared_ptr<Node>);
-
-    std::shared_ptr<Node> _node;
-};
-
-// Constructor
-inline AsyncTask::AsyncTask(std::shared_ptr<Node> ptr) : _node {std::move(ptr)} {
-}
-
-// Function: empty
-inline bool AsyncTask::empty() const {
-  return _node == nullptr;
 }
 
 // ----------------------------------------------------------------------------
@@ -758,7 +716,7 @@ inline TaskType TaskView::type() const {
     case Node::MULTI_CONDITION: return TaskType::CONDITION;
     case Node::MODULE:          return TaskType::MODULE;
     case Node::ASYNC:           return TaskType::ASYNC;
-    case Node::SILENT_ASYNC:    return TaskType::ASYNC;
+    case Node::DEPENDENT_ASYNC: return TaskType::ASYNC;
     default:                    return TaskType::UNDEFINED;
   }
 }
