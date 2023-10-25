@@ -1,7 +1,7 @@
 #pragma once
 
 #include "task.hpp"
-#include "../algorithm/execution_policy.hpp"
+#include "../algorithm/partitioner.hpp"
 
 /**
 @file flow_builder.hpp
@@ -323,16 +323,16 @@ class FlowBuilder {
   @tparam B beginning iterator type
   @tparam E ending iterator type
   @tparam C callable type
-  @tparam P policy type
+  @tparam P partitioner type (default tf::GuidedPartitioner)
 
   @param first iterator to the beginning (inclusive)
   @param last iterator to the end (exclusive)
   @param callable callable object to apply to the dereferenced iterator
-  @param policy execution policy for scheduling parallel iterations
+  @param part partitioning algorithm to schedule parallel iterations
 
   @return a tf::Task handle
 
-  The task spawns a subflow that applies the callable object to each object
+  The task spawns asynchronous tasks that applies the callable object to each object
   obtained by dereferencing every iterator in the range <tt>[first, last)</tt>.
   This method is equivalent to the parallel execution of the following loop:
 
@@ -342,22 +342,15 @@ class FlowBuilder {
   }
   @endcode
 
-  Arguments templated to enable stateful range using std::reference_wrapper.
+  Iterators are templated to enable stateful range using std::reference_wrapper.
   The callable needs to take a single argument of
   the dereferenced iterator type.
 
   Please refer to @ref ParallelIterations for details.
   */
-  template <typename P, typename B, typename E, typename C>
-  Task for_each(P&& policy, B first, E last, C callable);
+  template <typename B, typename E, typename C, typename P = GuidedPartitioner>
+  Task for_each(B first, E last, C callable, P&& part = P());
   
-  /**
-  @brief Constructs a tf::FlowBuilder::for_each(P&&, B, E, C) task
-         using the default execution policy tf::DefaultExecutionPolicy
-  */
-  template <typename B, typename E, typename C>
-  Task for_each(B first, E last, C callable);
-
   /**
   @brief constructs an STL-styled index-based parallel-for task 
 
@@ -365,17 +358,17 @@ class FlowBuilder {
   @tparam E ending index type (must be integral)
   @tparam S step type (must be integral)
   @tparam C callable type
-  @tparam P policy type 
+  @tparam P partitioner type (default tf::GuidedPartitioner)
 
   @param first index of the beginning (inclusive)
   @param last index of the end (exclusive)
   @param step step size
   @param callable callable object to apply to each valid index
-  @param policy execution policy to schedule parallel iterations
+  @param part partitioning algorithm to schedule parallel iterations
 
   @return a tf::Task handle
 
-  The task spawns a subflow that applies the callable object to each index
+  The task spawns asynchronous tasks that applies the callable object to each index
   in the range <tt>[first, last)</tt> with the step size.
   This method is equivalent to the parallel execution of the following loop:
 
@@ -391,20 +384,15 @@ class FlowBuilder {
   }
   @endcode
 
-  Arguments are templated to enable stateful range using std::reference_wrapper.
+  Iterators are templated to enable stateful range using std::reference_wrapper.
   The callable needs to take a single argument of the integral index type.
 
   Please refer to @ref ParallelIterations for details.
   */
-  template <typename P, typename B, typename E, typename S, typename C>
-  Task for_each_index(P&& policy, B first, E last, S step, C callable);
-  
-  /**
-  @brief constructs a tf::FlowBuilder::for_each_index(P&&, B, E, S, C) task 
-         using the default execution policy tf::DefaultExecutionPolicy
-  */
-  template <typename B, typename E, typename S, typename C>
-  Task for_each_index(B first, E last, S step, C callable);
+  template <typename B, typename E, typename S, typename C, typename P = GuidedPartitioner>
+  Task for_each_index(
+    B first, E last, S step, C callable, P&& part = P()
+  );
 
   // ------------------------------------------------------------------------
   // transform
@@ -417,17 +405,17 @@ class FlowBuilder {
   @tparam E ending input iterator type
   @tparam O output iterator type
   @tparam C callable type
-  @tparam P policy type
+  @tparam P partitioner type (default tf::GuidedPartitioner)
 
   @param first1 iterator to the beginning of the first range
   @param last1 iterator to the end of the first range
   @param d_first iterator to the beginning of the output range
   @param c an unary callable to apply to dereferenced input elements
-  @param policy execution policy to schedule parallel iterations
+  @param part partitioning algorithm to schedule parallel iterations
 
   @return a tf::Task handle
 
-  The task spawns a subflow that applies the callable object to an
+  The task spawns asynchronous tasks that applies the callable object to an
   input range and stores the result in another output range.
   This method is equivalent to the parallel execution of the following loop:
 
@@ -437,23 +425,17 @@ class FlowBuilder {
   }
   @endcode
 
-  Arguments are templated to enable stateful range using std::reference_wrapper.
+  Iterators are templated to enable stateful range using std::reference_wrapper.
   The callable needs to take a single argument of the dereferenced
   iterator type.
+  
+  Please refer to @ref ParallelTransforms for details.
   */
   template <
-    typename P, typename B, typename E, typename O, typename C,
-    std::enable_if_t<is_execution_policy_v<P>, void> * = nullptr
+    typename B, typename E, typename O, typename C, typename P = GuidedPartitioner
   >
-  Task transform(P&& policy, B first1, E last1, O d_first, C c);
+  Task transform(B first1, E last1, O d_first, C c, P&& part = P());
   
-  /**
-  @brief constructs a tf::FlowBuilder::transform(P&&, B, E, O, C) task
-         using the default execution policy tf::DefaultExecutionPolicy
-  */
-  template <typename B, typename E, typename O, typename C>
-  Task transform(B first1, E last1, O d_first, C c);
-
   /**
   @brief constructs a parallel-transform task
 
@@ -462,18 +444,18 @@ class FlowBuilder {
   @tparam B2 beginning input iterator type for the first second range
   @tparam O output iterator type
   @tparam C callable type
-  @tparam P policy
+  @tparam P partitioner type (default tf::GuidedPartitioner)
 
   @param first1 iterator to the beginning of the first input range
   @param last1 iterator to the end of the first input range
   @param first2 iterator to the beginning of the second input range
   @param d_first iterator to the beginning of the output range
   @param c a binary operator to apply to dereferenced input elements
-  @param policy execution policy to schedule parallel iterations
+  @param part partitioning algorithm to schedule parallel iterations
 
   @return a tf::Task handle
 
-  The task spawns a subflow that applies the callable object to two
+  The task spawns asynchronous tasks that applies the callable object to two
   input ranges and stores the result in another output range.
   This method is equivalent to the parallel execution of the following loop:
 
@@ -483,45 +465,40 @@ class FlowBuilder {
   }
   @endcode
 
-  Arguments are templated to enable stateful range using std::reference_wrapper.
+  Iterators are templated to enable stateful range using std::reference_wrapper.
   The callable needs to take two arguments of dereferenced elements
   from the two input ranges.
-  */
-  template <typename P, typename B1, typename E1, typename B2, typename O, typename C>
-  Task transform(P&& policy, B1 first1, E1 last1, B2 first2, O d_first, C c);
   
-  /**
-  @brief constructs a tf::FlowBuilder::transform(P&&, B1, E1, B2, O, C) task
-         using the default execution policy tf::DefaultExecutionPolicy
+  Please refer to @ref ParallelTransforms for details.
   */
   template <
-    typename B1, typename E1, typename B2, typename O, typename C,
-    std::enable_if_t<!is_execution_policy_v<B1>, void> * = nullptr
+    typename B1, typename E1, typename B2, typename O, typename C, typename P=GuidedPartitioner,
+    std::enable_if_t<!is_partitioner_v<std::decay_t<C>>, void>* = nullptr
   >
-  Task transform(B1 first1, E1 last1, B2 first2, O d_first, C c);
-
+  Task transform(B1 first1, E1 last1, B2 first2, O d_first, C c, P&& part = P());
+  
   // ------------------------------------------------------------------------
   // reduction
   // ------------------------------------------------------------------------
 
   /**
-  @brief constructs a STL-styled parallel-reduce task
+  @brief constructs an STL-styled parallel-reduce task
 
   @tparam B beginning iterator type
   @tparam E ending iterator type
   @tparam T result type
   @tparam O binary reducer type
-  @tparam P policy type
+  @tparam P partitioner type (default tf::GuidedPartitioner)
 
   @param first iterator to the beginning (inclusive)
   @param last iterator to the end (exclusive)
   @param init initial value of the reduction and the storage for the reduced result
   @param bop binary operator that will be applied
-  @param policy execution policy to schedule parallel iterations
+  @param part partitioning algorithm to schedule parallel iterations
 
   @return a tf::Task handle
 
-  The task spawns a subflow to perform parallel reduction over @c init
+  The task spawns asynchronous tasks to perform parallel reduction over @c init
   and the elements in the range <tt>[first, last)</tt>.
   The reduced result is store in @c init.
   This method is equivalent to the parallel execution of the following loop:
@@ -532,44 +509,37 @@ class FlowBuilder {
   }
   @endcode
 
-  Arguments are templated to enable stateful range using std::reference_wrapper.
+  Iterators are templated to enable stateful range using std::reference_wrapper.
 
   Please refer to @ref ParallelReduction for details.
   */
-  template <typename P, typename B, typename E, typename T, typename O>
-  Task reduce(P&& policy, B first, E last, T& init, O bop);
+  template <typename B, typename E, typename T, typename O, typename P = GuidedPartitioner>
+  Task reduce(B first, E last, T& init, O bop, P&& part = P());
   
-  /**
-  @brief constructs a tf::FlowBuilder::reduce(P&&, B, E, T&, O) task
-         using the default execution policy tf::DefaultExecutionPolicy
-  */
-  template <typename B, typename E, typename T, typename O>
-  Task reduce(B first, E last, T& init, O bop);
-
   // ------------------------------------------------------------------------
   // transfrom and reduction
   // ------------------------------------------------------------------------
 
   /**
-  @brief constructs a STL-styled parallel transform-reduce task
+  @brief constructs an STL-styled parallel transform-reduce task
 
   @tparam B beginning iterator type
   @tparam E ending iterator type
   @tparam T result type
   @tparam BOP binary reducer type
   @tparam UOP unary transformion type
-  @tparam P policy type
+  @tparam P partitioner type (default tf::GuidedPartitioner)
 
   @param first iterator to the beginning (inclusive)
   @param last iterator to the end (exclusive)
   @param init initial value of the reduction and the storage for the reduced result
   @param bop binary operator that will be applied in unspecified order to the results of @c uop
   @param uop unary operator that will be applied to transform each element in the range to the result type
-  @param policy execution policy to schedule parallel iterations
+  @param part partitioning algorithm to schedule parallel iterations
 
   @return a tf::Task handle
 
-  The task spawns a subflow to perform parallel reduction over @c init and
+  The task spawns asynchronous tasks to perform parallel reduction over @c init and
   the transformed elements in the range <tt>[first, last)</tt>.
   The reduced result is store in @c init.
   This method is equivalent to the parallel execution of the following loop:
@@ -580,19 +550,334 @@ class FlowBuilder {
   }
   @endcode
 
-  Arguments are templated to enable stateful range using std::reference_wrapper.
+  Iterators are templated to enable stateful range using std::reference_wrapper.
 
   Please refer to @ref ParallelReduction for details.
   */
-  template <typename P, typename B, typename E, typename T, typename BOP, typename UOP>
-  Task transform_reduce(P&& policy, B first, E last, T& init, BOP bop, UOP uop);
+  template <
+   typename B, typename E, typename T, typename BOP, typename UOP, typename P = GuidedPartitioner
+  >
+  Task transform_reduce(B first, E last, T& init, BOP bop, UOP uop, P&& part = P());
+  
+  // ------------------------------------------------------------------------
+  // scan
+  // ------------------------------------------------------------------------
   
   /**
-  @brief constructs a tf::FlowBuilder::transform_reduce(P&&, B, E, T&, BOP, UOP) task
-         using the default execution policy tf::DefaultExecutionPolicy
+  @brief creates an STL-styled parallel inclusive-scan task
+
+  @tparam B beginning iterator type
+  @tparam E ending iterator type
+  @tparam D destination iterator type
+  @tparam BOP summation operator type
+
+  @param first start of input range
+  @param last end of input range
+  @param d_first start of output range (may be the same as input range)
+  @param bop function to perform summation
+
+  Performs the cumulative sum (aka prefix sum, aka scan) of the input range
+  and writes the result to the output range. 
+  Each element of the output range contains the
+  running total of all earlier elements using the given binary operator
+  for summation.
+  
+  This function generates an @em inclusive scan, meaning that the N-th element
+  of the output range is the sum of the first N input elements,
+  so the N-th input element is included.
+
+  @code{.cpp}
+  std::vector<int> input = {1, 2, 3, 4, 5};
+  taskflow.inclusive_scan(
+    input.begin(), input.end(), input.begin(), std::plus<int>{}
+  );
+  executor.run(taskflow).wait();
+  
+  // input is {1, 3, 6, 10, 15}
+  @endcode
+  
+  Iterators are templated to enable stateful range using std::reference_wrapper.
+  
+  Please refer to @ref ParallelScan for details.
   */
-  template <typename B, typename E, typename T, typename BOP, typename UOP>
-  Task transform_reduce(B first, E last, T& init, BOP bop, UOP uop);
+  template <typename B, typename E, typename D, typename BOP>
+  Task inclusive_scan(B first, E last, D d_first, BOP bop);
+  
+  /**
+  @brief creates an STL-styled parallel inclusive-scan task with an initial value
+
+  @tparam B beginning iterator type
+  @tparam E ending iterator type
+  @tparam D destination iterator type
+  @tparam BOP summation operator type
+  @tparam T initial value type
+
+  @param first start of input range
+  @param last end of input range
+  @param d_first start of output range (may be the same as input range)
+  @param bop function to perform summation
+  @param init initial value
+
+  Performs the cumulative sum (aka prefix sum, aka scan) of the input range
+  and writes the result to the output range. 
+  Each element of the output range contains the
+  running total of all earlier elements (and the initial value)
+  using the given binary operator for summation.
+  
+  This function generates an @em inclusive scan, meaning the N-th element
+  of the output range is the sum of the first N input elements,
+  so the N-th input element is included.
+
+  @code{.cpp}
+  std::vector<int> input = {1, 2, 3, 4, 5};
+  taskflow.inclusive_scan(
+    input.begin(), input.end(), input.begin(), std::plus<int>{}, -1
+  );
+  executor.run(taskflow).wait();
+  
+  // input is {0, 2, 5, 9, 14}
+  @endcode
+  
+  Iterators are templated to enable stateful range using std::reference_wrapper.
+ 
+  Please refer to @ref ParallelScan for details.
+
+  */
+  template <typename B, typename E, typename D, typename BOP, typename T>
+  Task inclusive_scan(B first, E last, D d_first, BOP bop, T init);
+  
+  /**
+  @brief creates an STL-styled parallel exclusive-scan task
+
+  @tparam B beginning iterator type
+  @tparam E ending iterator type
+  @tparam D destination iterator type
+  @tparam T initial value type
+  @tparam BOP summation operator type
+
+  @param first start of input range
+  @param last end of input range
+  @param d_first start of output range (may be the same as input range)
+  @param init initial value
+  @param bop function to perform summation
+
+  Performs the cumulative sum (aka prefix sum, aka scan) of the input range
+  and writes the result to the output range. 
+  Each element of the output range contains the
+  running total of all earlier elements (and the initial value)
+  using the given binary operator for summation.
+  
+  This function generates an @em exclusive scan, meaning the N-th element
+  of the output range is the sum of the first N-1 input elements,
+  so the N-th input element is not included.
+
+  @code{.cpp}
+  std::vector<int> input = {1, 2, 3, 4, 5};
+  taskflow.exclusive_scan(
+    input.begin(), input.end(), input.begin(), -1, std::plus<int>{}
+  );
+  executor.run(taskflow).wait();
+  
+  // input is {-1, 0, 2, 5, 9}
+  @endcode
+  
+  Iterators are templated to enable stateful range using std::reference_wrapper.
+  
+  Please refer to @ref ParallelScan for details.
+  */
+  template <typename B, typename E, typename D, typename T, typename BOP>
+  Task exclusive_scan(B first, E last, D d_first, T init, BOP bop);
+  
+  // ------------------------------------------------------------------------
+  // transform scan
+  // ------------------------------------------------------------------------
+  
+  /**
+  @brief creates an STL-styled parallel transform-inclusive scan task
+
+  @tparam B beginning iterator type
+  @tparam E ending iterator type
+  @tparam D destination iterator type
+  @tparam BOP summation operator type
+  @tparam UOP transform operator type
+
+  @param first start of input range
+  @param last end of input range
+  @param d_first start of output range (may be the same as input range)
+  @param bop function to perform summation
+  @param uop function to transform elements of the input range
+
+  Write the cumulative sum (aka prefix sum, aka scan) of the input range
+  to the output range. Each element of the output range contains the
+  running total of all earlier elements
+  using @c uop to transform the input elements
+  and using @c bop for summation.
+  
+  This function generates an @em inclusive scan, meaning the Nth element
+  of the output range is the sum of the first N input elements,
+  so the Nth input element is included.
+
+  @code{.cpp}
+  std::vector<int> input = {1, 2, 3, 4, 5};
+  taskflow.transform_inclusive_scan(
+    input.begin(), input.end(), input.begin(), std::plus<int>{}, 
+    [] (int item) { return -item; }
+  );
+  executor.run(taskflow).wait();
+  
+  // input is {-1, -3, -6, -10, -15}
+  @endcode
+  
+  Iterators are templated to enable stateful range using std::reference_wrapper.
+  
+  Please refer to @ref ParallelScan for details.
+  */
+  template <typename B, typename E, typename D, typename BOP, typename UOP>
+  Task transform_inclusive_scan(B first, E last, D d_first, BOP bop, UOP uop);
+  
+  /**
+  @brief creates an STL-styled parallel transform-inclusive scan task
+
+  @tparam B beginning iterator type
+  @tparam E ending iterator type
+  @tparam D destination iterator type
+  @tparam BOP summation operator type
+  @tparam UOP transform operator type
+  @tparam T initial value type
+
+  @param first start of input range
+  @param last end of input range
+  @param d_first start of output range (may be the same as input range)
+  @param bop function to perform summation
+  @param uop function to transform elements of the input range
+  @param init initial value
+
+  Write the cumulative sum (aka prefix sum, aka scan) of the input range
+  to the output range. Each element of the output range contains the
+  running total of all earlier elements (including an initial value)
+  using @c uop to transform the input elements
+  and using @c bop for summation.
+  
+  This function generates an @em inclusive scan, meaning the Nth element
+  of the output range is the sum of the first N input elements,
+  so the Nth input element is included.
+
+  @code{.cpp}
+  std::vector<int> input = {1, 2, 3, 4, 5};
+  taskflow.transform_inclusive_scan(
+    input.begin(), input.end(), input.begin(), std::plus<int>{}, 
+    [] (int item) { return -item; },
+    -1
+  );
+  executor.run(taskflow).wait();
+  
+  // input is {-2, -4, -7, -11, -16}
+  @endcode
+  
+  Iterators are templated to enable stateful range using std::reference_wrapper.
+  
+  Please refer to @ref ParallelScan for details.
+  */
+  template <typename B, typename E, typename D, typename BOP, typename UOP, typename T>
+  Task transform_inclusive_scan(B first, E last, D d_first, BOP bop, UOP uop, T init);
+  
+  /**
+  @brief creates an STL-styled parallel transform-exclusive scan task
+
+  @tparam B beginning iterator type
+  @tparam E ending iterator type
+  @tparam D destination iterator type
+  @tparam BOP summation operator type
+  @tparam UOP transform operator type
+  @tparam T initial value type
+
+  @param first start of input range
+  @param last end of input range
+  @param d_first start of output range (may be the same as input range)
+  @param bop function to perform summation
+  @param uop function to transform elements of the input range
+  @param init initial value
+
+  Write the cumulative sum (aka prefix sum, aka scan) of the input range
+  to the output range. Each element of the output range contains the
+  running total of all earlier elements (including an initial value)
+  using @c uop to transform the input elements
+  and using @c bop for summation.
+  
+  This function generates an @em exclusive scan, meaning the Nth element
+  of the output range is the sum of the first N-1 input elements,
+  so the Nth input element is not included.
+
+  @code{.cpp}
+  std::vector<int> input = {1, 2, 3, 4, 5};
+  taskflow.transform_exclusive_scan(
+    input.begin(), input.end(), input.begin(), -1, std::plus<int>{},
+    [](int item) { return -item; }
+  );
+  executor.run(taskflow).wait();
+  
+  // input is {-1, -2, -4, -7, -11}
+  @endcode
+  
+  Iterators are templated to enable stateful range using std::reference_wrapper.
+  
+  Please refer to @ref ParallelScan for details.
+  */
+  template <typename B, typename E, typename D, typename T, typename BOP, typename UOP>
+  Task transform_exclusive_scan(B first, E last, D d_first, T init, BOP bop, UOP uop);
+  
+  // ------------------------------------------------------------------------
+  // find
+  // ------------------------------------------------------------------------
+ 
+  /**
+  @brief constructs a task to perform STL-styled find-if algorithm
+
+  @tparam B beginning iterator type
+  @tparam E ending iterator type
+  @tparam UOP unary predicate type
+  @tparam T resulting iterator type
+  @tparam P partitioner type
+  
+  @param first start of the input range
+  @param last end of the input range
+  @param predicate unary predicate which returns @c true for the required element
+  @param result resulting iterator to the found element in the input range
+  @param part partitioning algorithm (default tf::GuidedPartitioner)
+
+  Returns an iterator to the first element in the range <tt>[first, last)</tt> 
+  that satisfies the given criteria (or last if there is no such iterator).
+  This method is equivalent to the parallel execution of the following loop:
+
+  @code{.cpp}
+  auto find_if(InputIt first, InputIt last, UnaryPredicate p) {
+    for (; first != last; ++first) {
+      if (p(*first)){
+        return first;
+      }
+    }
+    return last;
+  }
+  @endcode
+
+  For example, the code below find the element that satisfies the given 
+  criteria (value plus one is equal to 23) from an input range of 10 elements:
+
+  @code{.cpp}
+  std::vector<int> input = {1, 6, 9, 10, 22, 5, 7, 8, 9, 11};
+  std::vector<int>::iterator result;
+  taskflow.find_if(
+    input.begin(), input.end(), [](int i){ return i+1 = 23; }, result
+  );
+  executor.run(taskflow).wait();
+  assert(*result == 22);
+  @endcode
+  
+  Iterators are templated to enable stateful range using std::reference_wrapper.
+
+  */
+  template <typename B, typename E, typename UOP, typename T, typename P = GuidedPartitioner>
+  Task find_if(B first, E last, UOP predicate, T& result, P&& part = P());
 
   // ------------------------------------------------------------------------
   // sort
@@ -607,12 +892,12 @@ class FlowBuilder {
 
   @param first iterator to the beginning (inclusive)
   @param last iterator to the end (exclusive)
-  @param cmp comparison function object
+  @param cmp comparison operator
 
-  The task spawns a subflow to parallelly sort elements in the range
-  <tt>[first, last)</tt>.
+  The task spawns asynchronous tasks to sort elements in the range
+  <tt>[first, last)</tt> in parallel.
 
-  Arguments are templated to enable stateful range using std::reference_wrapper.
+  Iterators are templated to enable stateful range using std::reference_wrapper.
 
   Please refer to @ref ParallelSort for details.
   */
@@ -629,11 +914,11 @@ class FlowBuilder {
   @param first iterator to the beginning (inclusive)
   @param last iterator to the end (exclusive)
 
-  The task spawns a subflow to parallelly sort elements in the range
+  The task spawns asynchronous tasks to parallelly sort elements in the range
   <tt>[first, last)</tt> using the @c std::less<T> comparator,
   where @c T is the dereferenced iterator type.
 
-  Arguments are templated to enable stateful range using std::reference_wrapper.
+  Iterators are templated to enable stateful range using std::reference_wrapper.
 
   Please refer to @ref ParallelSort for details.
    */

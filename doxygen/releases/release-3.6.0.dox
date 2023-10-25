@@ -23,7 +23,7 @@ To use %Taskflow v3.6.0, you need a compiler that supports C++17:
 @li GNU C++ Compiler at least v8.4 with -std=c++17
 @li Clang C++ Compiler at least v6.0 with -std=c++17
 @li Microsoft Visual Studio at least v19.27 with /std:c++17
-@li AppleClang Xode Version at least v12.0 with -std=c++17
+@li AppleClang Xcode Version at least v12.0 with -std=c++17
 @li Nvidia CUDA Toolkit and Compiler (nvcc) at least v11.1 with -std=c++17
 @li Intel C++ Compiler at least v19.0.1 with -std=c++17
 @li Intel DPC++ Clang Compiler at least v13.0.0 with -std=c++17 and SYCL20
@@ -40,34 +40,43 @@ To use %Taskflow v3.6.0, you need a compiler that supports C++17:
   + tf::Runtime::async
   + tf::Runtime::silent_async
   + tf::Runtime::join
-+ Added a new tf::ExecutionPolicy interface to optimize parallel algorithms
++ Added a new partitioner interface to optimize parallel algorithms
   + tf::GuidedPartitioner
   + tf::StaticPartitioner
   + tf::DynamicPartitioner
   + tf::RandomPartitioner
++ Added parallel-scan algorithms to %Taskflow
+  + tf::Taskflow::inclusive_scan(B first, E last, D d_first, BOP bop)
+  + tf::Taskflow::inclusive_scan(B first, E last, D d_first, BOP bop, T init)
+  + tf::Taskflow::transform_inclusive_scan(B first, E last, D d_first, BOP bop, UOP uop)
+  + tf::Taskflow::transform_inclusive_scan(B first, E last, D d_first, BOP bop, UOP uop, T init)
+  + tf::Taskflow::exclusive_scan(B first, E last, D d_first, T init, BOP bop)
+  + tf::Taskflow::transform_exclusive_scan(B first, E last, D d_first, T init, BOP bop, UOP uop)
++ Added parallel-find algorithms to %Taskflow
+  + tf::Taskflow::find_if(B first, E last, UOP predicate, T& result, P&& part)
 + Modified tf::Subflow to a derived class from tf::Runtime
-+ Extended parallel algorithms to support different execution policies via tf::ExecutionPolicy
-  + tf::Taskflow::for_each_index(P&& policy, B first, E last, S step, C callable)
-  + tf::Taskflow::for_each(P&& policy, B first, E last, C callable) 
-  + tf::Taskflow::transform(P&& policy, B first1, E last1, O d_first, C c)
-  + tf::Taskflow::transform(P&& policy, B1 first1, E1 last1, B2 first2, O d_first, C c)
-  + tf::Taskflow::reduce(P&& policy, B first, E last, T& result, O bop) 
-  + tf::Taskflow::transform_reduce(P&& policy, B first, E last, T& result, BOP bop, UOP uop)
++ Extended parallel algorithms to support different partitioner algorithms
+  + tf::Taskflow::for_each_index(B first, E last, S step, C callable, P&& part)
+  + tf::Taskflow::for_each(B first, E last, C callable, P&& part) 
+  + tf::Taskflow::transform(B first1, E last1, O d_first, C c, P&& part)
+  + tf::Taskflow::transform(B1 first1, E1 last1, B2 first2, O d_first, C c, P&& part)
+  + tf::Taskflow::reduce(B first, E last, T& result, O bop, P&& part) 
+  + tf::Taskflow::transform_reduce(B first, E last, T& result, BOP bop, UOP uop, P&& part)
 + Improved the performance of tf::Taskflow::sort for POD
 + Extended task-parallel pipeline to handle token dependencies
   + @ref TaskParallelPipelineWithTokenDependencies
 
 @subsection release-3-6-0_cudaflow cudaFlow
 
-  + removed algorithms that require buffer from tf::cudaFlow due to update limitation
-  + removed support for a dedicated %cudaFlow task in %Taskflow
-    + all usage of tf::cudaFlow and tf::cudaFlowCapturer are standalone now
++ removed algorithms that require buffer from tf::cudaFlow due to update limitation
++ removed support for a dedicated %cudaFlow task in %Taskflow
+  + all usage of tf::cudaFlow and tf::cudaFlowCapturer are standalone now
 
 @subsection release-3-6-0_utilities Utilities
 
 @subsection release-3-6-0_profiler Taskflow Profiler (TFProf)
 
-  + removed %cudaFlow and %syclFlow tasks
++ removed %cudaFlow and %syclFlow tasks
 
 @section release-3-6-0_bug_fixes Bug Fixes 
 
@@ -153,7 +162,7 @@ executor.async([](int i){ std::cout << i << std::endl; }, 4);
 executor.async([i=4]( std::cout << i << std::endl; ){});
 @endcode
 
-+ Replaced `named_async` with overheads that take a string on the first argument
++ Replaced `named_async` with an overload that takes the name string on the first argument
 
 @code{.cpp}
 // previous - explicitly calling named_async to assign a name to an async task
@@ -168,7 +177,7 @@ executor.async("name", [](){});
 + Revised @ref AsyncTasking to include asynchronous tasking from tf::Runtime
   + @ref LaunchAsynchronousTasksFromARuntime
 + Revised %Taskflow algorithms to include execution policy
-  + @ref ExecutionPolicy
+  + @ref PartitioningAlgorithm
   + @ref ParallelIterations
   + @ref ParallelTransforms
   + @ref ParallelReduction
@@ -178,6 +187,7 @@ executor.async("name", [](){});
   + @ref CUDASTDMerge
   + @ref CUDASTDScan
 + Added @ref TaskParallelPipelineWithTokenDependencies
++ Added @ref ParallelScan
 
 @section release-3-6-0_miscellaneous_items Miscellaneous Items
 
