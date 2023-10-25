@@ -1,7 +1,3 @@
-// reference:
-// - gomp: https://github.com/gcc-mirror/gcc/blob/master/libgomp/iter.c
-// - komp: https://github.com/llvm-mirror/openmp/blob/master/runtime/src/kmp_dispatch.cpp
-
 #pragma once
 
 #include "../core/executor.hpp"
@@ -12,15 +8,17 @@ namespace tf {
 // default parallel for
 // ----------------------------------------------------------------------------
 
-// Function: for_each
-template <typename B, typename E, typename C>
-Task FlowBuilder::for_each(B beg, E end, C c) {
+template <
+  typename B, typename E, typename C, typename P,
+  std::enable_if_t<is_partitioner_v<P>, void>*
+>
+Task FlowBuilder::for_each(B beg, E end, C c, P part) {
 
   using B_t = std::decay_t<unwrap_ref_decay_t<B>>;
   using E_t = std::decay_t<unwrap_ref_decay_t<E>>;
   using namespace std::string_literals;
 
-  Task task = emplace([b=beg, e=end, c] (Subflow& sf) mutable {
+  Task task = emplace([b=beg, e=end, c, part] (Subflow& sf) mutable {
 
     // fetch the stateful values
     B_t beg = b;
@@ -30,12 +28,11 @@ Task FlowBuilder::for_each(B beg, E end, C c) {
       return;
     }
 
-    size_t chunk_size = 1;
     size_t W = sf._executor.num_workers();
     size_t N = std::distance(beg, end);
 
     // only myself - no need to spawn another graph
-    if(W <= 1 || N <= chunk_size) {
+    if(W <= 1 || N <= part.chunk_size()) {
       std::for_each(beg, end, c);
       return;
     }
@@ -45,52 +42,17 @@ Task FlowBuilder::for_each(B beg, E end, C c) {
     }
 
     std::atomic<size_t> next(0);
-      
-    auto loop = [=, &next] () mutable {
 
-      size_t z = 0;
-      size_t p1 = 2 * W * (chunk_size + 1);
-      double p2 = 0.5 / static_cast<double>(W);
-      size_t s0 = next.load(std::memory_order_relaxed);
-
-      while(s0 < N) {
-
-        size_t r = N - s0;
-
-        // fine-grained
-        if(r < p1) {
-          while(1) {
-            s0 = next.fetch_add(chunk_size, std::memory_order_relaxed);
-            if(s0 >= N) {
-              return;
-            }
-            size_t e0 = (chunk_size <= (N - s0)) ? s0 + chunk_size : N;
-            std::advance(beg, s0-z);
-            for(size_t x=s0; x<e0; x++) {
-              c(*beg++);
-            }
-            z = e0;
+    auto loop = [=, &next, &part] () mutable {
+      part(N, W, next, 
+        [&, prev_e=size_t{0}](size_t curr_b, size_t curr_e) mutable {
+          std::advance(beg, curr_b - prev_e);
+          for(size_t x = curr_b; x<curr_e; x++) {
+            c(*beg++);
           }
-          break;
+          prev_e = curr_e;
         }
-        // coarse-grained
-        else {
-          size_t q = static_cast<size_t>(p2 * r);
-          if(q < chunk_size) {
-            q = chunk_size;
-          }
-          size_t e0 = (q <= r) ? s0 + q : N;
-          if(next.compare_exchange_strong(s0, e0, std::memory_order_relaxed,
-                                                  std::memory_order_relaxed)) {
-            std::advance(beg, s0-z);
-            for(size_t x = s0; x< e0; x++) {
-              c(*beg++);
-            }
-            z = e0;
-            s0 = next.load(std::memory_order_relaxed);
-          }
-        }
-      }
+      ); 
     };
 
     for(size_t w=0; w<W; w++) {
@@ -100,12 +62,14 @@ Task FlowBuilder::for_each(B beg, E end, C c) {
         break;
       }
       // tail optimization
-      if(r <= chunk_size || w == W-1) {
-        loop(); 
+      if(r <= part.chunk_size() || w == W-1) {
+        loop();
         break;
       }
       else {
-        sf._named_silent_async(sf._worker, "loop-"s + std::to_string(w), loop);
+        sf._named_silent_async(
+          sf._worker, "loop-"s + std::to_string(w), loop
+        );
       }
     }
 
@@ -116,8 +80,11 @@ Task FlowBuilder::for_each(B beg, E end, C c) {
 }
 
 // Function: for_each_index
-template <typename B, typename E, typename S, typename C>
-Task FlowBuilder::for_each_index(B beg, E end, S inc, C c){
+template <
+  typename B, typename E, typename S, typename C, typename P,
+  std::enable_if_t<is_partitioner_v<P>, void>*
+>
+Task FlowBuilder::for_each_index(B beg, E end, S inc, C c, P part){
 
   using namespace std::string_literals;
 
@@ -125,7 +92,7 @@ Task FlowBuilder::for_each_index(B beg, E end, S inc, C c){
   using E_t = std::decay_t<unwrap_ref_decay_t<E>>;
   using S_t = std::decay_t<unwrap_ref_decay_t<S>>;
 
-  Task task = emplace([b=beg, e=end, a=inc, c] (Subflow& sf) mutable {
+  Task task = emplace([b=beg, e=end, a=inc, c, part] (Subflow& sf) mutable {
 
     // fetch the iterator values
     B_t beg = b;
@@ -136,12 +103,11 @@ Task FlowBuilder::for_each_index(B beg, E end, S inc, C c){
       TF_THROW("invalid range [", beg, ", ", end, ") with step size ", inc);
     }
 
-    size_t chunk_size = 1;
     size_t W = sf._executor.num_workers();
     size_t N = distance(beg, end, inc);
 
     // only myself - no need to spawn another graph
-    if(W <= 1 || N <= chunk_size) {
+    if(W <= 1 || N <= part.chunk_size()) {
       for(size_t x=0; x<N; x++, beg+=inc) {
         c(beg);
       }
@@ -153,49 +119,16 @@ Task FlowBuilder::for_each_index(B beg, E end, S inc, C c){
     }
 
     std::atomic<size_t> next(0);
-      
-    auto loop = [=, &next] () mutable {
-
-      size_t p1 = 2 * W * (chunk_size + 1);
-      double p2 = 0.5 / static_cast<double>(W);
-      size_t s0 = next.load(std::memory_order_relaxed);
-
-      while(s0 < N) {
-
-        size_t r = N - s0;
-
-        // fine-grained
-        if(r < p1) {
-          while(1) {
-            s0 = next.fetch_add(chunk_size, std::memory_order_relaxed);
-            if(s0 >= N) {
-              return;
-            }
-            size_t e0 = (chunk_size <= (N - s0)) ? s0 + chunk_size : N;
-            auto s = static_cast<B_t>(s0) * inc + beg;
-            for(size_t x=s0; x<e0; x++, s+=inc) {
-              c(s);
-            }
-          }
-          break;
-        }
-        // coarse-grained
-        else {
-          size_t q = static_cast<size_t>(p2 * r);
-          if(q < chunk_size) {
-            q = chunk_size;
-          }
-          size_t e0 = (q <= r) ? s0 + q : N;
-          if(next.compare_exchange_strong(s0, e0, std::memory_order_relaxed,
-                                                  std::memory_order_relaxed)) {
-            auto s = static_cast<B_t>(s0) * inc + beg;
-            for(size_t x=s0; x<e0; x++, s+= inc) {
-              c(s);
-            }
-            s0 = next.load(std::memory_order_relaxed);
+    
+    auto loop = [=, &next, &part] () mutable {
+      part(N, W, next, 
+        [&](size_t curr_b, size_t curr_e) {
+          auto idx = static_cast<B_t>(curr_b) * inc + beg;
+          for(size_t x=curr_b; x<curr_e; x++, idx += inc) {
+            c(idx);
           }
         }
-      }
+      ); 
     };
 
     for(size_t w=0; w<W; w++) {
@@ -205,7 +138,7 @@ Task FlowBuilder::for_each_index(B beg, E end, S inc, C c){
         break;
       }
       // tail optimization
-      if(r <= chunk_size || w == W-1) {
+      if(r <= part.chunk_size() || w == W-1) {
         loop(); 
         break;
       }
@@ -221,6 +154,4 @@ Task FlowBuilder::for_each_index(B beg, E end, S inc, C c){
 }
 
 }  // end of namespace tf -----------------------------------------------------
-
-
 
