@@ -278,32 +278,6 @@ class FlowBuilder {
   Task placeholder();
 
   /**
-  @brief creates a runtime task
-
-  @tparam C callable type constructible from std::function<void(tf::Runtime&)>
-
-  @param callable callable to construct a runtime task
-
-  @return a tf::Task handle
-
-  The following example creates a runtime task that enables in-task
-  control over the running executor.
-
-  @code{.cpp}
-  tf::Task runtime_task = taskflow.emplace([](tf::Runtime& rt){
-    auto& executor = rt.executor();
-    std::cout << executor.num_workers() << '\n';
-  });
-  @endcode
-
-  Please refer to @ref RuntimeTasking for details.
-  */
-  template <typename C,
-    std::enable_if_t<is_runtime_task_v<C>, void>* = nullptr
-  >
-  Task emplace(C&& callable);
-
-  /**
   @brief adds adjacent dependency links to a linear list of tasks
 
   @param tasks a vector of tasks
@@ -717,14 +691,6 @@ Task FlowBuilder::emplace(C&& c) {
 }
 
 // Function: emplace
-template <typename C, std::enable_if_t<is_runtime_task_v<C>, void>*>
-Task FlowBuilder::emplace(C&& c) {
-  return Task(_graph._emplace_back(
-    std::in_place_type_t<Node::Runtime>{}, std::forward<C>(c)
-  ));
-}
-
-// Function: emplace
 template <typename... C, std::enable_if_t<(sizeof...(C)>1), void>*>
 auto FlowBuilder::emplace(C&&... cs) {
   return std::make_tuple(emplace(std::forward<C>(cs))...);
@@ -1027,9 +993,14 @@ class Subflow : public FlowBuilder {
     void named_silent_async(const std::string& name, F&& f, ArgsT&&... args);
 
     /**
-    @brief returns the executor that runs this subflow
+    @brief acquires a reference to the executor that runs this subflow
     */
     inline Executor& executor();
+
+    /**
+    @brief acquires a reference to the worker that runs this subflow
+    */
+    inline Worker& worker();
 
   private:
 
@@ -1066,6 +1037,11 @@ inline bool Subflow::joinable() const noexcept {
 // Function: executor
 inline Executor& Subflow::executor() {
   return _executor;
+}
+
+// Function: worker
+inline Worker& Subflow::worker() {
+  return _worker;
 }
 
 // Procedure: reset

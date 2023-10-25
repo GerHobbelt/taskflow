@@ -31,8 +31,6 @@ enum class TaskType : int {
   MODULE,
   /** @brief asynchronous task type */
   ASYNC,
-  /** @brief runtime task type */
-  RUNTIME,
   /** @brief undefined task type (for internal use only) */
   UNDEFINED
 };
@@ -41,14 +39,13 @@ enum class TaskType : int {
 @private
 @brief array of all task types (used for iterating task types)
 */
-inline constexpr std::array<TaskType, 7> TASK_TYPES = {
+inline constexpr std::array<TaskType, 6> TASK_TYPES = {
   TaskType::PLACEHOLDER,
   TaskType::STATIC,
   TaskType::DYNAMIC,
   TaskType::CONDITION,
   TaskType::MODULE,
   TaskType::ASYNC,
-  TaskType::RUNTIME
 };
 
 /**
@@ -63,7 +60,6 @@ TaskType::DYNAMIC         ->  "subflow"
 TaskType::CONDITION       ->  "condition"
 TaskType::MODULE          ->  "module"
 TaskType::ASYNC           ->  "async"
-TaskType::RUNTIME         ->  "runtime"
 @endcode
 */
 inline const char* to_string(TaskType type) {
@@ -77,7 +73,6 @@ inline const char* to_string(TaskType type) {
     case TaskType::CONDITION:        val = "condition";       break;
     case TaskType::MODULE:           val = "module";          break;
     case TaskType::ASYNC:            val = "async";           break;
-    case TaskType::RUNTIME:          val = "runtime";         break;
     default:                         val = "undefined";       break;
   }
 
@@ -91,13 +86,15 @@ inline const char* to_string(TaskType type) {
 /**
 @brief determines if a callable is a static task
 
-A static task is a callable object constructible from std::function<void()>.
+A static task is a callable object constructible from std::function<void()>
+or std::function<void(tf::Runtime&)>.
 */
 template <typename C>
 constexpr bool is_static_task_v =
-  std::is_invocable_r_v<void, C> &&
-  !std::is_invocable_r_v<int, C> &&
-  !std::is_invocable_r_v<tf::SmallVector<int>, C>;
+  (std::is_invocable_r_v<void, C> || std::is_invocable_r_v<void, C, Runtime&>) &&
+  !std::is_invocable_r_v<int, C> && !std::is_invocable_r_v<int, C, Runtime&> &&
+  !std::is_invocable_r_v<tf::SmallVector<int>, C> &&
+  !std::is_invocable_r_v<tf::SmallVector<int>, C, Runtime&>;
 
 /**
 @brief determines if a callable is a dynamic task
@@ -110,29 +107,24 @@ constexpr bool is_dynamic_task_v = std::is_invocable_r_v<void, C, Subflow&>;
 /**
 @brief determines if a callable is a condition task
 
-A condition task is a callable object constructible from std::function<int()>.
+A condition task is a callable object constructible from std::function<int()>
+or std::function<int(tf::Runtime&)>.
 */
 template <typename C>
-constexpr bool is_condition_task_v = std::is_invocable_r_v<int, C>;
+constexpr bool is_condition_task_v = std::is_invocable_r_v<int, C> ||
+                                     std::is_invocable_r_v<int, C, Runtime&>;
 
 /**
 @brief determines if a callable is a multi-condition task
 
 A multi-condition task is a callable object constructible from
-std::function<tf::SmallVector<int>()>.
+std::function<tf::SmallVector<int>()> or
+std::function<tf::SmallVector<int>(tf::Runtime&)>.
 */
 template <typename C>
 constexpr bool is_multi_condition_task_v =
-  std::is_invocable_r_v<SmallVector<int>, C>;
-
-/**
-@brief determines if a callable is a runtime task
-
-A runtime task is a callable object constructible from
-std::function<void(tf::Runtime&)>.
-*/
-template <typename C>
-constexpr bool is_runtime_task_v = std::is_invocable_r_v<void, C, Runtime&>;
+  std::is_invocable_r_v<SmallVector<int>, C> ||
+  std::is_invocable_r_v<SmallVector<int>, C, Runtime&>;
 
 // ----------------------------------------------------------------------------
 // Task
@@ -522,7 +514,6 @@ inline TaskType Task::type() const {
     case Node::MODULE:          return TaskType::MODULE;
     case Node::ASYNC:           return TaskType::ASYNC;
     case Node::SILENT_ASYNC:    return TaskType::ASYNC;
-    case Node::RUNTIME:         return TaskType::RUNTIME;
     default:                    return TaskType::UNDEFINED;
   }
 }
@@ -571,9 +562,6 @@ Task& Task::work(C&& c) {
   }
   else if constexpr(is_multi_condition_task_v<C>) {
     _node->_handle.emplace<Node::MultiCondition>(std::forward<C>(c));
-  }
-  else if constexpr(is_runtime_task_v<C>) {
-    _node->_handle.emplace<Node::Runtime>(std::forward<C>(c));
   }
   else {
     static_assert(dependent_false_v<C>, "invalid task callable");
@@ -723,7 +711,6 @@ inline TaskType TaskView::type() const {
     case Node::MODULE:          return TaskType::MODULE;
     case Node::ASYNC:           return TaskType::ASYNC;
     case Node::SILENT_ASYNC:    return TaskType::ASYNC;
-    case Node::RUNTIME:         return TaskType::RUNTIME;
     default:                    return TaskType::UNDEFINED;
   }
 }
