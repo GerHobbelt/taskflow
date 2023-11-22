@@ -364,7 +364,7 @@ inline std::pmr::memory_resource* scalable_memory_resource() noexcept {
 } // namespace tbb
 
 #if _MSC_VER
-    #if (__TBB_BUILD || __TBBMALLOC_BUILD) && !defined(__TBBMALLOC_NO_IMPLICIT_LINKAGE)
+    #if (__TBB_BUILD || __TBBMALLOC_BUILD || defined(BUILD_MONOLITHIC)) && !defined(__TBBMALLOC_NO_IMPLICIT_LINKAGE)
         #define __TBBMALLOC_NO_IMPLICIT_LINKAGE 1
     #endif
 

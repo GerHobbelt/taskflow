@@ -32,7 +32,7 @@
 
 #if _MSC_VER && __TBB_NO_IMPLICIT_LINKAGE
 // plays around __TBB_NO_IMPLICIT_LINKAGE. __TBB_LIB_NAME should be defined (in makefiles)
-    #pragma comment(lib, __TBB_STRING(__TBB_LIB_NAME))
+    //#pragma comment(lib, __TBB_STRING(__TBB_LIB_NAME))
 #endif
 
 const int NumIterations = 100;

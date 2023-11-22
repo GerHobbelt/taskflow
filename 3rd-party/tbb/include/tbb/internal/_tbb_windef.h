@@ -50,7 +50,7 @@ namespace std {
 #    endif
 #endif
 
-#if (__TBB_BUILD || __TBBMALLOC_BUILD || __TBBBIND_BUILD) && !defined(__TBB_NO_IMPLICIT_LINKAGE)
+#if (__TBB_BUILD || __TBBMALLOC_BUILD || __TBBBIND_BUILD || defined(BUILD_MONOLITHIC)) && !defined(__TBB_NO_IMPLICIT_LINKAGE)
 #define __TBB_NO_IMPLICIT_LINKAGE 1
 #endif
 
