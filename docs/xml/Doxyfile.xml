@@ -225,7 +225,7 @@
     <value><![CDATA[cookbook/motivation.dox]]></value>
     <value><![CDATA[cookbook/static_tasking.dox]]></value>
     <value><![CDATA[cookbook/executor.dox]]></value>
-    <value><![CDATA[cookbook/dynamic_tasking.dox]]></value>
+    <value><![CDATA[cookbook/subflow_tasking.dox]]></value>
     <value><![CDATA[cookbook/conditional_tasking.dox]]></value>
     <value><![CDATA[cookbook/composable_tasking.dox]]></value>
     <value><![CDATA[cookbook/runtime_tasking.dox]]></value>
@@ -233,6 +233,7 @@
     <value><![CDATA[cookbook/semaphore.dox]]></value>
     <value><![CDATA[cookbook/async_tasking.dox]]></value>
     <value><![CDATA[cookbook/dependent_async_tasking.dox]]></value>
+    <value><![CDATA[cookbook/exception.dox]]></value>
     <value><![CDATA[cookbook/gpu_tasking_cudaflow.dox]]></value>
     <value><![CDATA[cookbook/gpu_tasking_cudaflow_capturer.dox]]></value>
     <value><![CDATA[cookbook/cancellation.dox]]></value>

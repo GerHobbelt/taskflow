@@ -78,6 +78,7 @@ Taskflow works on Linux, Windows, and Mac OS X.</para>
 </sect1>
 <sect1 id="release-3-7-0_1release-3-7-0_summary">
 <title>Release Summary</title>
+<para>This release introduces a new exception interface to help identify C++ errors in taskflow programs. Additionally, this release enhances the scheduling performance through integration of C++20 atomic-wait into scheduler, executor, and notifier.</para>
 </sect1>
 <sect1 id="release-3-7-0_1release-3-7-0_new_features">
 <title>New Features</title>
@@ -137,7 +138,7 @@ Taskflow works on Linux, Windows, and Mac OS X.</para>
 <sect1 id="release-3-7-0_1release-3-7-0_bug_fixes">
 <title>Bug Fixes</title>
 <para><itemizedlist>
-<listitem><para>Fixed compilation erros of CUDA examples caused by not including <computeroutput><ref refid="for__each_8hpp" kindref="compound">for_each.hpp</ref></computeroutput></para>
+<listitem><para>Fixed compilation error of CUDA examples caused by not including <computeroutput><ref refid="for__each_8hpp" kindref="compound">for_each.hpp</ref></computeroutput></para>
 </listitem><listitem><para>Fixed the runtime error of <ref refid="classtf_1_1FlowBuilder_1a3b132bd902331a11b04b4ad66cf8bf77" kindref="member">tf::Taskflow::for_each_index</ref> when the range invalid</para>
 </listitem></itemizedlist>
 </para>

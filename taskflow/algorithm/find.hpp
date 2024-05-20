@@ -8,13 +8,13 @@ namespace detail {
 
 // Function: find_if_loop
 template <typename Iterator, typename Predicate>
-TF_FORCE_INLINE bool find_if_loop(
+bool find_if_loop(
   std::atomic<size_t>& offset, 
   Iterator& beg,
   size_t& prev_e,
   size_t  curr_b, 
   size_t  curr_e,
-  Predicate&& predicate
+  Predicate predicate
 ) {
   // early prune
   if(offset.load(std::memory_order_relaxed) < curr_b) {
@@ -33,13 +33,13 @@ TF_FORCE_INLINE bool find_if_loop(
 
 // Function: find_if_not_loop
 template <typename Iterator, typename Predicate>
-TF_FORCE_INLINE bool find_if_not_loop(
+bool find_if_not_loop(
   std::atomic<size_t>& offset, 
   Iterator& beg,
   size_t& prev_e,
   size_t  curr_b, 
   size_t  curr_e,
-  Predicate&& predicate
+  Predicate predicate
 ) {
 
   // early prune
@@ -61,13 +61,10 @@ TF_FORCE_INLINE bool find_if_not_loop(
 
 // Function: make_find_if_task
 template <typename B, typename E, typename T, typename UOP, typename P = DefaultPartitioner>
-TF_FORCE_INLINE auto make_find_if_task(
-  B first, E last, T& result, UOP predicate, P part = P()
-) {
+auto make_find_if_task(B first, E last, T& result, UOP predicate, P part = P()) {
   
   using B_t = std::decay_t<unwrap_ref_decay_t<B>>;
   using E_t = std::decay_t<unwrap_ref_decay_t<E>>;
-  using namespace std::string_literals;
 
   return [=, &result] (Runtime& rt) mutable {
 
@@ -80,10 +77,9 @@ TF_FORCE_INLINE auto make_find_if_task(
 
     // only myself - no need to spawn another graph
     if(W <= 1 || N <= part.chunk_size()) {
-      TF_MAKE_LOOP_TASK( [&](){
+      launch_loop(part, [&](){
         result = std::find_if(beg, end, predicate);
-        }, part
-      );
+      });
       return;
     }
 
@@ -102,17 +98,14 @@ TF_FORCE_INLINE auto make_find_if_task(
       
         chunk_size = part.adjusted_chunk_size(N, W, w);
 
-        launch_loop(W, w, rt,
-          [N, W, curr_b, chunk_size, beg, &predicate, &offset, &part] 
-          () mutable {
-            TF_MAKE_LOOP_TASK( [&](){
-              part.loop_until(N, W, curr_b, chunk_size,
-                [&, prev_e=size_t{0}](size_t part_b, size_t part_e) mutable {
-                  return detail::find_if_loop(
-                    offset, beg, prev_e, part_b, part_e, predicate
-                  );
-                }
-            ); }, part
+        launch_loop(W, w, rt, part,
+          [N, W, curr_b, chunk_size, beg, &predicate, &offset, &part] () mutable {
+            part.loop_until(N, W, curr_b, chunk_size,
+              [&, prev_e=size_t{0}](size_t part_b, size_t part_e) mutable {
+                return detail::find_if_loop(
+                  offset, beg, prev_e, part_b, part_e, predicate
+                );
+              }
             );
           }
         );
@@ -125,14 +118,12 @@ TF_FORCE_INLINE auto make_find_if_task(
       std::atomic<size_t> next(0);
       launch_loop(N, W, rt, next, part, 
         [N, W, beg, &predicate, &offset, &next, &part] () mutable {
-          TF_MAKE_LOOP_TASK([&](){
-            part.loop_until(N, W, next, 
-              [&, prev_e=size_t{0}](size_t curr_b, size_t curr_e) mutable {
-                return detail::find_if_loop(
-                  offset, beg, prev_e, curr_b, curr_e, predicate
-                );
-              }
-          ); }, part
+          part.loop_until(N, W, next, 
+            [&, prev_e=size_t{0}](size_t curr_b, size_t curr_e) mutable {
+              return detail::find_if_loop(
+                offset, beg, prev_e, curr_b, curr_e, predicate
+              );
+            }
           );
         }
       );
@@ -145,13 +136,10 @@ TF_FORCE_INLINE auto make_find_if_task(
 
 // Function: make_find_if_not_task
 template <typename B, typename E, typename T, typename UOP, typename P = DefaultPartitioner>
-TF_FORCE_INLINE auto make_find_if_not_task(
-  B first, E last, T& result, UOP predicate, P part = P()
-) {
+auto make_find_if_not_task(B first, E last, T& result, UOP predicate, P part = P()) {
   
   using B_t = std::decay_t<unwrap_ref_decay_t<B>>;
   using E_t = std::decay_t<unwrap_ref_decay_t<E>>;
-  using namespace std::string_literals;
 
   return [=, &result] (Runtime& rt) mutable {
 
@@ -164,9 +152,9 @@ TF_FORCE_INLINE auto make_find_if_not_task(
 
     // only myself - no need to spawn another graph
     if(W <= 1 || N <= part.chunk_size()) {
-      TF_MAKE_LOOP_TASK([&](){
+      launch_loop(part, [&](){
         result = std::find_if_not(beg, end, predicate);
-      }, part);
+      });
       return;
     }
 
@@ -185,16 +173,14 @@ TF_FORCE_INLINE auto make_find_if_not_task(
       
         chunk_size = part.adjusted_chunk_size(N, W, w);
 
-        launch_loop(W, w, rt,
+        launch_loop(W, w, rt, part,
           [N, W, curr_b, chunk_size, beg, &predicate, &offset, &part] () mutable {
-            TF_MAKE_LOOP_TASK([&](){
-              part.loop_until(N, W, curr_b, chunk_size,
-                [&, prev_e=size_t{0}](size_t part_b, size_t part_e) mutable {
-                  return detail::find_if_not_loop(
-                    offset, beg, prev_e, part_b, part_e, predicate
-                  );
-                }
-            ); }, part
+            part.loop_until(N, W, curr_b, chunk_size,
+              [&, prev_e=size_t{0}](size_t part_b, size_t part_e) mutable {
+                return detail::find_if_not_loop(
+                  offset, beg, prev_e, part_b, part_e, predicate
+                );
+              }
             );
           }
         );
@@ -207,14 +193,12 @@ TF_FORCE_INLINE auto make_find_if_not_task(
       std::atomic<size_t> next(0);
       launch_loop(N, W, rt, next, part,
         [N, W, beg, &predicate, &offset, &next, &part] () mutable {
-          TF_MAKE_LOOP_TASK([&](){
-            part.loop_until(N, W, next, 
-              [&, prev_e=size_t{0}](size_t curr_b, size_t curr_e) mutable {
-                return detail::find_if_not_loop(
-                  offset, beg, prev_e, curr_b, curr_e, predicate
-                );
-              }
-          );}, part
+          part.loop_until(N, W, next, 
+            [&, prev_e=size_t{0}](size_t curr_b, size_t curr_e) mutable {
+              return detail::find_if_not_loop(
+                offset, beg, prev_e, curr_b, curr_e, predicate
+              );
+            }
           );
         }
       );
@@ -227,13 +211,10 @@ TF_FORCE_INLINE auto make_find_if_not_task(
 
 // Function: make_min_element_task
 template <typename B, typename E, typename T, typename C, typename P = DefaultPartitioner>
-TF_FORCE_INLINE auto make_min_element_task(
-  B first, E last, T& result, C comp, P part = P()
-) {
+auto make_min_element_task(B first, E last, T& result, C comp, P part = P()) {
 
   using B_t = std::decay_t<unwrap_ref_decay_t<B>>;
   using E_t = std::decay_t<unwrap_ref_decay_t<E>>;
-  using namespace std::string_literals;
 
   return [=, &result] (Runtime& rt) mutable {
 
@@ -246,10 +227,9 @@ TF_FORCE_INLINE auto make_min_element_task(
 
     // only myself - no need to spawn another graph
     if(W <= 1 || N <= part.chunk_size()) {
-      TF_MAKE_LOOP_TASK([&](){
+      launch_loop(part, [&](){
         result = std::min_element(beg, end, comp);
-      }, part
-      );
+      });
       return;
     }
 
@@ -274,51 +254,47 @@ TF_FORCE_INLINE auto make_min_element_task(
         // variable sum needs to avoid copy at the first step
         chunk_size = std::max(size_t{2}, part.adjusted_chunk_size(N, W, w));
         
-        launch_loop(W, w, rt,
+        launch_loop(W, w, rt, part,
         [beg, curr_b, N, W, chunk_size, &comp, &mutex, &result, &part] () mutable {
-          TF_MAKE_LOOP_TASK([&](){
+          std::advance(beg, curr_b);
 
-            std::advance(beg, curr_b);
-
-            if(N - curr_b == 1) {
-              std::lock_guard<std::mutex> lock(mutex);
-              if(comp(*beg, *result)) {
-                result = beg;
-              }
-              return;
-            }
-
-            auto beg1 = beg++;
-            auto beg2 = beg++;
-            T smallest = comp(*beg1, *beg2) ? beg1 : beg2;
-        
-            // loop reduce
-            part.loop(N, W, curr_b, chunk_size,
-              [&, prev_e=curr_b+2](size_t part_b, size_t part_e) mutable {
-
-                if(part_b > prev_e) {
-                  std::advance(beg, part_b - prev_e);
-                }
-                else {
-                  part_b = prev_e;
-                }
-
-                for(size_t x=part_b; x<part_e; x++, beg++) {
-                  if(comp(*beg, *smallest)) {
-                    smallest = beg;
-                  }
-                }
-                prev_e = part_e;
-              }
-            ); 
-            
-            // final reduce
+          if(N - curr_b == 1) {
             std::lock_guard<std::mutex> lock(mutex);
-            if(comp(*smallest, *result)) {
-              result = smallest;
+            if(comp(*beg, *result)) {
+              result = beg;
             }
-        }, part
-          );
+            return;
+          }
+
+          auto beg1 = beg++;
+          auto beg2 = beg++;
+          T smallest = comp(*beg1, *beg2) ? beg1 : beg2;
+        
+          // loop reduce
+          part.loop(N, W, curr_b, chunk_size,
+            [&, prev_e=curr_b+2](size_t part_b, size_t part_e) mutable {
+
+              if(part_b > prev_e) {
+                std::advance(beg, part_b - prev_e);
+              }
+              else {
+                part_b = prev_e;
+              }
+
+              for(size_t x=part_b; x<part_e; x++, beg++) {
+                if(comp(*beg, *smallest)) {
+                  smallest = beg;
+                }
+              }
+              prev_e = part_e;
+            }
+          ); 
+          
+          // final reduce
+          std::lock_guard<std::mutex> lock(mutex);
+          if(comp(*smallest, *result)) {
+            result = smallest;
+          }
         });
       }
       rt.corun_all();
@@ -328,51 +304,46 @@ TF_FORCE_INLINE auto make_min_element_task(
       std::atomic<size_t> next(0);
       launch_loop(N, W, rt, next, part, 
         [beg, N, W, &next, &comp, &mutex, &result, &part] () mutable {
+          // pre-reduce
+          size_t s0 = next.fetch_add(2, std::memory_order_relaxed);
 
-          TF_MAKE_LOOP_TASK([&](){
+          if(s0 >= N) {
+            return;
+          }
 
-            // pre-reduce
-            size_t s0 = next.fetch_add(2, std::memory_order_relaxed);
+          std::advance(beg, s0);
 
-            if(s0 >= N) {
-              return;
-            }
-
-            std::advance(beg, s0);
-
-            if(N - s0 == 1) {
-              std::lock_guard<std::mutex> lock(mutex);
-              if(comp(*beg, *result)) {
-                result = beg;
-              }
-              return;
-            }
-
-            auto beg1 = beg++;
-            auto beg2 = beg++;
-
-            T smallest = comp(*beg1, *beg2) ? beg1 : beg2;
-            
-            // loop reduce
-            part.loop(N, W, next, 
-              [&, prev_e=s0+2](size_t part_b, size_t part_e) mutable {
-                std::advance(beg, part_b - prev_e);
-                for(size_t x=part_b; x<part_e; x++, beg++) {
-                  if(comp(*beg, *smallest)) {
-                    smallest = beg;
-                  }
-                }
-                prev_e = part_e;
-              }
-            ); 
-            
-            // final reduce
+          if(N - s0 == 1) {
             std::lock_guard<std::mutex> lock(mutex);
-            if(comp(*smallest, *result)) {
-              result = smallest;
+            if(comp(*beg, *result)) {
+              result = beg;
             }
-      }, part
-          );
+            return;
+          }
+
+          auto beg1 = beg++;
+          auto beg2 = beg++;
+
+          T smallest = comp(*beg1, *beg2) ? beg1 : beg2;
+          
+          // loop reduce
+          part.loop(N, W, next, 
+            [&, prev_e=s0+2](size_t part_b, size_t part_e) mutable {
+              std::advance(beg, part_b - prev_e);
+              for(size_t x=part_b; x<part_e; x++, beg++) {
+                if(comp(*beg, *smallest)) {
+                  smallest = beg;
+                }
+              }
+              prev_e = part_e;
+            }
+          ); 
+          
+          // final reduce
+          std::lock_guard<std::mutex> lock(mutex);
+          if(comp(*smallest, *result)) {
+            result = smallest;
+          }
         }
       );
     }
@@ -381,13 +352,10 @@ TF_FORCE_INLINE auto make_min_element_task(
 
 // Function: make_max_element_task
 template <typename B, typename E, typename T, typename C, typename P = DefaultPartitioner>
-TF_FORCE_INLINE auto make_max_element_task(
-  B first, E last, T& result, C comp, P part = P()
-) {
+auto make_max_element_task(B first, E last, T& result, C comp, P part = P()) {
 
   using B_t = std::decay_t<unwrap_ref_decay_t<B>>;
   using E_t = std::decay_t<unwrap_ref_decay_t<E>>;
-  using namespace std::string_literals;
 
   return [=, &result] (Runtime& rt) mutable {
 
@@ -400,10 +368,9 @@ TF_FORCE_INLINE auto make_max_element_task(
 
     // only myself - no need to spawn another graph
     if(W <= 1 || N <= part.chunk_size()) {
-      TF_MAKE_LOOP_TASK([&](){
+      launch_loop(part, [&](){
         result = std::max_element(beg, end, comp);
-      }, part
-      );
+      });
       return;
     }
 
@@ -428,52 +395,47 @@ TF_FORCE_INLINE auto make_max_element_task(
         // variable sum needs to avoid copy at the first step
         chunk_size = std::max(size_t{2}, part.adjusted_chunk_size(N, W, w));
         
-        launch_loop(W, w, rt,
+        launch_loop(W, w, rt, part,
         [beg, curr_b, N, W, chunk_size, &comp, &mutex, &result, &part] () mutable {
+          std::advance(beg, curr_b);
 
-          TF_MAKE_LOOP_TASK(
-                [&](){
-            std::advance(beg, curr_b);
-
-            if(N - curr_b == 1) {
-              std::lock_guard<std::mutex> lock(mutex);
-              if(comp(*result, *beg)) {
-                result = beg;
-              }
-              return;
-            }
-
-            auto beg1 = beg++;
-            auto beg2 = beg++;
-            T largest = comp(*beg1, *beg2) ? beg2 : beg1;
-        
-            // loop reduce
-            part.loop(N, W, curr_b, chunk_size,
-              [&, prev_e=curr_b+2](size_t part_b, size_t part_e) mutable {
-
-                if(part_b > prev_e) {
-                  std::advance(beg, part_b - prev_e);
-                }
-                else {
-                  part_b = prev_e;
-                }
-
-                for(size_t x=part_b; x<part_e; x++, beg++) {
-                  if(comp(*largest, *beg)) {
-                    largest = beg;
-                  }
-                }
-                prev_e = part_e;
-              }
-            ); 
-            
-            // final reduce
+          if(N - curr_b == 1) {
             std::lock_guard<std::mutex> lock(mutex);
-            if(comp(*result, *largest)) {
-              result = largest;
+            if(comp(*result, *beg)) {
+              result = beg;
             }
-        }, part
-          );
+            return;
+          }
+
+          auto beg1 = beg++;
+          auto beg2 = beg++;
+          T largest = comp(*beg1, *beg2) ? beg2 : beg1;
+        
+          // loop reduce
+          part.loop(N, W, curr_b, chunk_size,
+            [&, prev_e=curr_b+2](size_t part_b, size_t part_e) mutable {
+
+              if(part_b > prev_e) {
+                std::advance(beg, part_b - prev_e);
+              }
+              else {
+                part_b = prev_e;
+              }
+
+              for(size_t x=part_b; x<part_e; x++, beg++) {
+                if(comp(*largest, *beg)) {
+                  largest = beg;
+                }
+              }
+              prev_e = part_e;
+            }
+          ); 
+          
+          // final reduce
+          std::lock_guard<std::mutex> lock(mutex);
+          if(comp(*result, *largest)) {
+            result = largest;
+          }
         });
       }
       rt.corun_all();
@@ -483,51 +445,46 @@ TF_FORCE_INLINE auto make_max_element_task(
       std::atomic<size_t> next(0);
       launch_loop(N, W, rt, next, part,
         [beg, N, W, &next, &comp, &mutex, &result, &part] () mutable {
+          // pre-reduce
+          size_t s0 = next.fetch_add(2, std::memory_order_relaxed);
 
-          TF_MAKE_LOOP_TASK(
-           [&](){   
-            // pre-reduce
-            size_t s0 = next.fetch_add(2, std::memory_order_relaxed);
+          if(s0 >= N) {
+            return;
+          }
 
-            if(s0 >= N) {
-              return;
-            }
+          std::advance(beg, s0);
 
-            std::advance(beg, s0);
-
-            if(N - s0 == 1) {
-              std::lock_guard<std::mutex> lock(mutex);
-              if(comp(*result, *beg)) {
-                result = beg;
-              }
-              return;
-            }
-
-            auto beg1 = beg++;
-            auto beg2 = beg++;
-
-            T largest = comp(*beg1, *beg2) ? beg2 : beg1;
-            
-            // loop reduce
-            part.loop(N, W, next, 
-              [&, prev_e=s0+2](size_t part_b, size_t part_e) mutable {
-                std::advance(beg, part_b - prev_e);
-                for(size_t x=part_b; x<part_e; x++, beg++) {
-                  if(comp(*largest, *beg)) {
-                    largest = beg;
-                  }
-                }
-                prev_e = part_e;
-              }
-            ); 
-            
-            // final reduce
+          if(N - s0 == 1) {
             std::lock_guard<std::mutex> lock(mutex);
-            if(comp(*result, *largest)) {
-              result = largest;
+            if(comp(*result, *beg)) {
+              result = beg;
             }
-      }, part
-          );
+            return;
+          }
+
+          auto beg1 = beg++;
+          auto beg2 = beg++;
+
+          T largest = comp(*beg1, *beg2) ? beg2 : beg1;
+          
+          // loop reduce
+          part.loop(N, W, next, 
+            [&, prev_e=s0+2](size_t part_b, size_t part_e) mutable {
+              std::advance(beg, part_b - prev_e);
+              for(size_t x=part_b; x<part_e; x++, beg++) {
+                if(comp(*largest, *beg)) {
+                  largest = beg;
+                }
+              }
+              prev_e = part_e;
+            }
+          ); 
+          
+          // final reduce
+          std::lock_guard<std::mutex> lock(mutex);
+          if(comp(*result, *largest)) {
+            result = largest;
+          }
         }
       );
     }

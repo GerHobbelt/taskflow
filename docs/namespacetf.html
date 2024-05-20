@@ -81,6 +81,14 @@
             </dt>
             <dd>class to include a runtime object in a task</dd>
             <dt>
+              struct <a href="structtf_1_1TaskParams.html" class="m-doc">TaskParams</a>
+            </dt>
+            <dd>task parameters to use when creating an asynchronous task</dd>
+            <dt>
+              struct <a href="structtf_1_1DefaultTaskParams.html" class="m-doc">DefaultTaskParams</a>
+            </dt>
+            <dd>empty task parameter type for compile-time optimization</dd>
+            <dt>
               <div class="m-doc-template">template&lt;typename T, unsigned TF_MAX_PRIORITY = static_cast&lt;unsigned&gt;(<a href="namespacetf.html#ac9f4add8f716ed323b0bdbbc1d89346fa26a4b44a837bf97b972628509912b4a5" class="m-doc">TaskPriority::<wbr />MAX</a>)&gt;</div>
               class <a href="classtf_1_1TaskQueue.html" class="m-doc">TaskQueue</a>
             </dt>
@@ -270,7 +278,7 @@
             <dt>
               <span class="m-doc-wrap-bumper">enum class <a href="#a1355048578785a80414707ff308b395a" class="m-doc">TaskType</a>: int { </span><span class="m-doc-wrap"><a href="#a1355048578785a80414707ff308b395aae54e6f6ba0c7cbb4eb7a2016e2f17842" class="m-doc">PLACEHOLDER</a> = 0,
               <a href="#a1355048578785a80414707ff308b395aafe6f99ef1ec99efbdc19a9786cf1facc" class="m-doc">STATIC</a>,
-              <a href="#a1355048578785a80414707ff308b395aa0fcc90da4811c877ba9f9c12f7d60bc9" class="m-doc">DYNAMIC</a>,
+              <a href="#a1355048578785a80414707ff308b395aa46be697979903d784a70aeec45eb14ad" class="m-doc">SUBFLOW</a>,
               <a href="#a1355048578785a80414707ff308b395aa9f768c0bb1c3e84ca086a85211e978ac" class="m-doc">CONDITION</a>,
               <a href="#a1355048578785a80414707ff308b395aa1cf5e1f5569acda3c4a88a91c5130a69" class="m-doc">MODULE</a>,
               <a href="#a1355048578785a80414707ff308b395aabe553330beb7b3d994656e0a4e66cd96" class="m-doc">ASYNC</a>,
@@ -700,13 +708,18 @@
         <section id="var-members">
           <h2><a href="#var-members">Variables</a></h2>
           <dl class="m-doc">
+            <dt>
+              <div class="m-doc-template">template&lt;typename P&gt;</div>
+              bool <a href="#ad3a41adc2499a9519da3e77dc3e9849c" class="m-doc">is_task_params_v</a> <span class="m-label m-flat m-primary">constexpr</span>
+            </dt>
+            <dd>determines if the given type is a task parameter type</dd>
             <dt id="a872cf263ab68abc7c3180710fb792528">
               <a href="http://en.cppreference.com/w/cpp/container/array.html" class="m-doc-external">std::<wbr />array</a>&lt;<a href="namespacetf.html#a1355048578785a80414707ff308b395a" class="m-doc">TaskType</a>, 6&gt; <a href="#a872cf263ab68abc7c3180710fb792528" class="m-doc-self">TASK_TYPES</a> <span class="m-label m-flat m-primary">constexpr</span>
             </dt>
             <dd>array of all task types (used for iterating task types)</dd>
             <dt>
               <div class="m-doc-template">template&lt;typename C&gt;</div>
-              bool <a href="#a1eea7593f25ab348cfb656dbdf4e5b05" class="m-doc">is_dynamic_task_v</a> <span class="m-label m-flat m-primary">constexpr</span>
+              bool <a href="#aefeb96086f4a99f0e58a0f321012a52c" class="m-doc">is_subflow_task_v</a> <span class="m-label m-flat m-primary">constexpr</span>
             </dt>
             <dd>determines if a callable is a dynamic task</dd>
             <dt>
@@ -790,7 +803,7 @@
                   </td>
                 </tr>
                 <tr>
-                  <td><a href="#a1355048578785a80414707ff308b395aa0fcc90da4811c877ba9f9c12f7d60bc9" class="m-doc-self" id="a1355048578785a80414707ff308b395aa0fcc90da4811c877ba9f9c12f7d60bc9">DYNAMIC</a></td>
+                  <td><a href="#a1355048578785a80414707ff308b395aa46be697979903d784a70aeec45eb14ad" class="m-doc-self" id="a1355048578785a80414707ff308b395aa46be697979903d784a70aeec45eb14ad">SUBFLOW</a></td>
                   <td>
                   <p>dynamic (subflow) task type</p>
                   </td>
@@ -947,7 +960,7 @@
             <p>convert a task type to a human-readable string</p>
 <p>The name of each task type is the litte-case string of its characters.</p><pre class="m-code"><span class="n">TaskType</span><span class="o">::</span><span class="n">PLACEHOLDER</span><span class="w">     </span><span class="o">-&gt;</span><span class="w">  </span><span class="s">&quot;placeholder&quot;</span><span class="w"></span>
 <span class="n">TaskType</span><span class="o">::</span><span class="n">STATIC</span><span class="w">          </span><span class="o">-&gt;</span><span class="w">  </span><span class="s">&quot;static&quot;</span><span class="w"></span>
-<span class="n">TaskType</span><span class="o">::</span><span class="n">DYNAMIC</span><span class="w">         </span><span class="o">-&gt;</span><span class="w">  </span><span class="s">&quot;subflow&quot;</span><span class="w"></span>
+<span class="n">TaskType</span><span class="o">::</span><span class="n">SUBFLOW</span><span class="w">         </span><span class="o">-&gt;</span><span class="w">  </span><span class="s">&quot;subflow&quot;</span><span class="w"></span>
 <span class="n">TaskType</span><span class="o">::</span><span class="n">CONDITION</span><span class="w">       </span><span class="o">-&gt;</span><span class="w">  </span><span class="s">&quot;condition&quot;</span><span class="w"></span>
 <span class="n">TaskType</span><span class="o">::</span><span class="n">MODULE</span><span class="w">          </span><span class="o">-&gt;</span><span class="w">  </span><span class="s">&quot;module&quot;</span><span class="w"></span>
 <span class="n">TaskType</span><span class="o">::</span><span class="n">ASYNC</span><span class="w">           </span><span class="o">-&gt;</span><span class="w">  </span><span class="s">&quot;async&quot;</span><span class="w"></span></pre>
@@ -2600,12 +2613,22 @@
         </section>
         <section>
           <h2>Variable documentation</h2>
-          <section class="m-doc-details" id="a1eea7593f25ab348cfb656dbdf4e5b05"><div>
+          <section class="m-doc-details" id="ad3a41adc2499a9519da3e77dc3e9849c"><div>
+            <h3>
+              <div class="m-doc-template">
+                template&lt;typename P&gt;
+              </div>
+              bool tf::<wbr /><a href="#ad3a41adc2499a9519da3e77dc3e9849c" class="m-doc-self">is_task_params_v</a> <span class="m-label m-primary">constexpr</span>
+            </h3>
+            <p>determines if the given type is a task parameter type</p>
+<p><a href="classtf_1_1Task.html" class="m-doc">Task</a> parameters can be specified in one of the following types:</p><ul><li><a href="structtf_1_1TaskParams.html" class="m-doc">tf::<wbr />TaskParams</a>: assign the struct of defined parameters</li><li><a href="structtf_1_1DefaultTaskParams.html" class="m-doc">tf::<wbr />DefaultTaskParams</a>: assign nothing</li><li><a href="http://en.cppreference.com/w/cpp/string/basic_string.html" class="m-doc-external">std::<wbr />string</a>: assign a name to the task</li></ul>
+          </div></section>
+          <section class="m-doc-details" id="aefeb96086f4a99f0e58a0f321012a52c"><div>
             <h3>
               <div class="m-doc-template">
                 template&lt;typename C&gt;
               </div>
-              bool tf::<wbr /><a href="#a1eea7593f25ab348cfb656dbdf4e5b05" class="m-doc-self">is_dynamic_task_v</a> <span class="m-label m-primary">constexpr</span>
+              bool tf::<wbr /><a href="#aefeb96086f4a99f0e58a0f321012a52c" class="m-doc-self">is_subflow_task_v</a> <span class="m-label m-primary">constexpr</span>
             </h3>
             <p>determines if a callable is a dynamic task</p>
 <p>A dynamic task is a callable object constructible from std::function&lt;void(Subflow&amp;)&gt;.</p>
