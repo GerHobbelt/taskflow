@@ -81,72 +81,71 @@ class UnboundedTaskQueue {
 
   public:
 
-    /**
-    @brief constructs the queue with a given capacity
+  /**
+  @brief constructs the queue with the given size in the base-2 logarithm
 
-    @param capacity the capacity of the queue (must be power of 2)
-    */
-    explicit UnboundedTaskQueue(int64_t capacity = 1024);
+  @param LogSize the base-2 logarithm of the queue size
+  */
+  explicit UnboundedTaskQueue(int64_t LogSize = TF_DEFAULT_UNBOUNDED_TASK_QUEUE_LOG_SIZE);
 
-    /**
-    @brief destructs the queue
-    */
-    ~UnboundedTaskQueue();
+  /**
+  @brief destructs the queue
+  */
+  ~UnboundedTaskQueue();
 
-    /**
-    @brief queries if the queue is empty at the time of this call
-    */
-    bool empty() const noexcept;
+  /**
+  @brief queries if the queue is empty at the time of this call
+  */
+  bool empty() const noexcept;
 
-    /**
-    @brief queries the number of items at the time of this call
-    */
-    size_t size() const noexcept;
+  /**
+  @brief queries the number of items at the time of this call
+  */
+  size_t size() const noexcept;
 
-    /**
-    @brief queries the capacity of the queue
-    */
-    int64_t capacity() const noexcept;
-    
-    /**
-    @brief inserts an item to the queue
+  /**
+  @brief queries the capacity of the queue
+  */
+  int64_t capacity() const noexcept;
+  
+  /**
+  @brief inserts an item to the queue
 
-    @param item the item to push to the queue
-    
-    Only the owner thread can insert an item to the queue.
-    The operation can trigger the queue to resize its capacity
-    if more space is required.
-    */
-    void push(T item);
+  @param item the item to push to the queue
+  
+  Only the owner thread can insert an item to the queue.
+  The operation can trigger the queue to resize its capacity
+  if more space is required.
+  */
+  void push(T item);
 
-    /**
-    @brief pops out an item from the queue
+  /**
+  @brief pops out an item from the queue
 
-    Only the owner thread can pop out an item from the queue.
-    The return can be a @c nullptr if this operation failed (empty queue).
-    */
-    T pop();
+  Only the owner thread can pop out an item from the queue.
+  The return can be a @c nullptr if this operation failed (empty queue).
+  */
+  T pop();
 
-    /**
-    @brief steals an item from the queue
+  /**
+  @brief steals an item from the queue
 
-    Any threads can try to steal an item from the queue.
-    The return can be a @c nullptr if this operation failed (not necessary empty).
-    */
-    T steal();
+  Any threads can try to steal an item from the queue.
+  The return can be a @c nullptr if this operation failed (not necessary empty).
+  */
+  T steal();
 
   private:
 
-    Array* resize_array(Array* a, std::int64_t b, std::int64_t t);
+  Array* resize_array(Array* a, int64_t b, int64_t t);
 };
 
 // Constructor
 template <typename T>
-UnboundedTaskQueue<T>::UnboundedTaskQueue(int64_t c) {
-  assert(c && (!(c & (c-1))));
+UnboundedTaskQueue<T>::UnboundedTaskQueue(int64_t LogSize) {
   _top.store(0, std::memory_order_relaxed);
   _bottom.store(0, std::memory_order_relaxed);
-  _array.store(new Array{c}, std::memory_order_relaxed);
+  _array.store(new Array{(int64_t{1} << LogSize)}, std::memory_order_relaxed);
   _garbage.reserve(32);
 }
 
@@ -190,7 +189,9 @@ void UnboundedTaskQueue<T>::push(T o) {
 
   a->push(b, o);
   std::atomic_thread_fence(std::memory_order_release);
-  _bottom.store(b + 1, std::memory_order_relaxed);
+
+  // original paper uses relaxed here but tsa complains
+  _bottom.store(b + 1, std::memory_order_release);
 }
 
 // Function: pop
@@ -255,7 +256,7 @@ int64_t UnboundedTaskQueue<T>::capacity() const noexcept {
 
 template <typename T>
 typename UnboundedTaskQueue<T>::Array*
-UnboundedTaskQueue<T>::resize_array(Array* a, std::int64_t b, std::int64_t t) {
+UnboundedTaskQueue<T>::resize_array(Array* a, int64_t b, int64_t t) {
 
   Array* tmp = a->resize(b, t);
   _garbage.push_back(a);
@@ -274,18 +275,18 @@ UnboundedTaskQueue<T>::resize_array(Array* a, std::int64_t b, std::int64_t t) {
 @class: BoundedTaskQueue
 
 @tparam T data type
-@tparam LogSize log size of the queue to the base of 2
+@tparam LogSize the base-2 logarithm of the queue size
 
-@brief Lock-free bounded single-producer multiple-consumer queue.
+@brief class to create a lock-free bounded single-producer multiple-consumer queue
 
-This class implements the work stealing queue described in the paper, 
+This class implements the work-stealing queue described in the paper, 
 "Correct and Efficient Work-Stealing for Weak Memory Models,"
 available at https://www.di.ens.fr/~zappa/readings/ppopp13.pdf.
 
 Only the queue owner can perform pop and push operations,
 while others can steal data from the queue.
 */
-template <typename T, size_t LogSize = 9>
+template <typename T, size_t LogSize = TF_DEFAULT_BOUNDED_TASK_QUEUE_LOG_SIZE>
 class BoundedTaskQueue {
   
   static_assert(std::is_pointer_v<T>, "T must be a pointer type");
@@ -301,73 +302,73 @@ class BoundedTaskQueue {
 
   public:
     
-    /**
-    @brief constructs the queue with a given capacity
-    */
-    BoundedTaskQueue() = default;
+  /**
+  @brief constructs the queue with a given capacity
+  */
+  BoundedTaskQueue() = default;
 
-    /**
-    @brief destructs the queue
-    */
-    ~BoundedTaskQueue() = default;
-    
-    /**
-    @brief queries if the queue is empty at the time of this call
-    */
-    bool empty() const noexcept;
-    
-    /**
-    @brief queries the number of items at the time of this call
-    */
-    size_t size() const noexcept;
+  /**
+  @brief destructs the queue
+  */
+  ~BoundedTaskQueue() = default;
+  
+  /**
+  @brief queries if the queue is empty at the time of this call
+  */
+  bool empty() const noexcept;
+  
+  /**
+  @brief queries the number of items at the time of this call
+  */
+  size_t size() const noexcept;
 
-    /**
-    @brief queries the capacity of the queue
-    */
-    constexpr size_t capacity() const;
-    
-    /**
-    @brief tries to insert an item to the queue
+  /**
+  @brief queries the capacity of the queue
+  */
+  constexpr size_t capacity() const;
+  
+  /**
+  @brief tries to insert an item to the queue
 
-    @tparam O data type 
-    @param item the item to perfect-forward to the queue
-    @return `true` if the insertion succeed or `false` (queue is full)
-    
-    Only the owner thread can insert an item to the queue. 
+  @tparam O data type 
+  @param item the item to perfect-forward to the queue
+  @return `true` if the insertion succeed or `false` (queue is full)
+  
+  Only the owner thread can insert an item to the queue. 
 
-    */
-    template <typename O>
-    bool try_push(O&& item);
-    
-    /**
-    @brief tries to insert an item to the queue or invoke the callable if fails
+  */
+  template <typename O>
+  bool try_push(O&& item);
+  
+  /**
+  @brief tries to insert an item to the queue or invoke the callable if fails
 
-    @tparam O data type 
-    @tparam C callable type
-    @param item the item to perfect-forward to the queue
-    @param on_full callable to invoke when the queue is faull (insertion fails)
-    
-    Only the owner thread can insert an item to the queue. 
+  @tparam O data type 
+  @tparam C callable type
+  @param item the item to perfect-forward to the queue
+  @param on_full callable to invoke when the queue is faull (insertion fails)
+  
+  Only the owner thread can insert an item to the queue. 
 
-    */
-    template <typename O, typename C>
-    void push(O&& item, C&& on_full);
-    
-    /**
-    @brief pops out an item from the queue
+  */
+  template <typename O, typename C>
+  void push(O&& item, C&& on_full);
+  
+  /**
+  @brief pops out an item from the queue
 
-    Only the owner thread can pop out an item from the queue. 
-    The return can be a @std_nullopt if this operation failed (empty queue).
-    */
-    T pop();
-    
-    /**
-    @brief steals an item from the queue
+  Only the owner thread can pop out an item from the queue. 
+  The return can be a @std_nullopt if this operation failed (empty queue).
+  */
+  T pop();
+  
+  /**
+  @brief steals an item from the queue
 
-    Any threads can try to steal an item from the queue.
-    The return can be a @std_nullopt if this operation failed (not necessary empty).
-    */
-    T steal();
+  Any threads can try to steal an item from the queue.
+  The return can be a @std_nullopt if this operation failed (not necessary empty).
+  */
+  T steal();
 };
 
 // Function: empty
@@ -402,7 +403,9 @@ bool BoundedTaskQueue<T, LogSize>::try_push(O&& o) {
   _buffer[b & BufferMask].store(std::forward<O>(o), std::memory_order_relaxed);
 
   std::atomic_thread_fence(std::memory_order_release);
-  _bottom.store(b + 1, std::memory_order_relaxed);
+  
+  // original paper uses relaxed here but tsa complains
+  _bottom.store(b + 1, std::memory_order_release);
 
   return true;
 }
@@ -424,7 +427,9 @@ void BoundedTaskQueue<T, LogSize>::push(O&& o, C&& on_full) {
   _buffer[b & BufferMask].store(std::forward<O>(o), std::memory_order_relaxed);
 
   std::atomic_thread_fence(std::memory_order_release);
-  _bottom.store(b + 1, std::memory_order_relaxed);
+  
+  // original paper uses relaxed here but tsa complains
+  _bottom.store(b + 1, std::memory_order_release);
 }
 
 // Function: pop

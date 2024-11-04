@@ -19,7 +19,7 @@ cmake_minimum_required (VERSION 3.18)
 MESSAGE(STATUS "CMAKE_ROOT: " ${CMAKE_ROOT})
 
 # Project name
-project(Taskflow VERSION 3.8.0 LANGUAGES CXX)
+project(Taskflow VERSION 3.9.0 LANGUAGES CXX)
 
 # build options
 option(TF_BUILD_BENCHMARKS "Enables builds of benchmarks" OFF)
@@ -305,7 +305,7 @@ find_package(Threads REQUIRED)
 
 add_library(${PROJECT_NAME} INTERFACE)
 target_compile_features(${PROJECT_NAME} INTERFACE cxx_std_17)
-target_link_libraries(${PROJECT_NAME} INTERFACE ${ATOMIC_LIBRARY} Threads::Threads atomic)
+target_link_libraries(${PROJECT_NAME} INTERFACE ${ATOMIC_LIBRARY} Threads::Threads)
 target_include_directories(${PROJECT_NAME} INTERFACE
   $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
   $<INSTALL_INTERFACE:include/> 
