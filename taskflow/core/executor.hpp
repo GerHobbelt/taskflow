@@ -1699,8 +1699,7 @@ inline void Executor::_tear_down_invoke(Worker& worker, Node* node) {
       _tear_down_topology(worker, node->_topology);
     }
   }
-  // Here we asssume the parent is in a busy loop (e.g., corun) waiting for
-  // its join counter to become 0.
+  // The parent is in a corun loop waiting for its join counter to reach 0.
   else {
     //parent->_join_counter.fetch_sub(1, std::memory_order_acq_rel);
     parent->_join_counter.fetch_sub(1, std::memory_order_release);
@@ -2301,28 +2300,17 @@ inline void Runtime::corun_all() {
   _parent->_process_exception();
 }
 
+// ----------------------------------------------------------------------------
+// Runtime: Semaphore series
+// ----------------------------------------------------------------------------
+
 // Function: acquire
 template <typename... S,
   std::enable_if_t<all_same_v<Semaphore, std::decay_t<S>...>, void>*
 >
 void Runtime::acquire(S&&... semaphores) {
-  constexpr size_t N = sizeof...(S);
-  std::array<Semaphore*, N> items { std::addressof(semaphores)... };
   _executor._corun_until(_worker, [&](){ 
-    // Ideally, we should use a better deadlock-avoidance algorithm but
-    // in practice the number of semaphores will not be too large and
-    // tf::Semaphore does not provide blocking method. Hence, we are 
-    // mostly safe here. This is similar to the GCC try_lock implementation:
-    // https://github.com/gcc-mirror/gcc/blob/master/libstdc%2B%2B-v3/include/std/mutex
-    for(size_t i=0; i < N; i++) {
-      if(items[i]->try_acquire() == false) {
-        for(size_t j=0; j<i; j++) {
-          items[j]->release();
-        }
-        return false;
-      }
-    }
-    return true;
+    return tf::try_acquire(std::forward<S>(semaphores)...); 
   });
   // TODO: exception?
 }
@@ -2331,22 +2319,9 @@ void Runtime::acquire(S&&... semaphores) {
 template <typename I,
   std::enable_if_t<std::is_same_v<deref_t<I>, Semaphore>, void>*
 >
-void Runtime::acquire(I begin, I end) {
-  _executor._corun_until(_worker, [begin, end](){
-    // Ideally, we should use a better deadlock-avoidance algorithm but
-    // in practice the number of semaphores will not be too large and
-    // tf::Semaphore does not provide blocking method. Hence, we are 
-    // mostly safe here. This is similar to the GCC try_lock implementation:
-    // https://github.com/gcc-mirror/gcc/blob/master/libstdc%2B%2B-v3/include/std/mutex
-    for(I ptr = begin; ptr != end; ptr++) {
-      if(ptr->try_acquire() == false) {
-        for(I ptr2 = begin; ptr2 != ptr; ptr2++) {
-          ptr2->release();
-        }
-        return false;
-      }
-    }
-    return true;
+void Runtime::acquire(I first, I last) {
+  _executor._corun_until(_worker, [=](){ 
+    return tf::try_acquire(first, last); 
   });
   // TODO: exception?
 }
@@ -2356,7 +2331,7 @@ template <typename... S,
   std::enable_if_t<all_same_v<Semaphore, std::decay_t<S>...>, void>*
 >
 void Runtime::release(S&&... semaphores){
-  (semaphores.release(), ...);
+  tf::release(std::forward<S>(semaphores)...);
 }
 
 // Function:: release
@@ -2364,9 +2339,7 @@ template <typename I,
   std::enable_if_t<std::is_same_v<deref_t<I>, Semaphore>, void>*
 >
 void Runtime::release(I begin, I end) {
-  for(I ptr = begin; ptr != end; ptr++) {
-    ptr->release();
-  }
+  tf::release(begin, end);
 }
 
 // Destructor
@@ -2456,9 +2429,7 @@ auto Runtime::async(P&& params, F&& f) {
   return _async(*_executor._this_worker(), std::forward<P>(params), std::forward<F>(f));
 }
 
-// ----------------------------------------------------------------------------
-// Runtime: Semaphore series
-// ----------------------------------------------------------------------------
+
 
 
 
