@@ -52,7 +52,7 @@ tell the compiler to include the headers under @c taskflow/.
 
 @code{.shell-session}
 ~$ git clone https://github.com/taskflow/taskflow.git  # clone it only once
-~$ g++ -std=c++17 simple.cpp -I taskflow/ -O2 -pthread -o simple
+~$ g++ -std=c++20 simple.cpp -I taskflow/ -O2 -pthread -o simple
 ~$ ./simple
 TaskA
 TaskC 
@@ -297,6 +297,10 @@ To use %Taskflow, you only need a compiler that supports C++17:
 
 %Taskflow works on Linux, Windows, and Mac OS X.
 
+@note
+Although %Taskflow supports primarily C++17, you can enable C++20 compilation
+through `-std=c++20` to achieve better performance due to new C++20 features.
+
 @section QuickStartGetInvolved Get Involved
 
 Visit our @ProjectWebsite and @ShowcasePresentation 
@@ -311,7 +315,7 @@ to learn more about %Taskflow. To get involved:
 We are committed to support trustworthy developments for 
 both academic and industrial research projects in parallel 
 and heterogeneous computing. 
-If you are using %Taskflow, please cite the following paper we publised at 2022 IEEE TPDS:
+If you are using %Taskflow, please cite the following paper we published at 2022 IEEE TPDS:
 
 + Tsung-Wei Huang, Dian-Lun Lin, Chun-Xun Lin, and Yibo Lin, &quot;[Taskflow: A Lightweight Parallel and Heterogeneous Task Graph Computing System](https://tsung-wei-huang.github.io/papers/tpds21-taskflow.pdf),&quot; <i>IEEE Transactions on Parallel and Distributed Systems (TPDS)</i>, vol. 33, no. 6, pp. 1303-1320, June 2022
 

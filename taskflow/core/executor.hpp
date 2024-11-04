@@ -1184,6 +1184,8 @@ inline int Executor::this_worker_id() const {
 inline void Executor::_spawn(size_t N) {
 
 #ifdef __cpp_lib_atomic_wait
+  // we cannot declare _all_spawned here because the main thread
+  // may finish real quick before other threads access _all_spawned
 #else
   std::mutex mutex;
   std::condition_variable cond;
@@ -1204,10 +1206,8 @@ inline void Executor::_spawn(size_t N) {
 #ifdef __cpp_lib_atomic_wait
       // wait for the caller thread to initialize the ID mapping
       _all_spawned.wait(false, std::memory_order_acquire);
-      w._thread = &_threads[w._id];
 #else
       // update the ID mapping of this thread
-      w._thread = &_threads[w._id];
       {
         std::scoped_lock lock(mutex);
         _wids[std::this_thread::get_id()] = w._id;
@@ -2317,7 +2317,7 @@ inline void Executor::_tear_down_topology(Worker& worker, Topology* tpg) {
       f._topologies.pop();
       tpg = f._topologies.front().get();
 
-      // decrement the topology but since this is not the last we don't notify
+      // decrement the topology
       _decrement_topology();
 
       // set up topology needs to be under the lock or it can
@@ -2442,7 +2442,7 @@ void Runtime::_silent_async(Worker& w, P&& params, F&& f) {
 
   _parent->_join_counter.fetch_add(1, std::memory_order_relaxed);
 
-  auto node = node_pool.animate(
+  auto node = animate(
     std::forward<P>(params), _parent->_topology, _parent, 0,
     std::in_place_type_t<Node::Async>{}, std::forward<F>(f)
   );
@@ -2489,7 +2489,7 @@ auto Runtime::_async(Worker& w, P&& params, F&& f) {
   std::packaged_task<R()> p(std::forward<F>(f));
   auto fu{p.get_future()};
 
-  auto node = node_pool.animate(
+  auto node = animate(
     std::forward<P>(params), _parent->_topology, _parent, 0, 
     std::in_place_type_t<Node::Async>{},
     [p=make_moc(std::move(p))] () mutable { p.object(); }
