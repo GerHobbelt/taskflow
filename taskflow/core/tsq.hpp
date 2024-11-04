@@ -10,29 +10,6 @@
 
 namespace tf {
 
-
-/**
-@enum TaskPriority
-
-@brief enumeration of all task priority values
-
-A priority is an enumerated value of type @c unsigned.
-Currently, %Taskflow defines three priority levels, 
-@c HIGH, @c NORMAL, and @c LOW, starting from 0, 1, to 2.
-That is, the lower the value, the higher the priority.
-
-*/
-enum class TaskPriority : unsigned {
-  /** @brief value of the highest priority (i.e., 0)  */
-  HIGH = 0,
-  /** @brief value of the normal priority (i.e., 1)  */
-  NORMAL = 1,
-  /** @brief value of the lowest priority (i.e., 2) */
-  LOW = 2,
-  /** @brief conventional value for iterating priority values */
-  MAX = 3
-};
-
 // ----------------------------------------------------------------------------
 // Task Queue
 // ----------------------------------------------------------------------------
@@ -46,57 +23,10 @@ enum class TaskPriority : unsigned {
 @brief class to create a lock-free unbounded single-producer multiple-consumer queue
 
 This class implements the work-stealing queue described in the paper,
-<a href="https://www.di.ens.fr/~zappa/readings/ppopp13.pdf">Correct and Efficient Work-Stealing for Weak Memory Models</a>,
-and extends it to include priority.
+<a href="https://www.di.ens.fr/~zappa/readings/ppopp13.pdf">Correct and Efficient Work-Stealing for Weak Memory Models</a>.
 
 Only the queue owner can perform pop and push operations,
 while others can steal data from the queue simultaneously.
-Priority starts from zero (highest priority) to the template value 
-`TF_MAX_PRIORITY-1` (lowest priority).
-All operations are associated with priority values to indicate
-the corresponding queues to which an operation is applied.
-
-The default template value, `TF_MAX_PRIORITY`, is `TaskPriority::MAX` 
-which applies only three priority levels to the task queue.
-
-@code{.cpp}
-auto [A, B, C, D, E] = taskflow.emplace(
-  [] () { },
-  [&] () { 
-    std::cout << "Task B: " << counter++ << '\n';  // 0
-  },
-  [&] () { 
-    std::cout << "Task C: " << counter++ << '\n';  // 2
-  },
-  [&] () { 
-    std::cout << "Task D: " << counter++ << '\n';  // 1
-  },
-  [] () { }
-);
-
-A.precede(B, C, D); 
-E.succeed(B, C, D);
-  
-B.priority(tf::TaskPriority::HIGH);
-C.priority(tf::TaskPriority::LOW);
-D.priority(tf::TaskPriority::NORMAL);
-  
-executor.run(taskflow).wait();
-@endcode
-
-In the above example, we have a task graph of five tasks,
-@c A, @c B, @c C, @c D, and @c E, in which @c B, @c C, and @c D
-can run in simultaneously when @c A finishes.
-Since we only uses one worker thread in the executor, 
-we can deterministically run @c B first, then @c D, and @c C
-in order of their priority values.
-The output is as follows:
-
-@code{.shell-session}
-Task B: 0
-Task D: 1
-Task C: 2
-@endcode
 
 */
 template <typename T>
@@ -254,7 +184,7 @@ void UnboundedTaskQueue<T>::push(T o) {
   Array* a = _array.load(std::memory_order_relaxed);
 
   // queue is full
-  if(a->capacity() - 1 < (b - t)) {
+  if TF_UNLIKELY(a->capacity() - 1 < (b - t)) {
     a = resize_array(a, b, t);
   }
 
@@ -344,8 +274,9 @@ UnboundedTaskQueue<T>::resize_array(Array* a, std::int64_t b, std::int64_t t) {
 @class: BoundedTaskQueue
 
 @tparam T data type
+@tparam LogSize log size of the queue to the base of 2
 
-@brief Lock-free unbounded single-producer multiple-consumer queue.
+@brief Lock-free bounded single-producer multiple-consumer queue.
 
 This class implements the work stealing queue described in the paper, 
 "Correct and Efficient Work-Stealing for Weak Memory Models,"
@@ -354,7 +285,7 @@ available at https://www.di.ens.fr/~zappa/readings/ppopp13.pdf.
 Only the queue owner can perform pop and push operations,
 while others can steal data from the queue.
 */
-template <typename T, size_t LogSize = 10>
+template <typename T, size_t LogSize = 9>
 class BoundedTaskQueue {
   
   static_assert(std::is_pointer_v<T>, "T must be a pointer type");
@@ -372,8 +303,6 @@ class BoundedTaskQueue {
     
     /**
     @brief constructs the queue with a given capacity
-
-    @param capacity the capacity of the queue (must be power of 2)
     */
     BoundedTaskQueue() = default;
 
@@ -398,18 +327,31 @@ class BoundedTaskQueue {
     constexpr size_t capacity() const;
     
     /**
-    @brief inserts an item to the queue
-
-    Only the owner thread can insert an item to the queue. 
-    The operation can trigger the queue to resize its capacity 
-    if more space is required.
+    @brief tries to insert an item to the queue
 
     @tparam O data type 
-
     @param item the item to perfect-forward to the queue
+    @return `true` if the insertion succeed or `false` (queue is full)
+    
+    Only the owner thread can insert an item to the queue. 
+
     */
     template <typename O>
     bool try_push(O&& item);
+    
+    /**
+    @brief tries to insert an item to the queue or invoke the callable if fails
+
+    @tparam O data type 
+    @tparam C callable type
+    @param item the item to perfect-forward to the queue
+    @param on_full callable to invoke when the queue is faull (insertion fails)
+    
+    Only the owner thread can insert an item to the queue. 
+
+    */
+    template <typename O, typename C>
+    void push(O&& item, C&& on_full);
     
     /**
     @brief pops out an item from the queue
@@ -444,7 +386,7 @@ size_t BoundedTaskQueue<T, LogSize>::size() const noexcept {
   return static_cast<size_t>(b >= t ? b - t : 0);
 }
 
-// Function: push
+// Function: try_push
 template <typename T, size_t LogSize>
 template <typename O>
 bool BoundedTaskQueue<T, LogSize>::try_push(O&& o) {
@@ -453,7 +395,7 @@ bool BoundedTaskQueue<T, LogSize>::try_push(O&& o) {
   int64_t t = _top.load(std::memory_order_acquire);
 
   // queue is full
-  if((b - t) >= BufferSize - 1) {
+  if TF_UNLIKELY((b - t) >= BufferSize - 1) {
     return false;
   }
   
@@ -463,6 +405,26 @@ bool BoundedTaskQueue<T, LogSize>::try_push(O&& o) {
   _bottom.store(b + 1, std::memory_order_relaxed);
 
   return true;
+}
+
+// Function: push
+template <typename T, size_t LogSize>
+template <typename O, typename C>
+void BoundedTaskQueue<T, LogSize>::push(O&& o, C&& on_full) {
+
+  int64_t b = _bottom.load(std::memory_order_relaxed);
+  int64_t t = _top.load(std::memory_order_acquire);
+
+  // queue is full
+  if TF_UNLIKELY((b - t) >= BufferSize - 1) {
+    on_full();
+    return;
+  }
+  
+  _buffer[b & BufferMask].store(std::forward<O>(o), std::memory_order_relaxed);
+
+  std::atomic_thread_fence(std::memory_order_release);
+  _bottom.store(b + 1, std::memory_order_relaxed);
 }
 
 // Function: pop
