@@ -11,6 +11,7 @@
 #include "../utility/math.hpp"
 #include "../utility/small_vector.hpp"
 #include "../utility/serializer.hpp"
+#include "../utility/latch.hpp"
 #include "error.hpp"
 #include "declarations.hpp"
 #include "semaphore.hpp"
@@ -501,7 +502,7 @@ class Runtime {
   @brief acquires the given range of semaphores with a deadlock avoidance algorithm
   
   @tparam I iterator type
-  @param first iterator to the begining (inclusive)
+  @param first iterator to the beginning (inclusive)
   @param last iterator to the end (exclusive)
 
   Coruns this worker until acquiring all the semaphores. 
@@ -560,7 +561,7 @@ class Runtime {
   @brief releases the given range of semaphores
   
   @tparam I iterator type
-  @param first iterator to the begining (inclusive)
+  @param first iterator to the beginning (inclusive)
   @param last iterator to the end (exclusive)
 
   Releases the given range of semaphores.
@@ -813,11 +814,6 @@ class Node {
     DependentAsync    // dependent async tasking
   >;
 
-  struct Semaphores {
-    SmallVector<Semaphore*> to_acquire;
-    SmallVector<Semaphore*> to_release;
-  };
-
   public:
 
   // variant index
@@ -854,6 +850,8 @@ class Node {
   const std::string& name() const;
 
   private:
+  
+  std::atomic<int> _state {0};
 
   std::string _name;
   
@@ -867,7 +865,6 @@ class Node {
   SmallVector<Node*> _successors;
   SmallVector<Node*> _dependents;
 
-  std::atomic<int> _state {0};
   std::atomic<size_t> _join_counter {0};
 
   std::exception_ptr _exception_ptr {nullptr};

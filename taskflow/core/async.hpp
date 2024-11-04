@@ -79,12 +79,9 @@ void Executor::silent_async(F&& f) {
 
 // Procedure: _schedule_async_task
 inline void Executor::_schedule_async_task(Node* node) {  
-  if(auto w = _this_worker(); w) {
-    _schedule(*w, node);
-  }
-  else{
-    _schedule(node);
-  }
+  // Here we don't use _this_worker since _schedule will check if the
+  // given worker belongs to this executor.
+  (pt::worker) ? _schedule(*pt::worker, node) : _schedule(node);
 }
 
 // Procedure: _tear_down_async
@@ -302,7 +299,7 @@ inline void Executor::_tear_down_dependent_async(Worker& worker, Node* node) {
     target = Node::AsyncState::UNFINISHED;
   }
   
-  // spaw successors whenever their dependencies are resolved
+  // spawn successors whenever their dependencies are resolved
   worker._cache = nullptr;
   for(size_t i=0; i<node->_successors.size(); ++i) {
     if(auto s = node->_successors[i]; 
