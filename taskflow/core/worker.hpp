@@ -2,7 +2,9 @@
 
 #include "declarations.hpp"
 #include "tsq.hpp"
-#include "notifier.hpp"
+#include "atomic_notifier.hpp"
+#include "nonblocking_notifier.hpp"
+
 
 /**
 @file worker.hpp
@@ -10,6 +12,19 @@
 */
 
 namespace tf {
+
+// ----------------------------------------------------------------------------
+// Default Notifier
+// ----------------------------------------------------------------------------
+
+/**
+@private
+*/
+#ifdef TF_ENABLE_ATOMIC_NOTIFIER
+  using DefaultNotifier = AtomicNotifierV2;
+#else
+  using DefaultNotifier = NonblockingNotifierV2;
+#endif
 
 // ----------------------------------------------------------------------------
 // Class Definition: Worker
@@ -61,39 +76,8 @@ class Worker {
     TaskQueue<Node*> _wsq;
     Node* _cache;
 
-#ifndef __cpp_lib_atomic_wait
-    Notifier::Waiter* _waiter;
-#endif
+    DefaultNotifier::Waiter* _waiter;
 };
-
-// ----------------------------------------------------------------------------
-// Class Definition: PerThreadWorker
-// ----------------------------------------------------------------------------
-
-/**
-@private
-*/
-//struct PerThreadWorker {
-//
-//  Worker* worker;
-//
-//  PerThreadWorker() : worker {nullptr} {}
-//
-//  PerThreadWorker(const PerThreadWorker&) = delete;
-//  PerThreadWorker(PerThreadWorker&&) = delete;
-//
-//  PerThreadWorker& operator = (const PerThreadWorker&) = delete;
-//  PerThreadWorker& operator = (PerThreadWorker&&) = delete;
-//};
-
-/**
-@private
-*/
-//inline PerThreadWorker& this_worker() {
-//  thread_local PerThreadWorker worker;
-//  return worker;
-//}
-
 
 // ----------------------------------------------------------------------------
 // Class Definition: WorkerView
