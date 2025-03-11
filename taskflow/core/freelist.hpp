@@ -10,32 +10,43 @@ namespace tf {
 template <typename T>
 class Freelist {
 
-  struct Head {
+  friend class Executor;
+
+  public:
+  
+  struct Bucket {
     std::mutex mutex;
     UnboundedTaskQueue<T> queue;
   };
 
-  public:
+  TF_FORCE_INLINE Freelist(size_t N) : _buckets(N < 4 ? 1 : floor_log2(N)) {}
 
-  Freelist(size_t N) : _heads(N) {}
+  //TF_FORCE_INLINE void push(size_t w, T item) {
+  //  std::scoped_lock lock(_buckets[w].mutex);
+  //  _buckets[w].queue.push(item);  
+  //}
 
-  void push(size_t w, T item) {
-    std::scoped_lock lock(_heads[w].mutex);
-    _heads[w].queue.push(item);  
+  TF_FORCE_INLINE void push(T item) {
+    auto b = reinterpret_cast<uintptr_t>(item) % _buckets.size();
+    std::scoped_lock lock(_buckets[b].mutex);
+    _buckets[b].queue.push(item);
   }
 
-  void push(T item) {
-    push(reinterpret_cast<uintptr_t>(item) % _heads.size(), item);
+  TF_FORCE_INLINE T steal(size_t w) {
+    return _buckets[w].queue.steal();
+  }
+  
+  TF_FORCE_INLINE T steal_with_hint(size_t w, size_t& num_empty_steals) {
+    return _buckets[w].queue.steal_with_hint(num_empty_steals);
   }
 
-  T steal(size_t w) {
-    return _heads[w].queue.steal();
+  TF_FORCE_INLINE size_t size() const {
+    return _buckets.size();
   }
 
-
-  bool empty() const {
-    for(const auto& q : _heads) {
-      if(!q.queue.empty()) {
+  TF_FORCE_INLINE bool empty(size_t& which) const {
+    for(which=0; which<_buckets.size(); ++which) {
+      if(!_buckets[which].queue.empty()) {
         return false;
       }
     }
@@ -44,7 +55,7 @@ class Freelist {
 
   private:
   
-  std::vector<Head> _heads;
+  std::vector<Bucket> _buckets;
 };
 
 

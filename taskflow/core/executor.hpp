@@ -516,6 +516,11 @@ class Executor {
   @endcode
   */
   size_t num_workers() const noexcept;
+  
+  /**
+  @brief queries the number of queues used in the work-stealing loop
+  */
+  size_t num_queues() const noexcept;
 
   /**
   @brief queries the number of running topologies at the time of this call
@@ -1043,8 +1048,6 @@ class Executor {
 
   private:
     
-  const size_t _MAX_STEALS;
-  
   std::mutex _taskflows_mutex;
   
   std::vector<Worker> _workers;
@@ -1061,7 +1064,6 @@ class Executor {
   size_t _num_topologies {0};
   std::atomic<bool> _done {0};
 #endif
-
   
   std::list<Taskflow> _taskflows;
 
@@ -1111,7 +1113,7 @@ class Executor {
   
   template <typename I>
   void _corun_graph(Worker&, Node*, I, I);
-  
+
   template <typename I>
   void _schedule(Worker&, I, I);
 
@@ -1133,11 +1135,11 @@ class Executor {
 
 // Constructor
 inline Executor::Executor(size_t N, std::shared_ptr<WorkerInterface> wix) :
-  _MAX_STEALS      ((N+1) << 1),
   _workers         (N),
   _notifier        (N),
   _latch           (N+1),
   _freelist        (N),
+  //_MAX_STEALS      ((N + _freelist.size() +1) << 1),
   _worker_interface(std::move(wix)) {
 
   if(N == 0) {
@@ -1163,7 +1165,7 @@ inline Executor::~Executor() {
 #if __cplusplus >= TF_CPP20
   _done.test_and_set(std::memory_order_relaxed);
 #else
-  _done = true;
+  _done.store(true, std::memory_order_relaxed);
 #endif
   _notifier.notify_all();
 
@@ -1175,6 +1177,11 @@ inline Executor::~Executor() {
 // Function: num_workers
 inline size_t Executor::num_workers() const noexcept {
   return _workers.size();
+}
+
+// Function: num_queues
+inline size_t Executor::num_queues() const noexcept {
+  return _workers.size() + _freelist.size();
 }
 
 // Function: num_topologies
@@ -1228,7 +1235,8 @@ inline void Executor::_spawn(size_t N) {
       w._rdgen.seed(static_cast<std::default_random_engine::result_type>(
         std::hash<std::thread::id>()(std::this_thread::get_id()))
       );
-      w._rdvtm = std::uniform_int_distribution<size_t>(0, 2*_workers.size()-2);
+      //w._udist = std::uniform_int_distribution<size_t>(0, _workers.size() - 1);
+      w._udist = std::uniform_int_distribution<size_t>(0, _workers.size() + _freelist.size() - 2);
 
       // before entering the work-stealing loop, call the scheduler prologue
       if(_worker_interface) {
@@ -1242,12 +1250,14 @@ inline void Executor::_spawn(size_t N) {
       // the previous worker may stop while the following workers
       // are still preparing for entering the scheduling loop
       try {
+
+        // worker loop
         while(1) {
 
-          // execute the tasks.
+          // drain out the local queue
           _exploit_task(w, t);
 
-          // wait for tasks
+          // steal and wait for tasks
           if(_wait_for_task(w, t) == false) {
             break;
           }
@@ -1272,6 +1282,8 @@ inline void Executor::_spawn(size_t N) {
 template <typename P>
 void Executor::_corun_until(Worker& w, P&& stop_predicate) {
   
+  const size_t MAX_STEALS = ((num_queues() + 1) << 1);
+  
   exploit:
 
   while(!stop_predicate()) {
@@ -1284,7 +1296,7 @@ void Executor::_corun_until(Worker& w, P&& stop_predicate) {
 
       explore:
 
-      //t = (w._id == w._vtm) ? _freelist.steal(w._id) : _workers[w._vtm]._wsq.steal();
+      //t = (w._id == w._vtm) ? _wsq.steal() : _workers[w._vtm]._wsq.steal();
       t = (w._vtm < _workers.size()) ? _workers[w._vtm]._wsq.steal() : 
                                        _freelist.steal(w._vtm - _workers.size());
 
@@ -1293,13 +1305,11 @@ void Executor::_corun_until(Worker& w, P&& stop_predicate) {
         goto exploit;
       }
       else if(!stop_predicate()) {
-        if(num_steals++ > _MAX_STEALS) {
+        if(num_steals++ > MAX_STEALS) {
           std::this_thread::yield();
         }
         // skip worker-id
-        //auto r = w._rdgen.random_range(0, 2*_workers.size()-2);
-        auto r = w._rdvtm(w._rdgen);
-        w._vtm = r + (r >= w._id);
+        w._vtm = w._rdvtm();
         goto explore;
       }
       else {
@@ -1313,37 +1323,41 @@ void Executor::_corun_until(Worker& w, P&& stop_predicate) {
 inline void Executor::_explore_task(Worker& w, Node*& t) {
 
   //assert(!t);
+  
+  const size_t MAX_STEALS = ((num_queues() + 1) << 1);
 
   size_t num_steals = 0;
+  size_t num_empty_steals = 0;
 
   // Here, we write do-while to make the worker steal at once
   // from the assigned victim.
   do {
-    //t = (w._id == w._vtm) ? _freelist.steal(w._id) : _workers[w._vtm]._wsq.steal();
-    t = (w._vtm < _workers.size()) ? _workers[w._vtm]._wsq.steal() : 
-                                     _freelist.steal(w._vtm - _workers.size());
+    //t = (w._id == w._vtm) ? _wsq.steal() : _workers[w._vtm]._wsq.steal();
+    t = (w._vtm < _workers.size()) ? _workers[w._vtm]._wsq.steal_with_hint(num_empty_steals) : 
+                                     _freelist.steal_with_hint(w._vtm - _workers.size(), num_empty_steals);
 
     if(t) {
       break;
     }
 
-    if (++num_steals > _MAX_STEALS) {
+    if (++num_steals > MAX_STEALS) {
       std::this_thread::yield();
-      if (num_steals > _MAX_STEALS + 100) {
+      if(num_empty_steals == MAX_STEALS) {
         break;
       }
+      //if (num_steals > MAX_STEALS + 100) {
+      //  break;
+      //}
     }
 
     // skip worker-id
-    //auto r = w._rdgen.random_range(0, 2*_workers.size()-2);
-    auto r = w._rdvtm(w._rdgen);
-    w._vtm = r + (r >= w._id);
+    w._vtm = w._rdvtm();
   } 
 #if __cplusplus >= TF_CPP20
   // the _DONE can be checked later in wait_for_task?
   while(!_done.test(std::memory_order_relaxed));
 #else
-  while(!_done);
+  while(!_done.load(std::memory_order_relaxed));
 #endif
 
 }
@@ -1366,45 +1380,42 @@ inline bool Executor::_wait_for_task(Worker& worker, Node*& t) {
   if(t) {
     return true;
   }
-  
-  // The last thief who successfully stole a task will wake up
-  // another thief worker to avoid starvation.
-//  if(t) {
-//    _notifier.notify_one();
-//    return true;
-//  }
-  
-  // ---- 2PC guard ----
-  _notifier.prepare_wait(worker._waiter);
 
-  if(!_freelist.empty()) {
+  // we have tried hard to steal tasks, and the current landscape 
+  // is supposed to be empty for all - ready to enter 2PC guard
+  
+  _notifier.prepare_wait(worker._waiter);
+  
+  // scan through the freelist
+  if(!_freelist.empty(worker._vtm)) {
+    worker._vtm += _workers.size();
     _notifier.cancel_wait(worker._waiter);
-    worker._vtm = worker._id;
     goto explore_task;
+  }
+
+  // we need to use index-based scanning to avoid data race with _spawan
+  // initializing workers at the same time
+  for(size_t vtm=0; vtm<_workers.size(); vtm++) {
+    if(!_workers[vtm]._wsq.empty()) {
+      worker._vtm = vtm;
+      _notifier.cancel_wait(worker._waiter);
+      goto explore_task;
+    }
   }
 
 #if __cplusplus >= TF_CPP20
   if(_done.test(std::memory_order_relaxed)) {
 #else
-  if(_done) {
+  if(_done.load(std::memory_order_relaxed)) {
 #endif
     _notifier.cancel_wait(worker._waiter);
     _notifier.notify_all();
     return false;
   }
   
-  // We need to use index-based scanning to avoid data race
-  // with _spawn which may initialize a worker at the same time.
-  for(size_t vtm=0; vtm<_workers.size(); vtm++) {
-    if(!_workers[vtm]._wsq.empty()) {
-      _notifier.cancel_wait(worker._waiter);
-      worker._vtm = vtm;
-      goto explore_task;
-    }
-  }
-  
   // Now I really need to relinquish my self to others
   _notifier.commit_wait(worker._waiter);
+  worker._vtm = worker._id;
   goto explore_task;
 
 }
@@ -1452,11 +1463,12 @@ inline void Executor::_schedule(Worker& worker, Node* node) {
   // any complicated notification mechanism as the experimental result
   // has shown no significant advantage.
   if(worker._executor == this) {
-    worker._wsq.push(node, [&](){ _freelist.push(worker._id, node); });
+    worker._wsq.push(node, [&](){ _freelist.push(node); });
     _notifier.notify_one();
     return;
   }
   
+  // go through the centralized queue
   _freelist.push(node);
   _notifier.notify_one();
 }
@@ -1486,12 +1498,12 @@ void Executor::_schedule(Worker& worker, I first, I last) {
   if(worker._executor == this) {
     for(size_t i=0; i<num_nodes; i++) {
       auto node = detail::get_node_ptr(first[i]);
-      worker._wsq.push(node, [&](){ _freelist.push(worker._id, node); });
+      worker._wsq.push(node, [&](){ _freelist.push(node); });
       _notifier.notify_one();
     }
     return;
   }
-
+  
   for(size_t i=0; i<num_nodes; i++) {
     _freelist.push(detail::get_node_ptr(first[i]));
   }
@@ -1523,7 +1535,7 @@ void Executor::_schedule_graph_with_parent(
   _schedule(worker, beg, send);
 }
 
-inline void Executor::_update_cache(Worker& worker, Node*& cache, Node* node) {
+TF_FORCE_INLINE void Executor::_update_cache(Worker& worker, Node*& cache, Node* node) {
   if(cache) {
     _schedule(worker, cache);
   }
