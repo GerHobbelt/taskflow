@@ -2,9 +2,9 @@ list(APPEND TF_EXAMPLES
   simple 
   attach_data
   async
+  async_module
   runtime_async
   dependent_async
-  dependent_async_algorithm
   observer 
   subflow 
   fibonacci 
@@ -36,6 +36,7 @@ list(APPEND TF_EXAMPLES
   limited_concurrency
   cancel
   exception
+  subflow_exception
 )
 
 foreach(example IN LISTS TF_EXAMPLES)

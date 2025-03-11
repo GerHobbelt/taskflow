@@ -73,13 +73,14 @@
             </dt>
             <dd>class to define a vector optimized for small array</dd>
             <dt>
+              <div class="m-doc-template">template&lt;typename T&gt;</div>
+              struct <a href="structtf_1_1CachelineAligned.html" class="m-doc">CachelineAligned</a>
+            </dt>
+            <dd>struct to ensure cacheline-aligned storage for an object.</dd>
+            <dt>
               class <a href="classtf_1_1Graph.html" class="m-doc">Graph</a>
             </dt>
             <dd>class to create a graph object</dd>
-            <dt>
-              class <a href="classtf_1_1Runtime.html" class="m-doc">Runtime</a>
-            </dt>
-            <dd>class to include a runtime object in a task</dd>
             <dt>
               struct <a href="structtf_1_1TaskParams.html" class="m-doc">TaskParams</a>
             </dt>
@@ -94,7 +95,7 @@
             </dt>
             <dd>class to create a lock-free unbounded single-producer multiple-consumer queue</dd>
             <dt>
-              <div class="m-doc-template">template&lt;typename T, size_t LogSize = <a href="taskflow_8hpp.html#a603f6f29f0f179ee85ecde7d5311a76e" class="m-doc">TF_<wbr />DEFAULT_<wbr />BOUNDED_<wbr />TASK_<wbr />QUEUE_<wbr />LOG_<wbr />SIZE</a>&gt;</div>
+              <div class="m-doc-template">template&lt;typename T, size_t LogSize = <a href="tsq_8hpp.html#a603f6f29f0f179ee85ecde7d5311a76e" class="m-doc">TF_<wbr />DEFAULT_<wbr />BOUNDED_<wbr />TASK_<wbr />QUEUE_<wbr />LOG_<wbr />SIZE</a>&gt;</div>
               class <a href="classtf_1_1BoundedTaskQueue.html" class="m-doc">BoundedTaskQueue</a>
             </dt>
             <dd>class to create a lock-free bounded single-producer multiple-consumer queue</dd>
@@ -130,6 +131,10 @@
               class <a href="classtf_1_1AsyncTask.html" class="m-doc">AsyncTask</a>
             </dt>
             <dd>class to create a dependent asynchronous task (async task)</dd>
+            <dt>
+              class <a href="classtf_1_1Runtime.html" class="m-doc">Runtime</a>
+            </dt>
+            <dd>class to include a runtime object in a task</dd>
             <dt>
               class <a href="classtf_1_1Semaphore.html" class="m-doc">Semaphore</a>
             </dt>
@@ -328,6 +333,90 @@
         <section id="func-members">
           <h2><a href="#func-members">Functions</a></h2>
           <dl class="m-doc">
+            <dt>
+              <div class="m-doc-template">template&lt;typename T, std::enable_if_t&lt;(std::is_unsigned_v&lt;std::decay_t&lt;T&gt;&gt; &amp;&amp; sizeof(T)==8), void&gt;* = nullptr&gt;</div>
+              <span class="m-doc-wrap-bumper">auto <a href="#ae9682c3db0662fdf6d688a8b095c19ea" class="m-doc">next_pow2</a>(</span><span class="m-doc-wrap">T x) -&gt; T <span class="m-label m-flat m-primary">constexpr</span></span>
+            </dt>
+            <dd>rounds the given 64-bit unsigned integer to the nearest power of 2</dd>
+            <dt>
+              <div class="m-doc-template">template&lt;typename T, std::enable_if_t&lt;std::is_integral_v&lt;std::decay_t&lt;T&gt;&gt;, void&gt;* = nullptr&gt;</div>
+              <span class="m-doc-wrap-bumper">auto <a href="#a8d48a5014f34a9f97aae5269c2367e38" class="m-doc">is_pow2</a>(</span><span class="m-doc-wrap">const T&amp; x) -&gt; bool <span class="m-label m-flat m-primary">constexpr</span></span>
+            </dt>
+            <dd>checks if the given number is a power of 2</dd>
+            <dt>
+              <div class="m-doc-template">template&lt;typename T&gt;</div>
+              <span class="m-doc-wrap-bumper">auto <a href="#a2bf015a9ef27c0efd2d3c73234317a06" class="m-doc">log2</a>(</span><span class="m-doc-wrap">T n) -&gt; int <span class="m-label m-flat m-primary">constexpr</span></span>
+            </dt>
+            <dd>Computes the floor of log2 of the given positive integer.</dd>
+            <dt>
+              <div class="m-doc-template">template&lt;typename RandItr, typename C&gt;</div>
+              <span class="m-doc-wrap-bumper">auto <a href="#a0b2dc0c0c931b9b627fc0a148085fa5e" class="m-doc">median_of_three</a>(</span><span class="m-doc-wrap">RandItr l,
+              RandItr m,
+              RandItr r,
+              C cmp) -&gt; RandItr</span>
+            </dt>
+            <dd>finds the median of three numbers pointed to by iterators using the given comparator</dd>
+            <dt>
+              <div class="m-doc-template">template&lt;typename RandItr, typename C&gt;</div>
+              <span class="m-doc-wrap-bumper">auto <a href="#a5f9a989c8de663d3ee010cbc6de13c91" class="m-doc">pseudo_median_of_nine</a>(</span><span class="m-doc-wrap">RandItr beg,
+              RandItr end,
+              C cmp) -&gt; RandItr</span>
+            </dt>
+            <dd>finds the pseudo median of a range of items using a spread of nine numbers</dd>
+            <dt>
+              <div class="m-doc-template">template&lt;typename Iter, typename Compare&gt;</div>
+              <span class="m-doc-wrap-bumper">void <a href="#a8d3fa9252b0da87bff1df912d0a591fe" class="m-doc">sort2</a>(</span><span class="m-doc-wrap">Iter a,
+              Iter b,
+              Compare comp)</span>
+            </dt>
+            <dd>sorts two elements of dereferenced iterators using the given comparison function</dd>
+            <dt>
+              <div class="m-doc-template">template&lt;typename Iter, typename Compare&gt;</div>
+              <span class="m-doc-wrap-bumper">void <a href="#a86489af717270b8c9b657b347215ef0f" class="m-doc">sort3</a>(</span><span class="m-doc-wrap">Iter a,
+              Iter b,
+              Iter c,
+              Compare comp)</span>
+            </dt>
+            <dd>Sorts three elements of dereferenced iterators using the given comparison function.</dd>
+            <dt>
+              <div class="m-doc-template">template&lt;typename T, std::enable_if_t&lt;std::is_integral_v&lt;T&gt;, void&gt;* = nullptr&gt;</div>
+              <span class="m-doc-wrap-bumper">auto <a href="#a00b75b92482d883f06282d5181e6f6f9" class="m-doc">unique_id</a>(</span><span class="m-doc-wrap">) -&gt; T</span>
+            </dt>
+            <dd>generates a program-wide unique ID of the given type in a thread-safe manner</dd>
+            <dt>
+              <div class="m-doc-template">template&lt;typename T&gt;</div>
+              <span class="m-doc-wrap-bumper">void <a href="#a5002af34dc323ff28e87ae83203b2c36" class="m-doc">atomic_max</a>(</span><span class="m-doc-wrap"><a href="http://en.cppreference.com/w/cpp/atomic/atomic.html" class="m-doc-external">std::<wbr />atomic</a>&lt;T&gt;&amp; v,
+              const T&amp; max_v) <span class="m-label m-flat m-success">noexcept</span></span>
+            </dt>
+            <dd>updates an atomic variable with the maximum value</dd>
+            <dt>
+              <div class="m-doc-template">template&lt;typename T&gt;</div>
+              <span class="m-doc-wrap-bumper">void <a href="#a512ffa0d24a237b098f5de656b8bdcb0" class="m-doc">atomic_min</a>(</span><span class="m-doc-wrap"><a href="http://en.cppreference.com/w/cpp/atomic/atomic.html" class="m-doc-external">std::<wbr />atomic</a>&lt;T&gt;&amp; v,
+              const T&amp; min_v) <span class="m-label m-flat m-success">noexcept</span></span>
+            </dt>
+            <dd>updates an atomic variable with the minimum value</dd>
+            <dt>
+              <div class="m-doc-template">template&lt;typename T&gt;</div>
+              <span class="m-doc-wrap-bumper">auto <a href="#a3f8e89aebc29d42259157723c874954d" class="m-doc">seed</a>(</span><span class="m-doc-wrap">) -&gt; T <span class="m-label m-flat m-success">noexcept</span></span>
+            </dt>
+            <dd>generates a random seed based on the current system clock</dd>
+            <dt>
+              <span class="m-doc-wrap-bumper">auto <a href="#abbef08f01c467fd4f746c3247af892bc" class="m-doc">get_env</a>(</span><span class="m-doc-wrap">const <a href="http://en.cppreference.com/w/cpp/string/basic_string.html" class="m-doc-external">std::<wbr />string</a>&amp; str) -&gt; <a href="http://en.cppreference.com/w/cpp/string/basic_string.html" class="m-doc-external">std::<wbr />string</a></span>
+            </dt>
+            <dd>retrieves the value of an environment variable</dd>
+            <dt>
+              <span class="m-doc-wrap-bumper">auto <a href="#adc9815b9f96b796675ba939078d25413" class="m-doc">has_env</a>(</span><span class="m-doc-wrap">const <a href="http://en.cppreference.com/w/cpp/string/basic_string.html" class="m-doc-external">std::<wbr />string</a>&amp; str) -&gt; bool</span>
+            </dt>
+            <dd>checks whether an environment variable is defined</dd>
+            <dt>
+              <span class="m-doc-wrap-bumper">void <a href="#aef9af2433294beb7d41680e5b33eafdd" class="m-doc">pause</a>(</span><span class="m-doc-wrap">)</span>
+            </dt>
+            <dd></dd>
+            <dt>
+              <div class="m-doc-template">template&lt;typename P&gt;</div>
+              <span class="m-doc-wrap-bumper">void <a href="#a3abe09ef55c4f46e64ba88bff175c4f6" class="m-doc">spin_until</a>(</span><span class="m-doc-wrap">P&amp;&amp; predicate)</span>
+            </dt>
+            <dd>spins until the given predicate becomes true</dd>
             <dt>
               <span class="m-doc-wrap-bumper">auto <a href="#a9ca58dc6c666698cc7373eb0262140ef" class="m-doc">to_string</a>(</span><span class="m-doc-wrap"><a href="#a1355048578785a80414707ff308b395a" class="m-doc">TaskType</a> type) -&gt; const char*</span>
             </dt>
@@ -959,6 +1048,494 @@
         </section>
         <section>
           <h2>Function documentation</h2>
+          <section class="m-doc-details" id="ae9682c3db0662fdf6d688a8b095c19ea"><div>
+            <h3>
+              <div class="m-doc-template">
+                template&lt;typename T, std::enable_if_t&lt;(std::is_unsigned_v&lt;std::decay_t&lt;T&gt;&gt; &amp;&amp; sizeof(T)==8), void&gt;* = nullptr&gt;
+              </div>
+              <span class="m-doc-wrap-bumper">T tf::<wbr /></span><span class="m-doc-wrap"><span class="m-doc-wrap-bumper"><a href="#ae9682c3db0662fdf6d688a8b095c19ea" class="m-doc-self">next_pow2</a>(</span><span class="m-doc-wrap">T x) <span class="m-label m-primary">constexpr</span></span></span>
+            </h3>
+            <p>rounds the given 64-bit unsigned integer to the nearest power of 2</p>
+<p>rounds the given 32-bit unsigned integer to the nearest power of 2</p>
+          </div></section>
+          <section class="m-doc-details" id="a8d48a5014f34a9f97aae5269c2367e38"><div>
+            <h3>
+              <div class="m-doc-template">
+                template&lt;typename T, std::enable_if_t&lt;std::is_integral_v&lt;std::decay_t&lt;T&gt;&gt;, void&gt;* = nullptr&gt;
+              </div>
+              <span class="m-doc-wrap-bumper">bool tf::<wbr /></span><span class="m-doc-wrap"><span class="m-doc-wrap-bumper"><a href="#a8d48a5014f34a9f97aae5269c2367e38" class="m-doc-self">is_pow2</a>(</span><span class="m-doc-wrap">const T&amp; x) <span class="m-label m-primary">constexpr</span></span></span>
+            </h3>
+            <p>checks if the given number is a power of 2</p>
+            <table class="m-table m-fullwidth m-flat">
+              <thead>
+                <tr><th colspan="2">Template parameters</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="width: 1%">T</td>
+                  <td>The type of the input. Must be an integral type.</td>
+                </tr>
+              </tbody>
+              <thead>
+                <tr><th colspan="2">Parameters</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>x</td>
+                  <td>The integer to check.</td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th>Returns</th>
+                  <td><code>true</code> if <code>x</code> is a power of 2, otherwise <code>false</code>.</td>
+                </tr>
+              </tfoot>
+            </table>
+<p>This function determines if the given integer is a power of 2.</p><aside class="m-note m-info"><h4>Note</h4><p>This function is constexpr and can be evaluated at compile time.</p></aside>
+          </div></section>
+          <section class="m-doc-details" id="a2bf015a9ef27c0efd2d3c73234317a06"><div>
+            <h3>
+              <div class="m-doc-template">
+                template&lt;typename T&gt;
+              </div>
+              <span class="m-doc-wrap-bumper">int tf::<wbr /></span><span class="m-doc-wrap"><span class="m-doc-wrap-bumper"><a href="#a2bf015a9ef27c0efd2d3c73234317a06" class="m-doc-self">log2</a>(</span><span class="m-doc-wrap">T n) <span class="m-label m-primary">constexpr</span></span></span>
+            </h3>
+            <p>Computes the floor of log2 of the given positive integer.</p>
+            <table class="m-table m-fullwidth m-flat">
+              <thead>
+                <tr><th colspan="2">Template parameters</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="width: 1%">T</td>
+                  <td>The type of the input. Must be an integral type.</td>
+                </tr>
+              </tbody>
+              <thead>
+                <tr><th colspan="2">Parameters</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>n</td>
+                  <td>The positive integer to compute log2 for. Assumes <code>n &gt; 0</code>.</td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th>Returns</th>
+                  <td>The floor of log2 of <code>n</code>.</td>
+                </tr>
+              </tfoot>
+            </table>
+<p>This function calculates the largest integer <code>log</code> such that <code>2^log &lt;= n</code>.</p><aside class="m-note m-info"><h4>Note</h4><p>This function is constexpr and can be evaluated at compile time.</p></aside>
+          </div></section>
+          <section class="m-doc-details" id="a0b2dc0c0c931b9b627fc0a148085fa5e"><div>
+            <h3>
+              <div class="m-doc-template">
+                template&lt;typename RandItr, typename C&gt;
+              </div>
+              <span class="m-doc-wrap-bumper">RandItr tf::<wbr /></span><span class="m-doc-wrap"><span class="m-doc-wrap-bumper"><a href="#a0b2dc0c0c931b9b627fc0a148085fa5e" class="m-doc-self">median_of_three</a>(</span><span class="m-doc-wrap">RandItr l,
+              RandItr m,
+              RandItr r,
+              C cmp)</span></span>
+            </h3>
+            <p>finds the median of three numbers pointed to by iterators using the given comparator</p>
+            <table class="m-table m-fullwidth m-flat">
+              <thead>
+                <tr><th colspan="2">Template parameters</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="width: 1%">RandItr</td>
+                  <td>The type of the random-access iterator.</td>
+                </tr>
+                <tr>
+                  <td>C</td>
+                  <td>The type of the comparator.</td>
+                </tr>
+              </tbody>
+              <thead>
+                <tr><th colspan="2">Parameters</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>l</td>
+                  <td>Iterator to the first element.</td>
+                </tr>
+                <tr>
+                  <td>m</td>
+                  <td>Iterator to the second element.</td>
+                </tr>
+                <tr>
+                  <td>r</td>
+                  <td>Iterator to the third element.</td>
+                </tr>
+                <tr>
+                  <td>cmp</td>
+                  <td>The comparator used to compare the dereferenced iterator values.</td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th>Returns</th>
+                  <td>The iterator pointing to the median value among the three elements.</td>
+                </tr>
+              </tfoot>
+            </table>
+<p>This function determines the median value of the elements pointed to by three random-access iterators using the provided comparator.</p>
+          </div></section>
+          <section class="m-doc-details" id="a5f9a989c8de663d3ee010cbc6de13c91"><div>
+            <h3>
+              <div class="m-doc-template">
+                template&lt;typename RandItr, typename C&gt;
+              </div>
+              <span class="m-doc-wrap-bumper">RandItr tf::<wbr /></span><span class="m-doc-wrap"><span class="m-doc-wrap-bumper"><a href="#a5f9a989c8de663d3ee010cbc6de13c91" class="m-doc-self">pseudo_median_of_nine</a>(</span><span class="m-doc-wrap">RandItr beg,
+              RandItr end,
+              C cmp)</span></span>
+            </h3>
+            <p>finds the pseudo median of a range of items using a spread of nine numbers</p>
+            <table class="m-table m-fullwidth m-flat">
+              <thead>
+                <tr><th colspan="2">Template parameters</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="width: 1%">RandItr</td>
+                  <td>The type of the random-access iterator.</td>
+                </tr>
+                <tr>
+                  <td>C</td>
+                  <td>The type of the comparator.</td>
+                </tr>
+              </tbody>
+              <thead>
+                <tr><th colspan="2">Parameters</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>beg</td>
+                  <td>Iterator to the beginning of the range.</td>
+                </tr>
+                <tr>
+                  <td>end</td>
+                  <td>Iterator to the end of the range.</td>
+                </tr>
+                <tr>
+                  <td>cmp</td>
+                  <td>The comparator used to compare the dereferenced iterator values.</td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th>Returns</th>
+                  <td>The iterator pointing to the pseudo median of the range.</td>
+                </tr>
+              </tfoot>
+            </table>
+<p>This function computes an approximate median of a range of items by sampling nine values spread across the range and finding their median. It uses a combination of the <code>median_of_three</code> function to determine the pseudo median.</p><aside class="m-note m-info"><h4>Note</h4><p>The pseudo median is an approximation of the true median and may not be the exact middle value of the range.</p></aside>
+          </div></section>
+          <section class="m-doc-details" id="a8d3fa9252b0da87bff1df912d0a591fe"><div>
+            <h3>
+              <div class="m-doc-template">
+                template&lt;typename Iter, typename Compare&gt;
+              </div>
+              <span class="m-doc-wrap-bumper">void tf::<wbr /></span><span class="m-doc-wrap"><span class="m-doc-wrap-bumper"><a href="#a8d3fa9252b0da87bff1df912d0a591fe" class="m-doc-self">sort2</a>(</span><span class="m-doc-wrap">Iter a,
+              Iter b,
+              Compare comp)</span></span>
+            </h3>
+            <p>sorts two elements of dereferenced iterators using the given comparison function</p>
+            <table class="m-table m-fullwidth m-flat">
+              <thead>
+                <tr><th colspan="2">Template parameters</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="width: 1%">Iter</td>
+                  <td>The type of the iterator.</td>
+                </tr>
+                <tr>
+                  <td>Compare</td>
+                  <td>The type of the comparator.</td>
+                </tr>
+              </tbody>
+              <thead>
+                <tr><th colspan="2">Parameters</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>a</td>
+                  <td>Iterator to the first element.</td>
+                </tr>
+                <tr>
+                  <td>b</td>
+                  <td>Iterator to the second element.</td>
+                </tr>
+                <tr>
+                  <td>comp</td>
+                  <td>The comparator used to compare the dereferenced iterator values.</td>
+                </tr>
+              </tbody>
+            </table>
+<p>This function compares two elements pointed to by iterators and swaps them if they are out of order according to the provided comparator.</p>
+          </div></section>
+          <section class="m-doc-details" id="a86489af717270b8c9b657b347215ef0f"><div>
+            <h3>
+              <div class="m-doc-template">
+                template&lt;typename Iter, typename Compare&gt;
+              </div>
+              <span class="m-doc-wrap-bumper">void tf::<wbr /></span><span class="m-doc-wrap"><span class="m-doc-wrap-bumper"><a href="#a86489af717270b8c9b657b347215ef0f" class="m-doc-self">sort3</a>(</span><span class="m-doc-wrap">Iter a,
+              Iter b,
+              Iter c,
+              Compare comp)</span></span>
+            </h3>
+            <p>Sorts three elements of dereferenced iterators using the given comparison function.</p>
+            <table class="m-table m-fullwidth m-flat">
+              <thead>
+                <tr><th colspan="2">Template parameters</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="width: 1%">Iter</td>
+                  <td>The type of the iterator.</td>
+                </tr>
+                <tr>
+                  <td>Compare</td>
+                  <td>The type of the comparator.</td>
+                </tr>
+              </tbody>
+              <thead>
+                <tr><th colspan="2">Parameters</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>a</td>
+                  <td>Iterator to the first element.</td>
+                </tr>
+                <tr>
+                  <td>b</td>
+                  <td>Iterator to the second element.</td>
+                </tr>
+                <tr>
+                  <td>c</td>
+                  <td>Iterator to the third element.</td>
+                </tr>
+                <tr>
+                  <td>comp</td>
+                  <td>The comparator used to compare the dereferenced iterator values.</td>
+                </tr>
+              </tbody>
+            </table>
+<p>This function sorts three elements pointed to by iterators in ascending order according to the provided comparator. The sorting is performed using a sequence of calls to the <code>sort2</code> function to ensure the correct order of elements.</p>
+          </div></section>
+          <section class="m-doc-details" id="a00b75b92482d883f06282d5181e6f6f9"><div>
+            <h3>
+              <div class="m-doc-template">
+                template&lt;typename T, std::enable_if_t&lt;std::is_integral_v&lt;T&gt;, void&gt;* = nullptr&gt;
+              </div>
+              <span class="m-doc-wrap-bumper">T tf::<wbr /></span><span class="m-doc-wrap"><span class="m-doc-wrap-bumper"><a href="#a00b75b92482d883f06282d5181e6f6f9" class="m-doc-self">unique_id</a>(</span><span class="m-doc-wrap">)</span></span>
+            </h3>
+            <p>generates a program-wide unique ID of the given type in a thread-safe manner</p>
+            <table class="m-table m-fullwidth m-flat">
+              <thead>
+                <tr><th colspan="2">Template parameters</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="width: 1%">T</td>
+                  <td>The type of the ID to generate. Must be an integral type.</td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th>Returns</th>
+                  <td>A unique ID of type <code>T</code>.</td>
+                </tr>
+              </tfoot>
+            </table>
+<p>This function provides a globally unique identifier of the specified integral type. It uses a static <code><a href="http://en.cppreference.com/w/cpp/atomic/atomic.html" class="m-doc-external">std::<wbr />atomic</a></code> counter to ensure thread safety and increments the counter in a relaxed memory ordering for efficiency.</p><aside class="m-note m-info"><h4>Note</h4><p>The uniqueness of the ID is guaranteed only within the program&#x27;s lifetime.</p><p>The function does not throw exceptions.</p></aside>
+          </div></section>
+          <section class="m-doc-details" id="a5002af34dc323ff28e87ae83203b2c36"><div>
+            <h3>
+              <div class="m-doc-template">
+                template&lt;typename T&gt;
+              </div>
+              <span class="m-doc-wrap-bumper">void tf::<wbr /></span><span class="m-doc-wrap"><span class="m-doc-wrap-bumper"><a href="#a5002af34dc323ff28e87ae83203b2c36" class="m-doc-self">atomic_max</a>(</span><span class="m-doc-wrap"><a href="http://en.cppreference.com/w/cpp/atomic/atomic.html" class="m-doc-external">std::<wbr />atomic</a>&lt;T&gt;&amp; v,
+              const T&amp; max_v) <span class="m-label m-success">noexcept</span></span></span>
+            </h3>
+            <p>updates an atomic variable with the maximum value</p>
+            <table class="m-table m-fullwidth m-flat">
+              <thead>
+                <tr><th colspan="2">Template parameters</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="width: 1%">T</td>
+                  <td>The type of the atomic variable. Must be trivially copyable and comparable.</td>
+                </tr>
+              </tbody>
+              <thead>
+                <tr><th colspan="2">Parameters</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>v</td>
+                  <td>The atomic variable to update.</td>
+                </tr>
+                <tr>
+                  <td>max_v</td>
+                  <td>The value to compare with the current value of <code>v</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+<p>This function atomically updates the provided atomic variable <code>v</code> to hold the maximum of its current value and <code>max_v</code>. The update is performed using a relaxed memory ordering for efficiency in non-synchronizing contexts.</p><aside class="m-note m-info"><h4>Note</h4><p>If multiple threads call this function concurrently, the value of <code>v</code> will be the maximum value seen across all threads.</p></aside>
+          </div></section>
+          <section class="m-doc-details" id="a512ffa0d24a237b098f5de656b8bdcb0"><div>
+            <h3>
+              <div class="m-doc-template">
+                template&lt;typename T&gt;
+              </div>
+              <span class="m-doc-wrap-bumper">void tf::<wbr /></span><span class="m-doc-wrap"><span class="m-doc-wrap-bumper"><a href="#a512ffa0d24a237b098f5de656b8bdcb0" class="m-doc-self">atomic_min</a>(</span><span class="m-doc-wrap"><a href="http://en.cppreference.com/w/cpp/atomic/atomic.html" class="m-doc-external">std::<wbr />atomic</a>&lt;T&gt;&amp; v,
+              const T&amp; min_v) <span class="m-label m-success">noexcept</span></span></span>
+            </h3>
+            <p>updates an atomic variable with the minimum value</p>
+            <table class="m-table m-fullwidth m-flat">
+              <thead>
+                <tr><th colspan="2">Template parameters</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="width: 1%">T</td>
+                  <td>The type of the atomic variable. Must be trivially copyable and comparable.</td>
+                </tr>
+              </tbody>
+              <thead>
+                <tr><th colspan="2">Parameters</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>v</td>
+                  <td>The atomic variable to update.</td>
+                </tr>
+                <tr>
+                  <td>min_v</td>
+                  <td>The value to compare with the current value of <code>v</code>.</td>
+                </tr>
+              </tbody>
+            </table>
+<p>This function atomically updates the provided atomic variable <code>v</code> to hold the minimum of its current value and <code>min_v</code>. The update is performed using a relaxed memory ordering for efficiency in non-synchronizing contexts.</p><aside class="m-note m-info"><h4>Note</h4><p>If multiple threads call this function concurrently, the value of <code>v</code> will be the minimum value seen across all threads.</p></aside>
+          </div></section>
+          <section class="m-doc-details" id="a3f8e89aebc29d42259157723c874954d"><div>
+            <h3>
+              <div class="m-doc-template">
+                template&lt;typename T&gt;
+              </div>
+              <span class="m-doc-wrap-bumper">T tf::<wbr /></span><span class="m-doc-wrap"><span class="m-doc-wrap-bumper"><a href="#a3f8e89aebc29d42259157723c874954d" class="m-doc-self">seed</a>(</span><span class="m-doc-wrap">) <span class="m-label m-success">noexcept</span></span></span>
+            </h3>
+            <p>generates a random seed based on the current system clock</p>
+            <table class="m-table m-fullwidth m-flat">
+              <thead>
+                <tr><th colspan="2">Template parameters</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="width: 1%">T</td>
+                  <td>The type of the returned seed. Must be an integral type.</td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th>Returns</th>
+                  <td>A seed value based on the system clock.</td>
+                </tr>
+              </tfoot>
+            </table>
+<p>This function returns a seed value derived from the number of clock ticks since the epoch as measured by the system clock. The seed can be used to initialize random number generators.</p>
+          </div></section>
+          <section class="m-doc-details" id="abbef08f01c467fd4f746c3247af892bc"><div>
+            <h3>
+              <span class="m-doc-wrap-bumper"><a href="http://en.cppreference.com/w/cpp/string/basic_string.html" class="m-doc-external">std::<wbr />string</a> tf::<wbr /></span><span class="m-doc-wrap"><span class="m-doc-wrap-bumper"><a href="#abbef08f01c467fd4f746c3247af892bc" class="m-doc-self">get_env</a>(</span><span class="m-doc-wrap">const <a href="http://en.cppreference.com/w/cpp/string/basic_string.html" class="m-doc-external">std::<wbr />string</a>&amp; str)</span></span>
+            </h3>
+            <p>retrieves the value of an environment variable</p>
+            <table class="m-table m-fullwidth m-flat">
+              <thead>
+                <tr><th colspan="2">Parameters</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="width: 1%">str</td>
+                  <td>The name of the environment variable to retrieve.</td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th>Returns</th>
+                  <td>The value of the environment variable as a string, or an empty string if not found.</td>
+                </tr>
+              </tfoot>
+            </table>
+<p>This function fetches the value of an environment variable by name. If the variable is not found, it returns an empty string.</p><aside class="m-note m-info"><h4>Note</h4><p>The implementation differs between Windows and POSIX platforms:</p><ul><li>On Windows, it uses <code>_dupenv_s</code> to fetch the value.</li><li>On POSIX, it uses <code>std::getenv</code>.</li></ul></aside>
+          </div></section>
+          <section class="m-doc-details" id="adc9815b9f96b796675ba939078d25413"><div>
+            <h3>
+              <span class="m-doc-wrap-bumper">bool tf::<wbr /></span><span class="m-doc-wrap"><span class="m-doc-wrap-bumper"><a href="#adc9815b9f96b796675ba939078d25413" class="m-doc-self">has_env</a>(</span><span class="m-doc-wrap">const <a href="http://en.cppreference.com/w/cpp/string/basic_string.html" class="m-doc-external">std::<wbr />string</a>&amp; str)</span></span>
+            </h3>
+            <p>checks whether an environment variable is defined</p>
+            <table class="m-table m-fullwidth m-flat">
+              <thead>
+                <tr><th colspan="2">Parameters</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="width: 1%">str</td>
+                  <td>The name of the environment variable to check.</td>
+                </tr>
+              </tbody>
+              <tfoot>
+                <tr>
+                  <th>Returns</th>
+                  <td><code>true</code> if the environment variable exists, <code>false</code> otherwise.</td>
+                </tr>
+              </tfoot>
+            </table>
+<p>This function determines if a specific environment variable exists in the current environment.</p><aside class="m-note m-info"><h4>Note</h4><p>The implementation differs between Windows and POSIX platforms:</p><ul><li>On Windows, it uses <code>_dupenv_s</code> to check for the variable&#x27;s presence.</li><li>On POSIX, it uses <code>std::getenv</code> to check for the variable&#x27;s presence.</li></ul></aside>
+          </div></section>
+          <section class="m-doc-details" id="aef9af2433294beb7d41680e5b33eafdd"><div>
+            <h3>
+              <span class="m-doc-wrap-bumper">void tf::<wbr /></span><span class="m-doc-wrap"><span class="m-doc-wrap-bumper"><a href="#aef9af2433294beb7d41680e5b33eafdd" class="m-doc-self">pause</a>(</span><span class="m-doc-wrap">)</span></span>
+            </h3>
+<p>This function is used in spin-wait loops to hint the CPU that the current thread is in a busy-wait state. It helps reduce power consumption and improves performance on hyper-threaded processors by preventing the CPU from consuming unnecessary cycles while waiting. It is particularly useful in low-contention scenarios, where the thread is likely to quickly acquire the lock or condition it&#x27;s waiting for, avoiding an expensive context switch. On modern x86 processors, this instruction can be invoked using <code>__builtin_ia32_pause()</code> in GCC/Clang or <code>_mm_pause()</code> in MSVC. In non-x86 architectures, alternative mechanisms such as yielding the CPU may be used instead.</p>
+          </div></section>
+          <section class="m-doc-details" id="a3abe09ef55c4f46e64ba88bff175c4f6"><div>
+            <h3>
+              <div class="m-doc-template">
+                template&lt;typename P&gt;
+              </div>
+              <span class="m-doc-wrap-bumper">void tf::<wbr /></span><span class="m-doc-wrap"><span class="m-doc-wrap-bumper"><a href="#a3abe09ef55c4f46e64ba88bff175c4f6" class="m-doc-self">spin_until</a>(</span><span class="m-doc-wrap">P&amp;&amp; predicate)</span></span>
+            </h3>
+            <p>spins until the given predicate becomes true</p>
+            <table class="m-table m-fullwidth m-flat">
+              <thead>
+                <tr><th colspan="2">Template parameters</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style="width: 1%">P</td>
+                  <td>the type of the predicate function or callable.</td>
+                </tr>
+              </tbody>
+              <thead>
+                <tr><th colspan="2">Parameters</th></tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>predicate</td>
+                  <td>the callable that returns a boolean value, which is checked in the loop.</td>
+                </tr>
+              </tbody>
+            </table>
+<p>This function repeatedly checks the provided predicate in a spin-wait loop and uses a backoff strategy to minimize CPU waste during the wait. Initially, it uses the <code><a href="#aef9af2433294beb7d41680e5b33eafdd" class="m-doc">pause()</a></code> instruction for the first 100 iterations to hint to the CPU that the thread is waiting, thus reducing power consumption and avoiding unnecessary cycles. After 100 iterations, it switches to yielding the CPU using <code><a href="http://en.cppreference.com/w/cpp/thread/yield.html" class="m-doc-external">std::<wbr />this_thread::<wbr />yield()</a></code> to allow other threads to run and improve system responsiveness.</p><p>The function operates as follows:</p><ol><li>For the first 100 iterations, it invokes <code><a href="#aef9af2433294beb7d41680e5b33eafdd" class="m-doc">pause()</a></code> to reduce power consumption during the spin-wait.</li><li>After 100 iterations, it uses <code><a href="http://en.cppreference.com/w/cpp/thread/yield.html" class="m-doc-external">std::<wbr />this_thread::<wbr />yield()</a></code> to relinquish the CPU, allowing other threads to execute.</li></ol><aside class="m-note m-info"><h4>Note</h4><p>This function is useful when you need to wait for a condition to be true, but want to optimize CPU usage during the wait by using a busy-wait approach.</p></aside>
+          </div></section>
           <section class="m-doc-details" id="a9ca58dc6c666698cc7373eb0262140ef"><div>
             <h3>
               <span class="m-doc-wrap-bumper">const char* tf::<wbr /></span><span class="m-doc-wrap"><span class="m-doc-wrap-bumper"><a href="#a9ca58dc6c666698cc7373eb0262140ef" class="m-doc-self">to_string</a>(</span><span class="m-doc-wrap"><a href="#a1355048578785a80414707ff308b395a" class="m-doc">TaskType</a> type)</span></span>

@@ -44,6 +44,7 @@ using tf::WorkerInterface.
 class Worker {
 
   friend class Executor;
+  friend class Runtime;
   friend class WorkerView;
 
   public:
@@ -67,6 +68,11 @@ class Worker {
     @brief queries the current capacity of the queue
     */
     inline size_t queue_capacity() const { return static_cast<size_t>(_wsq.capacity()); }
+    
+    /**
+    @brief acquire the associated executor
+    */
+    inline Executor* executor() { return _executor; }
 
   private:
 
@@ -90,10 +96,9 @@ namespace pt {
 /**
 @private
 */
-inline thread_local Worker* worker {nullptr};
+inline thread_local Worker* this_worker {nullptr};
 
 }
-    
 
 // ----------------------------------------------------------------------------
 // Class Definition: WorkerView
@@ -102,7 +107,7 @@ inline thread_local Worker* worker {nullptr};
 /**
 @class WorkerView
 
-@brief class to create an immutable view of a worker in an executor
+@brief class to create an immutable view of a worker 
 
 An executor keeps a set of internal worker threads to run tasks.
 A worker view provides users an immutable interface to observe

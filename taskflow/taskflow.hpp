@@ -8,7 +8,9 @@
 //
 
 #include "core/executor.hpp"
+#include "core/runtime.hpp"
 #include "core/async.hpp"
+#include "algorithm/algorithm.hpp"
 
 /**
 @dir taskflow

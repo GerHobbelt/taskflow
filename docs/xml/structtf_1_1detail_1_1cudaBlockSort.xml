@@ -27,7 +27,7 @@
         <definition>constexpr bool tf::detail::cudaBlockSort&lt; nt, vt, K, V &gt;::has_values</definition>
         <argsstring></argsstring>
         <name>has_values</name>
-        <initializer>= !<ref refid="cpp/types/is_same" kindref="compound" external="/home/lucas/wsl2_workshop/NovaAI/taskflow/doxygen/cppreference-doxygen-web.tag.xml">std::is_same</ref>&lt;V, cudaEmpty&gt;::value</initializer>
+        <initializer>= !<ref refid="cpp/types/is_same" kindref="compound" external="/home/thuang295/Code/taskflow/doxygen/cppreference-doxygen-web.tag.xml">std::is_same</ref>&lt;V, cudaEmpty&gt;::value</initializer>
         <briefdescription>
         </briefdescription>
         <detaileddescription>
@@ -41,7 +41,7 @@
         <definition>constexpr unsigned tf::detail::cudaBlockSort&lt; nt, vt, K, V &gt;::num_passes</definition>
         <argsstring></argsstring>
         <name>num_passes</name>
-        <initializer>= log2(nt)</initializer>
+        <initializer>= <ref refid="namespacetf_1a2bf015a9ef27c0efd2d3c73234317a06" kindref="member">log2</ref>(nt)</initializer>
         <briefdescription>
         </briefdescription>
         <detaileddescription>

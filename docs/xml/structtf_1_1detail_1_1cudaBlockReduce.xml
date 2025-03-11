@@ -33,7 +33,7 @@
         <definition>const unsigned tf::detail::cudaBlockReduce&lt; nt, T &gt;::num_passes</definition>
         <argsstring></argsstring>
         <name>num_passes</name>
-        <initializer>= log2(group_size)</initializer>
+        <initializer>= <ref refid="namespacetf_1a2bf015a9ef27c0efd2d3c73234317a06" kindref="member">log2</ref>(group_size)</initializer>
         <briefdescription>
         </briefdescription>
         <detaileddescription>

@@ -21,7 +21,7 @@ list(APPEND TF_UNITTESTS
   test_sort
   test_scan
   test_find
-  test_compositions
+  test_modules
   test_traversals
   test_pipelines
   test_scalable_pipelines
@@ -29,15 +29,16 @@ list(APPEND TF_UNITTESTS
   test_deferred_scalable_pipelines
   test_runtimes
   test_data_pipelines
+  test_exceptions
 )
 
-string(FIND '${CMAKE_CXX_FLAGS}' "-fsanitize" sanitize)
-#message("sanitize='${sanitize}'")
-
-if(${sanitize} EQUAL -1)
-  message(STATUS "Add test_exception to unit tests")
-  #list(APPEND TF_UNITTESTS test_exceptions)
-endif()
+#string(FIND '${CMAKE_CXX_FLAGS}' "-fsanitize" sanitize)
+##message("sanitize='${sanitize}'")
+#
+#if(${sanitize} EQUAL -1)
+#  message(STATUS "Add test_exception to unit tests")
+#  list(APPEND TF_UNITTESTS test_exceptions)
+#endif()
 
 
 foreach(unittest IN LISTS TF_UNITTESTS)
