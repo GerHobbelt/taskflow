@@ -23,8 +23,8 @@ namespace tf {
 #ifdef TF_ENABLE_ATOMIC_NOTIFIER
   using DefaultNotifier = AtomicNotifierV2;
 #else
-  using DefaultNotifier = NonblockingNotifierV2;
   //using DefaultNotifier = AtomicNotifierV2;
+  using DefaultNotifier = NonblockingNotifierV2;
 #endif
 
 // ----------------------------------------------------------------------------
@@ -73,11 +73,11 @@ class Worker {
     size_t _id;
     size_t _vtm;
     Executor* _executor {nullptr};
-    std::default_random_engine _rdgen { std::random_device{}() };
-    BoundedTaskQueue<Node*> _wsq;
-    Node* _cache {nullptr};
-
     DefaultNotifier::Waiter* _waiter;
+    std::default_random_engine _rdgen;
+    std::uniform_int_distribution<size_t> _rdvtm;
+    std::thread _thread;
+    BoundedTaskQueue<Node*> _wsq;
 };
 
 

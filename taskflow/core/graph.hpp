@@ -108,7 +108,7 @@ class Graph {
     std::vector<Node*> _nodes;
 
     void _clear();
-    void _clear_detached();
+    //void _clear_detached();
     void _merge(Graph&&);
     void _erase(Node*);
     
@@ -350,50 +350,6 @@ class Runtime {
   template <typename P, typename F>
   void silent_async(P&& params, F&& f);
   
-  /**
-  @brief similar to tf::Runtime::silent_async but the caller must be the worker of the runtime
-
-  @tparam F callable type
-
-  @param f callable
-
-  The method bypass the check of the caller worker from the executor 
-  and thus can only called by the worker of this runtime.
-
-  @code{.cpp}
-  taskflow.emplace([&](tf::Runtime& rt){
-    // running by the worker of this runtime
-    rt.silent_async_unchecked([](){});
-    rt.corun_all();
-  });
-  @endcode
-  */
-  template <typename F>
-  void silent_async_unchecked(F&& f);
-  
-  /**
-  @brief similar to tf::Runtime::silent_async but the caller must be the worker of the runtime
-
-  @tparam F callable type
-  @tparam P task parameters type
-
-  @param params task parameters
-  @param f callable
-
-  The method bypass the check of the caller worker from the executor 
-  and thus can only called by the worker of this runtime.
-
-  @code{.cpp}
-  taskflow.emplace([&](tf::Runtime& rt){
-    // running by the worker of this runtime
-    rt.silent_async_unchecked("my task", [](){});
-    rt.corun_all();
-  });
-  @endcode
-  */
-  template <typename P, typename F>
-  void silent_async_unchecked(P&& params, F&& f);
-
   /**
   @brief co-runs the given target and waits until it completes
   
@@ -716,6 +672,7 @@ class Node {
   constexpr static int CONDITIONED = 1;
   constexpr static int DETACHED    = 2;
   constexpr static int EXCEPTION   = 4;
+  constexpr static int PREEMPTED   = 8;
 
   using Placeholder = std::monostate;
 
@@ -830,7 +787,7 @@ class Node {
   template <typename... Args>
   Node(const DefaultTaskParams&, Topology*, Node*, size_t, Args&&...);
 
-  ~Node();
+  //~Node();
 
   size_t num_successors() const;
   size_t num_dependents() const;
@@ -1023,44 +980,39 @@ Node::Node(
 }
 
 // Destructor
-inline Node::~Node() {
-  // this is to avoid stack overflow
-
-  if(_handle.index() == SUBFLOW) {
-    // using std::get_if instead of std::get makes this compatible
-    // with older macOS versions
-    // the result of std::get_if is guaranteed to be non-null
-    // due to the index check above
-    auto& subgraph = std::get_if<Subflow>(&_handle)->subgraph;
-    std::vector<Node*> nodes;
-    nodes.reserve(subgraph.size());
-
-    std::move(
-      subgraph._nodes.begin(), subgraph._nodes.end(), std::back_inserter(nodes)
-    );
-    subgraph._nodes.clear();
-
-    size_t i = 0;
-
-    while(i < nodes.size()) {
-
-      if(nodes[i]->_handle.index() == SUBFLOW) {
-        auto& sbg = std::get_if<Subflow>(&(nodes[i]->_handle))->subgraph;
-        std::move(
-          sbg._nodes.begin(), sbg._nodes.end(), std::back_inserter(nodes)
-        );
-        sbg._nodes.clear();
-      }
-
-      ++i;
-    }
-
-    //auto& np = Graph::_node_pool();
-    for(i=0; i<nodes.size(); ++i) {
-      recycle(nodes[i]);
-    }
-  }
-}
+//inline Node::~Node() {
+//  // this is to avoid stack overflow
+//  if(_handle.index() == SUBFLOW) {
+//    auto& subgraph = std::get_if<Subflow>(&_handle)->subgraph;
+//    std::vector<Node*> nodes;
+//    nodes.reserve(subgraph.size());
+//
+//    std::move(
+//      subgraph._nodes.begin(), subgraph._nodes.end(), std::back_inserter(nodes)
+//    );
+//    subgraph._nodes.clear();
+//
+//    size_t i = 0;
+//
+//    while(i < nodes.size()) {
+//
+//      if(nodes[i]->_handle.index() == SUBFLOW) {
+//        auto& sbg = std::get_if<Subflow>(&(nodes[i]->_handle))->subgraph;
+//        std::move(
+//          sbg._nodes.begin(), sbg._nodes.end(), std::back_inserter(nodes)
+//        );
+//        sbg._nodes.clear();
+//      }
+//
+//      ++i;
+//    }
+//
+//    //auto& np = Graph::_node_pool();
+//    for(i=0; i<nodes.size(); ++i) {
+//      recycle(nodes[i]);
+//    }
+//  }
+//}
 
 // Procedure: _precede
 inline void Node::_precede(Node* v) {
@@ -1176,17 +1128,20 @@ inline void Graph::_clear() {
 }
 
 // Procedure: clear_detached
-inline void Graph::_clear_detached() {
-
-  auto mid = std::partition(_nodes.begin(), _nodes.end(), [] (Node* node) {
-    return !(node->_state.load(std::memory_order_relaxed) & Node::DETACHED);
-  });
-
-  for(auto itr = mid; itr != _nodes.end(); ++itr) {
-    recycle(*itr);
-  }
-  _nodes.resize(std::distance(_nodes.begin(), mid));
-}
+//inline void Graph::_clear_detached() {
+//  size_t n = 0;
+//  for(size_t i=0; i<_nodes.size(); i++) {
+//    // detached nodes
+//    if((_nodes[i]->_state.load(std::memory_order_relaxed) & Node::DETACHED)) {
+//      recycle(_nodes[i]);  
+//    }
+//    // delete undetached node
+//    else {
+//      std::swap(_nodes[n++], _nodes[i]);
+//    }
+//  }
+//  _nodes.resize(n);
+//}
 
 // Procedure: merge
 inline void Graph::_merge(Graph&& g) {
@@ -1222,124 +1177,6 @@ Node* Graph::_emplace_back(ArgsT&&... args) {
   _nodes.push_back(animate(std::forward<ArgsT>(args)...));
   return _nodes.back();
 }
-
-// ============================================================================
-// Freelist
-// ============================================================================
-//
-///**
-//@private
-//*/
-//template <typename T>
-//class Freelist {
-//
-//  struct HeadPtr {
-//    T* ptr  {nullptr};
-//    int tag {0};
-//  };
-//
-//  public:
-//
-//  void push(T* node) {
-//    HeadPtr c_head = _head.load(std::memory_order_relaxed);
-//    HeadPtr n_head = { node };
-//    do {
-//      n_head.tag = c_head.tag + 1;
-//      node->_freelist_next = c_head.ptr;
-//    } while(!_head.compare_exchange_weak(c_head, n_head, 
-//                                         std::memory_order_release, 
-//                                         std::memory_order_relaxed));
-//  }
-//
-//  T* pop() {
-//    HeadPtr c_head = _head.load(std::memory_order_acquire);
-//    HeadPtr n_head;  // new head
-//    while (c_head.ptr != nullptr) {
-//      n_head.ptr = c_head.ptr->_freelist_next;
-//      n_head.tag = c_head.tag + 1;
-//      if(_head.compare_exchange_weak(c_head, n_head, 
-//                                     std::memory_order_release, 
-//                                     std::memory_order_acquire)) {
-//        break;
-//      }
-//    }
-//    return c_head.ptr;
-//  }
-//  
-//  T* steal() {
-//    HeadPtr c_head = _head.load(std::memory_order_acquire);
-//    HeadPtr n_head;  // new head
-//
-//    if(c_head.ptr != nullptr) {
-//      // TODO: bug - here c_head.ptr may die already so accessing its freelist next
-//      // will cause memory segmentation fault
-//      n_head.ptr = c_head.ptr->_freelist_next;
-//      n_head.tag = c_head.tag + 1;
-//      if(_head.compare_exchange_weak(c_head, n_head, 
-//                                     std::memory_order_release, 
-//                                     std::memory_order_relaxed) == false) {
-//        return nullptr;
-//      }
-//    }
-//    return c_head.ptr;
-//  }
-//
-//  bool empty() const {
-//    return _head.load(std::memory_order_relaxed).ptr == nullptr;
-//  }
-//
-//  private:
-//
-//  //static_assert(std::atomic<HeadPtr>::is_always_lock_free);
-//
-//  std::atomic<HeadPtr> _head;
-//};
-//
-///**
-//@private
-//*/
-//template <typename T>
-//class Freelists {
-//
-//  public:
-//
-//  Freelists(size_t W) : _heads(W) {
-//  }
-//
-//  void push(size_t w, T* node) {
-//    // assert(w < _heads.size());
-//    _heads[w].push(node);  
-//  }
-//
-//  void push(T* node) {
-//    _heads[reinterpret_cast<uintptr_t>(node) % _heads.size()].push(node);
-//  }
-//
-//  T* steal(size_t w) {
-//    // assert(w < _heads.size());
-//    for(size_t i=0; i<_heads.size(); i++, w=(w+1)%_heads.size()) {
-//      if(T* ptr = _heads[w].steal(); ptr) {
-//        return ptr;
-//      }
-//    }
-//    return nullptr;
-//  }
-//
-//  bool empty() const {
-//    for(const auto& h : _heads) {
-//      if(!h.empty()) {
-//        return false;
-//      }
-//    }
-//    return true;
-//  }
-//
-//  private:
-//
-//  std::vector<Freelist<T>> _heads;
-//
-//};
-
 
 }  // end of namespace tf. ----------------------------------------------------
 

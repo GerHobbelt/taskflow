@@ -1276,11 +1276,12 @@ inline void FlowBuilder::linearize(std::initializer_list<Task> keys) {
 
 @brief class to construct a subflow graph from the execution of a dynamic task
 
-tf::Subflow is a derived class from tf::Runtime with a specialized mechanism
-to manage the execution of a child graph.
-By default, a subflow automatically @em joins its parent node.
-You may explicitly join or detach a subflow by calling tf::Subflow::join
+tf::Subflow is spawned from the execution of a task to dynamically manage a 
+child graph that may depend on runtime variables.
+You can explicitly join or detach a subflow by calling tf::Subflow::join
 or tf::Subflow::detach, respectively.
+By default, the %Taskflow runtime will implicitly join a subflow it is is joinable.
+
 The following example creates a taskflow graph that spawns a subflow from
 the execution of task @c B, and the subflow contains three tasks, @c B1,
 @c B2, and @c B3, where @c B3 runs after @c B1 and @c B2.
@@ -1307,12 +1308,10 @@ C.precede(D);  // D runs after C
 @endcode
 
 */
-class Subflow : public FlowBuilder,
-                public Runtime {
+class Subflow : public FlowBuilder {
 
   friend class Executor;
   friend class FlowBuilder;
-  friend class Runtime;
 
   public:
 
@@ -1351,17 +1350,6 @@ class Subflow : public FlowBuilder,
     void detach();
 
     /**
-    @brief resets the subflow to a joinable state
-
-    @param clear_graph specifies whether to clear the associated graph (default @c true)
-
-    Clears the underlying task graph depending on the 
-    given variable @c clear_graph (default @c true) and then
-    updates the subflow to a joinable state.
-    */
-    void reset(bool clear_graph = true);
-
-    /**
     @brief queries if the subflow is joinable
 
     This member function queries if the subflow is joinable.
@@ -1378,33 +1366,55 @@ class Subflow : public FlowBuilder,
     */
     bool joinable() const noexcept;
 
-  private:
+    /**
+    @brief acquires the associated executor
+    */
+    Executor& executor() noexcept;
 
-    bool _joinable {true};
+  private:
+    
+    // with only the most significant bit set: 1000...000
+    constexpr static size_t JOINED_BIT = (~size_t(0)) ^ ((~size_t(0)) >> 1);
 
     Subflow(Executor&, Worker&, Node*, Graph&);
+
+    Executor& _executor;
+    Worker& _worker;
+    Node* _parent;
+
+    size_t _tag;
 };
 
 // Constructor
-inline Subflow::Subflow(
-  Executor& executor, Worker& worker, Node* parent, Graph& graph
-) :
-  FlowBuilder {graph},
-  Runtime {executor, worker, parent} {
+inline Subflow::Subflow(Executor& executor, Worker& worker, Node* parent, Graph& graph) :
+  FlowBuilder {graph}, 
+  _executor   {executor}, 
+  _worker     {worker}, 
+  _parent     {parent}, 
+  _tag        {graph._nodes.size()} {
+
   // assert(_parent != nullptr);
-}
-
-// Function: joined
-inline bool Subflow::joinable() const noexcept {
-  return _joinable;
-}
-
-// Procedure: reset
-inline void Subflow::reset(bool clear_graph) {
-  if(clear_graph) {
-    _graph._clear();
+  // clear undetached nodes in reversed order
+  for(auto i = graph._nodes.rbegin(); i != graph._nodes.rend(); ++i) {
+    if(auto node = *i; (node->_state.load(std::memory_order_relaxed) & Node::DETACHED) == 0) {
+      recycle(node);
+      --_tag;
+    }
+    else {
+      break;
+    }
   }
-  _joinable = true;
+  graph._nodes.resize(_tag);
+}
+
+// Function: joinable
+inline bool Subflow::joinable() const noexcept {
+  return (_tag & JOINED_BIT) == 0;
+}
+
+// Function: executor
+inline Executor& Subflow::executor() noexcept {
+  return _executor;
 }
 
 }  // end of namespace tf. ---------------------------------------------------
