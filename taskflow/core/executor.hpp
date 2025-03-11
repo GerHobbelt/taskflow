@@ -1056,13 +1056,11 @@ class Executor {
 #if __cplusplus >= TF_CPP20
   std::latch _latch;
   std::atomic<size_t> _num_topologies {0};
-  std::atomic_flag _done = ATOMIC_FLAG_INIT; 
 #else
   Latch _latch;
   std::condition_variable _topology_cv;
   std::mutex _topology_mutex;
   size_t _num_topologies {0};
-  std::atomic<bool> _done {0};
 #endif
   
   std::list<Taskflow> _taskflows;
@@ -1139,7 +1137,6 @@ inline Executor::Executor(size_t N, std::shared_ptr<WorkerInterface> wix) :
   _notifier        (N),
   _latch           (N+1),
   _freelist        (N),
-  //_MAX_STEALS      ((N + _freelist.size() +1) << 1),
   _worker_interface(std::move(wix)) {
 
   if(N == 0) {
@@ -1161,12 +1158,14 @@ inline Executor::~Executor() {
   wait_for_all();
 
   // shut down the scheduler
+  for(size_t i=0; i<_workers.size(); ++i) {
+  #if __cplusplus >= TF_CPP20
+    _workers[i]._done.test_and_set(std::memory_order_relaxed);
+  #else
+    _workers[i]._done.store(true, std::memory_order_relaxed);
+  #endif
+  }
 
-#if __cplusplus >= TF_CPP20
-  _done.test_and_set(std::memory_order_relaxed);
-#else
-  _done.store(true, std::memory_order_relaxed);
-#endif
   _notifier.notify_all();
 
   for(auto& w : _workers) {
@@ -1345,9 +1344,6 @@ inline void Executor::_explore_task(Worker& w, Node*& t) {
       if(num_empty_steals == MAX_STEALS) {
         break;
       }
-      //if (num_steals > MAX_STEALS + 100) {
-      //  break;
-      //}
     }
 
     // skip worker-id
@@ -1355,9 +1351,9 @@ inline void Executor::_explore_task(Worker& w, Node*& t) {
   } 
 #if __cplusplus >= TF_CPP20
   // the _DONE can be checked later in wait_for_task?
-  while(!_done.test(std::memory_order_relaxed));
+  while(!w._done.test(std::memory_order_relaxed));
 #else
-  while(!_done.load(std::memory_order_relaxed));
+  while(!w._done.load(std::memory_order_relaxed));
 #endif
 
 }
@@ -1381,20 +1377,20 @@ inline bool Executor::_wait_for_task(Worker& worker, Node*& t) {
     return true;
   }
 
-  // we have tried hard to steal tasks, and the current landscape 
-  // is supposed to be empty for all - ready to enter 2PC guard
-  
+  // Entering the 2PC guard as all queues should be empty
+  // after exhaustive task-stealing attempts.
   _notifier.prepare_wait(worker._waiter);
   
-  // scan through the freelist
+  // Condition #1: freelist should be empty
   if(!_freelist.empty(worker._vtm)) {
     worker._vtm += _workers.size();
     _notifier.cancel_wait(worker._waiter);
     goto explore_task;
   }
-
-  // we need to use index-based scanning to avoid data race with _spawan
-  // initializing workers at the same time
+  
+  // Condition #2: worker queues should be empty
+  // Note: We need to use index-based looping to avoid data race with _spawan
+  // which initializes other worker data structure at the same time
   for(size_t vtm=0; vtm<_workers.size(); vtm++) {
     if(!_workers[vtm]._wsq.empty()) {
       worker._vtm = vtm;
@@ -1402,18 +1398,18 @@ inline bool Executor::_wait_for_task(Worker& worker, Node*& t) {
       goto explore_task;
     }
   }
-
+  
+  // Condition #3: executor is still alive
 #if __cplusplus >= TF_CPP20
-  if(_done.test(std::memory_order_relaxed)) {
+  if(worker._done.test(std::memory_order_relaxed)) {
 #else
-  if(_done.load(std::memory_order_relaxed)) {
+  if(worker._done.load(std::memory_order_relaxed)) {
 #endif
     _notifier.cancel_wait(worker._waiter);
-    _notifier.notify_all();
     return false;
   }
   
-  // Now I really need to relinquish my self to others
+  // Now I really need to relinquish my self to others.
   _notifier.commit_wait(worker._waiter);
   worker._vtm = worker._id;
   goto explore_task;
@@ -1489,7 +1485,7 @@ void Executor::_schedule(Worker& worker, I first, I last) {
     return;
   }
   
-  // [NOTE]: We cannot use first/last as the for-loop condition 
+  // NOTE: We cannot use first/last as the for-loop condition 
   // (e.g., for(; first != last; ++first)) since when a node is inserted
   // into the queue the node can run and finish immediately.
   // If this is the last node in the graph, it will tear down the parent
