@@ -601,15 +601,199 @@ TEST_CASE("ForEachIndex.HeterogeneousRange" * doctest::timeout(300)) {
 	tf::Executor ex;
 	tf::Taskflow flow;
 
-	std::size_t from = 1;
-	std::size_t to = 10;
-	int step = 1;
+	size_t from = 1;
+	size_t to = 10;
+	size_t step = 1;
 
-	flow.for_each_index(from, to, step, [&](int i) {
+	flow.for_each_index(from, to, step, [&](size_t i) {
 		counter.fetch_add(i, std::memory_order_relaxed);
 	});
 	ex.run(flow).wait();
 	REQUIRE(counter == to * (to - 1) / 2);
+}
+
+// ----------------------------------------------------------------------------
+// range-based for_each_index 
+// ----------------------------------------------------------------------------
+
+template <typename P>
+void range_based_for_each_index(unsigned w) {    
+  tf::Executor executor(w);
+  tf::Taskflow taskflow;
+  std::atomic<size_t> counter {0};
+
+  for(int beg=10; beg>=-10; --beg) {
+    for(int end=beg; end>=-10; --end) {
+      for(int s=1; s<=beg-end; ++s) {
+
+        size_t n = tf::distance(beg, end, -s);
+
+        for(size_t c=0; c<10; c++) {
+          taskflow.clear();
+          counter = 0;
+
+          tf::IndexRange range(beg, end, -s);
+          REQUIRE(range.size() == n);
+
+          taskflow.for_each_index(range, [&] (tf::IndexRange<int> range) {
+            size_t l = 0;
+            for(auto j=range.begin(); j>range.end(); j+=range.step_size()) {
+              l++;
+            }
+            REQUIRE(range.size() == l);
+            counter.fetch_add(l, std::memory_order_relaxed);
+          }, P(c));
+          executor.run(taskflow).wait();
+          REQUIRE(n == counter);
+        }
+      }
+    }
+  }
+}
+
+TEST_CASE("ForEach.NegativeIndexRange.Static.1thread" * doctest::timeout(300)) {
+  range_based_for_each_index<tf::StaticPartitioner<>>(1);
+}
+
+TEST_CASE("ForEach.NegativeIndexRange.Static.2threads" * doctest::timeout(300)) {
+  range_based_for_each_index<tf::StaticPartitioner<>>(2);
+}
+
+TEST_CASE("ForEach.NegativeIndexRange.Static.3threads" * doctest::timeout(300)) {
+  range_based_for_each_index<tf::StaticPartitioner<>>(3);
+}
+
+TEST_CASE("ForEach.NegativeIndexRange.Static.4threads" * doctest::timeout(300)) {
+  range_based_for_each_index<tf::StaticPartitioner<>>(4);
+}
+
+TEST_CASE("ForEach.NegativeIndexRange.Guided.1thread" * doctest::timeout(300)) {
+  range_based_for_each_index<tf::GuidedPartitioner<>>(1);
+}
+
+TEST_CASE("ForEach.NegativeIndexRange.Guided.2threads" * doctest::timeout(300)) {
+  range_based_for_each_index<tf::GuidedPartitioner<>>(2);
+}
+
+TEST_CASE("ForEach.NegativeIndexRange.Guided.3threads" * doctest::timeout(300)) {
+  range_based_for_each_index<tf::GuidedPartitioner<>>(3);
+}
+
+TEST_CASE("ForEach.NegativeIndexRange.Guided.4threads" * doctest::timeout(300)) {
+  range_based_for_each_index<tf::GuidedPartitioner<>>(4);
+}
+
+TEST_CASE("ForEach.NegativeIndexRange.Dynamic.1thread" * doctest::timeout(300)) {
+  range_based_for_each_index<tf::DynamicPartitioner<>>(1);
+}
+
+TEST_CASE("ForEach.NegativeIndexRange.Dynamic.2threads" * doctest::timeout(300)) {
+  range_based_for_each_index<tf::DynamicPartitioner<>>(2);
+}
+
+TEST_CASE("ForEach.NegativeIndexRange.Dynamic.3threads" * doctest::timeout(300)) {
+  range_based_for_each_index<tf::DynamicPartitioner<>>(3);
+}
+
+TEST_CASE("ForEach.NegativeIndexRange.Dynamic.4threads" * doctest::timeout(300)) {
+  range_based_for_each_index<tf::DynamicPartitioner<>>(4);
+}
+
+// ----------------------------------------------------------------------------
+// stateful range-based for_each_index 
+// ----------------------------------------------------------------------------
+
+template <typename P>
+void stateful_range_based_for_each_index(unsigned w) {    
+
+  tf::Executor executor(w);
+  tf::Taskflow taskflow;
+  std::atomic<size_t> counter {0};
+
+  for(int beg=10; beg>=-10; --beg) {
+    for(int end=beg; end>=-10; --end) {
+      for(int s=1; s<=beg-end; ++s) {
+
+        size_t n = tf::distance(beg, end, -s);
+
+        for(size_t c=0; c<10; c++) {
+          taskflow.clear();
+          counter = 0;
+          
+          tf::IndexRange range(0, 0, 0);
+
+          auto set_range = taskflow.emplace([&](){
+            range.begin(beg)
+                 .end(end)
+                 .step_size(-s);
+            REQUIRE(range.size() == n);
+          });
+
+          auto loop_range = taskflow.for_each_index(std::ref(range), [&] (tf::IndexRange<int> range) {
+            size_t l = 0;
+            for(auto j=range.begin(); j>range.end(); j+=range.step_size()) {
+              l++;
+            }
+            REQUIRE(range.size() == l);
+            counter.fetch_add(l, std::memory_order_relaxed);
+          }, P(c));
+
+          set_range.precede(loop_range);
+
+          executor.run(taskflow).wait();
+          REQUIRE(n == counter);
+        }
+      }
+    }
+  }
+}
+
+TEST_CASE("StatefulForEach.NegativeIndexRange.Static.1thread" * doctest::timeout(300)) {
+  stateful_range_based_for_each_index<tf::StaticPartitioner<>>(1);
+}
+
+TEST_CASE("StatefulForEach.NegativeIndexRange.Static.2threads" * doctest::timeout(300)) {
+  stateful_range_based_for_each_index<tf::StaticPartitioner<>>(2);
+}
+
+TEST_CASE("StatefulForEach.NegativeIndexRange.Static.3threads" * doctest::timeout(300)) {
+  stateful_range_based_for_each_index<tf::StaticPartitioner<>>(3);
+}
+
+TEST_CASE("StatefulForEach.NegativeIndexRange.Static.4threads" * doctest::timeout(300)) {
+  stateful_range_based_for_each_index<tf::StaticPartitioner<>>(4);
+}
+
+TEST_CASE("StatefulForEach.NegativeIndexRange.Dynamic.1thread" * doctest::timeout(300)) {
+  stateful_range_based_for_each_index<tf::DynamicPartitioner<>>(1);
+}
+
+TEST_CASE("StatefulForEach.NegativeIndexRange.Dynamic.2threads" * doctest::timeout(300)) {
+  stateful_range_based_for_each_index<tf::DynamicPartitioner<>>(2);
+}
+
+TEST_CASE("StatefulForEach.NegativeIndexRange.Dynamic.3threads" * doctest::timeout(300)) {
+  stateful_range_based_for_each_index<tf::DynamicPartitioner<>>(3);
+}
+
+TEST_CASE("StatefulForEach.NegativeIndexRange.Dynamic.4threads" * doctest::timeout(300)) {
+  stateful_range_based_for_each_index<tf::DynamicPartitioner<>>(4);
+}
+
+TEST_CASE("StatefulForEach.NegativeIndexRange.Guided.1thread" * doctest::timeout(300)) {
+  stateful_range_based_for_each_index<tf::GuidedPartitioner<>>(1);
+}
+
+TEST_CASE("StatefulForEach.NegativeIndexRange.Guided.2threads" * doctest::timeout(300)) {
+  stateful_range_based_for_each_index<tf::GuidedPartitioner<>>(2);
+}
+
+TEST_CASE("StatefulForEach.NegativeIndexRange.Guided.3threads" * doctest::timeout(300)) {
+  stateful_range_based_for_each_index<tf::GuidedPartitioner<>>(3);
+}
+
+TEST_CASE("StatefulForEach.NegativeIndexRange.Guided.4threads" * doctest::timeout(300)) {
+  stateful_range_based_for_each_index<tf::GuidedPartitioner<>>(4);
 }
 
 // ----------------------------------------------------------------------------

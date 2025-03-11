@@ -62,15 +62,22 @@ class Executor {
   /**
   @brief constructs the executor with @c N worker threads
 
-  @param N the number of workers (default std::thread::hardware_concurrency)
-  
+  @param N number of workers (default std::thread::hardware_concurrency)
+  @param wix interface class instance to configure workers' behaviors
+
   The constructor spawns @c N worker threads to run tasks in a
   work-stealing loop. The number of workers must be greater than zero
   or an exception will be thrown.
   By default, the number of worker threads is equal to the maximum
   hardware concurrency returned by std::thread::hardware_concurrency.
+
+  Users can alter the worker behavior, such as changing thread affinity,
+  via deriving an instance from tf::WorkerInterface.
   */
-  explicit Executor(size_t N = std::thread::hardware_concurrency());
+  explicit Executor(
+    size_t N = std::thread::hardware_concurrency(),
+    std::shared_ptr<WorkerInterface> wix = nullptr
+  );
 
   /**
   @brief destructs the executor
@@ -1038,22 +1045,17 @@ class Executor {
     
   const size_t _MAX_STEALS;
   
-  //std::mutex _wsq_mutex;
   std::mutex _taskflows_mutex;
   
   std::vector<Worker> _workers;
   DefaultNotifier _notifier;
 
-#ifdef __cpp_lib_latch
+#if __cplusplus >= TF_CPP20
   std::latch _latch;
-#else
-  Latch _latch;
-#endif
-
-#ifdef __cpp_lib_atomic_wait
   std::atomic<size_t> _num_topologies {0};
   std::atomic_flag _done = ATOMIC_FLAG_INIT; 
 #else
+  Latch _latch;
   std::condition_variable _topology_cv;
   std::mutex _topology_mutex;
   size_t _num_topologies {0};
@@ -1065,6 +1067,7 @@ class Executor {
 
   Freelist<Node*> _freelist;
 
+  std::shared_ptr<WorkerInterface> _worker_interface;
   std::unordered_set<std::shared_ptr<ObserverInterface>> _observers;
 
   void _observer_prologue(Worker&, Node*);
@@ -1129,13 +1132,13 @@ class Executor {
 #ifndef DOXYGEN_GENERATING_OUTPUT
 
 // Constructor
-inline Executor::Executor(size_t N) :
-  _MAX_STEALS ((N+1) << 1),
-  _workers    (N),
-  _notifier   (N),
-  _latch      (N+1),
-  _freelist   (N)
-{
+inline Executor::Executor(size_t N, std::shared_ptr<WorkerInterface> wix) :
+  _MAX_STEALS      ((N+1) << 1),
+  _workers         (N),
+  _notifier        (N),
+  _latch           (N+1),
+  _freelist        (N),
+  _worker_interface(std::move(wix)) {
 
   if(N == 0) {
     TF_THROW("executor must define at least one worker");
@@ -1157,7 +1160,7 @@ inline Executor::~Executor() {
 
   // shut down the scheduler
 
-#ifdef __cpp_lib_atomic_wait
+#if __cplusplus >= TF_CPP20
   _done.test_and_set(std::memory_order_relaxed);
 #else
   _done = true;
@@ -1176,7 +1179,7 @@ inline size_t Executor::num_workers() const noexcept {
 
 // Function: num_topologies
 inline size_t Executor::num_topologies() const {
-#ifdef __cpp_lib_atomic_wait
+#if __cplusplus >= TF_CPP20
   return _num_topologies.load(std::memory_order_relaxed);
 #else
   return _num_topologies;
@@ -1207,7 +1210,6 @@ inline void Executor::_spawn(size_t N) {
   //       since the main thread may leave quicker than other thread
   //       and then destroy it, causing the other thread to dangle
   //       with the latch
-
   for(size_t id=0; id<N; ++id) {
 
     _workers[id]._id = id;
@@ -1217,36 +1219,51 @@ inline void Executor::_spawn(size_t N) {
     _workers[id]._thread = std::thread([&, &w=_workers[id]] () {
 
       pt::this_worker = &w;
-      _latch.arrive_and_wait();  // synchronize with the main thread
+
+      // synchronize with the main thread to ensure all worker data
+      // has been set (e.g., _thread)
+      _latch.arrive_and_wait(); 
       
+      // initialize the random engine and seed for work-stealing
       w._rdgen.seed(static_cast<std::default_random_engine::result_type>(
         std::hash<std::thread::id>()(std::this_thread::get_id()))
       );
       w._rdvtm = std::uniform_int_distribution<size_t>(0, 2*_workers.size()-2);
 
+      // before entering the work-stealing loop, call the scheduler prologue
+      if(_worker_interface) {
+        _worker_interface->scheduler_prologue(w);
+      }
+
       Node* t = nullptr;
-      
-      while(1) {
+      std::exception_ptr ptr = nullptr;
 
-        // execute the tasks.
-        _exploit_task(w, t);
+      // must use 1 as condition instead of !done because
+      // the previous worker may stop while the following workers
+      // are still preparing for entering the scheduling loop
+      try {
+        while(1) {
 
-        // wait for tasks
-        if(_wait_for_task(w, t) == false) {
-          break;
+          // execute the tasks.
+          _exploit_task(w, t);
+
+          // wait for tasks
+          if(_wait_for_task(w, t) == false) {
+            break;
+          }
         }
+      } 
+      catch(...) {
+        ptr = std::current_exception();
+      }
+      
+      // call the user-specified epilogue function
+      if(_worker_interface) {
+        _worker_interface->scheduler_epilogue(w, ptr);
       }
 
     });
-    
-    // POSIX-like system can use the following to affine threads to cores 
-    //cpu_set_t cpuset;
-    //CPU_ZERO(&cpuset);
-    //CPU_SET(id, &cpuset);
-    //pthread_setaffinity_np(
-    //  _threads[id].native_handle(), sizeof(cpu_set_t), &cpuset
-    //);
-  }
+  } 
 
   _latch.arrive_and_wait();
 }
@@ -1322,7 +1339,7 @@ inline void Executor::_explore_task(Worker& w, Node*& t) {
     auto r = w._rdvtm(w._rdgen);
     w._vtm = r + (r >= w._id);
   } 
-#ifdef __cpp_lib_atomic_wait
+#if __cplusplus >= TF_CPP20
   // the _DONE can be checked later in wait_for_task?
   while(!_done.test(std::memory_order_relaxed));
 #else
@@ -1366,7 +1383,7 @@ inline bool Executor::_wait_for_task(Worker& worker, Node*& t) {
     goto explore_task;
   }
 
-#ifdef __cpp_lib_atomic_wait
+#if __cplusplus >= TF_CPP20
   if(_done.test(std::memory_order_relaxed)) {
 #else
   if(_done) {
@@ -1468,16 +1485,15 @@ void Executor::_schedule(Worker& worker, I first, I last) {
   // This problem is specific to MSVC which has strict iterator arithmetics.
   if(worker._executor == this) {
     for(size_t i=0; i<num_nodes; i++) {
-      worker._wsq.push(
-        first[i].get(), [&](){ _freelist.push(worker._id, first[i].get()); }
-      );
+      auto node = detail::get_node_ptr(first[i]);
+      worker._wsq.push(node, [&](){ _freelist.push(worker._id, node); });
       _notifier.notify_one();
     }
     return;
   }
 
   for(size_t i=0; i<num_nodes; i++) {
-    _freelist.push(first[i].get());
+    _freelist.push(detail::get_node_ptr(first[i]));
   }
   _notifier.notify_n(num_nodes);
 }
@@ -1493,7 +1509,7 @@ inline void Executor::_schedule(I first, I last) {
   }
 
   for(size_t i=0; i<num_nodes; i++) {
-    _freelist.push(first[i].get());
+    _freelist.push(detail::get_node_ptr(first[i]));
   }
   _notifier.notify_n(num_nodes);
 }
@@ -1526,13 +1542,29 @@ inline void Executor::_invoke(Worker& worker, Node* node) {
   begin_invoke:
 
   Node* cache {nullptr};
+  
+  // if this is the second invoke due to preemption, directly jump to invoke task
+  if(node->_nstate & NSTATE::PREEMPTED) {
+    goto invoke_task;
+  }
 
-  // no need to do other things if the topology is cancelled
+  // if the work has been cancelled, there is no need to continue
   if(node->_is_cancelled()) {
     _tear_down_invoke(worker, node, cache);
     TF_INVOKE_CONTINUATION();
     return;
   }
+
+  // if acquiring semaphore(s) exists, acquire them first
+  if(node->_semaphores && !node->_semaphores->to_acquire.empty()) {
+    SmallVector<Node*> waiters;
+    if(!node->_acquire_all(waiters)) {
+      _schedule(worker, waiters.begin(), waiters.end());
+      return;
+    }
+  }
+  
+  invoke_task:
   
   SmallVector<int> conds;
 
@@ -1605,6 +1637,13 @@ inline void Executor::_invoke(Worker& worker, Node* node) {
     // monostate (placeholder)
     default:
     break;
+  }
+
+  // if releasing semaphores exist, release them
+  if(node->_semaphores && !node->_semaphores->to_release.empty()) {
+    SmallVector<Node*> waiters;
+    node->_release_all(waiters);
+    _schedule(worker, waiters.begin(), waiters.end());
   }
 
   // Reset the join counter with strong dependencies to support cycles.
@@ -2055,7 +2094,7 @@ void Executor::_corun_graph(Worker& w, Node* p, I first, I last) {
 
 // Procedure: _increment_topology
 inline void Executor::_increment_topology() {
-#ifdef __cpp_lib_atomic_wait
+#if __cplusplus >= TF_CPP20
   _num_topologies.fetch_add(1, std::memory_order_relaxed);
 #else
   std::lock_guard<std::mutex> lock(_topology_mutex);
@@ -2065,7 +2104,7 @@ inline void Executor::_increment_topology() {
 
 // Procedure: _decrement_topology
 inline void Executor::_decrement_topology() {
-#ifdef __cpp_lib_atomic_wait
+#if __cplusplus >= TF_CPP20
   if(_num_topologies.fetch_sub(1, std::memory_order_acq_rel) == 1) {
     _num_topologies.notify_all();
   }
@@ -2079,7 +2118,7 @@ inline void Executor::_decrement_topology() {
 
 // Procedure: wait_for_all
 inline void Executor::wait_for_all() {
-#ifdef __cpp_lib_atomic_wait
+#if __cplusplus >= TF_CPP20
   size_t n = _num_topologies.load(std::memory_order_acquire);
   while(n != 0) {
     _num_topologies.wait(n, std::memory_order_acquire);
@@ -2099,8 +2138,7 @@ inline void Executor::_set_up_topology(Worker* w, Topology* tpg) {
   //g._clear_detached();
   
   auto send = _set_up_graph(g.begin(), g.end(), tpg, nullptr, NSTATE::NONE);
-  tpg->_num_sources = send - g.begin();
-  tpg->_join_counter.store(tpg->_num_sources, std::memory_order_relaxed);
+  tpg->_join_counter.store(send - g.begin(), std::memory_order_relaxed);
 
   w ? _schedule(*w, g.begin(), send) : _schedule(g.begin(), send);
 }
@@ -2151,9 +2189,10 @@ inline void Executor::_tear_down_topology(Worker& worker, Topology* tpg) {
   if(!tpg->_exception_ptr && !tpg->cancelled() && !tpg->_pred()) {
     //assert(tpg->_join_counter == 0);
     std::lock_guard<std::mutex> lock(f._mutex);
-    auto& g = tpg->_taskflow._graph;
-    tpg->_join_counter.store(tpg->_num_sources, std::memory_order_relaxed);
-    _schedule(worker, g.begin(), g.begin() + tpg->_num_sources);
+    //auto& g = tpg->_taskflow._graph;
+    //tpg->_join_counter.store(tpg->_num_sources, std::memory_order_relaxed);
+    //_schedule(worker, g.begin(), g.begin() + tpg->_num_sources);
+    _set_up_topology(&worker, tpg);
   }
   // case 2: the final run of this topology
   else {

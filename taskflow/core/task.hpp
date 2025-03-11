@@ -269,6 +269,28 @@ class Task {
     Task& succeed(Ts&&... tasks);
 
     /**
+    @brief makes the task release this semaphore
+    */
+    Task& release(Semaphore& semaphore);
+    
+    /**
+    @brief makes the task release the given range of semaphores
+    */
+    template <typename I>
+    Task& release(I first, I last);
+
+    /**
+    @brief makes the task acquire this semaphore
+    */
+    Task& acquire(Semaphore& semaphore);
+
+    /**
+    @brief makes the task acquire the given range of semaphores
+    */
+    template <typename I>
+    Task& acquire(I first, I last);
+
+    /**
     @brief assigns pointer to user data
 
     @param data pointer to user data
@@ -415,6 +437,54 @@ inline bool Task::operator != (const Task& rhs) const {
 // Function: name
 inline Task& Task::name(const std::string& name) {
   _node->_name = name;
+  return *this;
+}
+
+// Function: acquire
+inline Task& Task::acquire(Semaphore& s) {
+  if(!_node->_semaphores) {
+    _node->_semaphores = std::make_unique<Node::Semaphores>();
+  }
+  _node->_semaphores->to_acquire.push_back(&s);
+  return *this;
+}
+
+// Function: acquire
+template <typename I>
+Task& Task::acquire(I first, I last) {
+  if(!_node->_semaphores) {
+    _node->_semaphores = std::make_unique<Node::Semaphores>();
+  }
+  _node->_semaphores->to_acquire.reserve(
+    _node->_semaphores->to_acquire.size() + std::distance(first, last)
+  );
+  for(auto s = first; s != last; ++s){
+    _node->_semaphores->to_acquire.push_back(&(*s));
+  }
+  return *this;
+}
+
+// Function: release
+inline Task& Task::release(Semaphore& s) {
+  if(!_node->_semaphores) {
+    _node->_semaphores = std::make_unique<Node::Semaphores>();
+  }
+  _node->_semaphores->to_release.push_back(&s);
+  return *this;
+}
+
+// Function: release
+template <typename I>
+Task& Task::release(I first, I last) {
+  if(!_node->_semaphores) {
+    _node->_semaphores = std::make_unique<Node::Semaphores>();
+  }
+  _node->_semaphores->to_release.reserve(
+    _node->_semaphores->to_release.size() + std::distance(first, last)
+  );
+  for(auto s = first; s != last; ++s) {
+    _node->_semaphores->to_release.push_back(&(*s));
+  }
   return *this;
 }
 

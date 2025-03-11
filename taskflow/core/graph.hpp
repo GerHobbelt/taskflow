@@ -264,6 +264,11 @@ class Node {
     DependentAsync    // dependent async tasking
   >;
 
+  struct Semaphores {
+    SmallVector<Semaphore*> to_acquire;
+    SmallVector<Semaphore*> to_release;
+  };
+
   public:
 
   // variant index
@@ -322,24 +327,24 @@ class Node {
   SmallVector<Node*> _dependents;
 
   std::atomic<size_t> _join_counter {0};
-
+  
   handle_t _handle;
+  
+  std::unique_ptr<Semaphores> _semaphores;
   
   std::exception_ptr _exception_ptr {nullptr};
 
   // free list
   //Node* _freelist_next{nullptr};
 
-  void _precede(Node*);
-  void _set_up_join_counter();
-  void _rethrow_exception();
-
   bool _is_cancelled() const;
   bool _is_conditioner() const;
   bool _is_preempted() const;
   bool _acquire_all(SmallVector<Node*>&);
-
-  SmallVector<Node*> _release_all();
+  void _release_all(SmallVector<Node*>&);
+  void _precede(Node*);
+  void _set_up_join_counter();
+  void _rethrow_exception();
 };
 
 // ----------------------------------------------------------------------------
@@ -681,6 +686,32 @@ inline void Node::_rethrow_exception() {
   }
 }
 
+// Function: _acquire_all
+inline bool Node::_acquire_all(SmallVector<Node*>& nodes) {
+  // assert(_semaphores != nullptr);
+  auto& to_acquire = _semaphores->to_acquire;
+  for(size_t i = 0; i < to_acquire.size(); ++i) {
+    if(!to_acquire[i]->_try_acquire_or_wait(this)) {
+      for(size_t j = 1; j <= i; ++j) {
+        to_acquire[i-j]->_release(nodes);
+      }
+      return false;
+    }
+  }
+  return true;
+}
+
+// Function: _release_all
+inline void Node::_release_all(SmallVector<Node*>& nodes) {
+  // assert(_semaphores != nullptr);
+  auto& to_release = _semaphores->to_release;
+  for(const auto& sem : to_release) {
+    sem->_release(nodes);
+  }
+}
+
+
+
 // ----------------------------------------------------------------------------
 // AnchorGuard
 // ----------------------------------------------------------------------------
@@ -775,6 +806,31 @@ struct has_graph<T, std::void_t<decltype(std::declval<T>().graph())>>
  */
 template <typename T>
 constexpr bool has_graph_v = has_graph<T>::value;
+
+// ----------------------------------------------------------------------------
+// detailed helper functions
+// ----------------------------------------------------------------------------
+
+namespace detail {
+
+/**
+@private
+*/
+template <typename T>
+TF_FORCE_INLINE Node* get_node_ptr(T& node) {
+  using U = std::decay_t<T>;
+  if constexpr (std::is_same_v<U, Node*>) {
+    return node;
+  } 
+  else if constexpr (std::is_same_v<U, std::unique_ptr<Node>>) {
+    return node.get();
+  } 
+  else {
+    static_assert(dependent_false_v<T>, "Unsupported type for get_node_ptr");
+  }
+} 
+
+}  // end of namespace tf::detail ---------------------------------------------
 
 
 }  // end of namespace tf. ----------------------------------------------------
