@@ -154,7 +154,7 @@ The following example creates a static task.</para>
 The following example creates a runtime task.</para>
 <para><programlisting filename=".cpp"><codeline><highlight class="normal"><ref refid="classtf_1_1Task" kindref="compound">tf::Task</ref><sp/>static_task<sp/>=<sp/>taskflow.emplace([](<ref refid="classtf_1_1Runtime" kindref="compound">tf::Runtime</ref>&amp;){});</highlight></codeline>
 </programlisting></para>
-<para>Please refer to <ref refid="RuntimeTasking" kindref="compound">Interact with the Runtime</ref> for details. </para>
+<para>Please refer to <ref refid="RuntimeTasking" kindref="compound">Runtime Tasking</ref> for details. </para>
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>

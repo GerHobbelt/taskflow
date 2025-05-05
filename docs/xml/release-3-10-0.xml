@@ -2,8 +2,12 @@
 <doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.9.1" xml:lang="en-US">
   <compounddef id="release-3-10-0" kind="page">
     <compoundname>release-3-10-0</compoundname>
-    <title>Release 3.10.0 (Master)</title>
+    <title>Release 3.10.0 (2025/05/01)</title>
     <tableofcontents>
+      <tocsect>
+        <name>Release Summary</name>
+        <reference>release-3-10-0_1release-3-10-0_summary</reference>
+    </tocsect>
       <tocsect>
         <name>Download</name>
         <reference>release-3-10-0_1release-3-10-0_download</reference>
@@ -11,10 +15,6 @@
       <tocsect>
         <name>System Requirements</name>
         <reference>release-3-10-0_1release-3-10-0_system_requirements</reference>
-    </tocsect>
-      <tocsect>
-        <name>Release Summary</name>
-        <reference>release-3-10-0_1release-3-10-0_summary</reference>
     </tocsect>
       <tocsect>
         <name>New Features</name>
@@ -50,10 +50,13 @@
     <briefdescription>
     </briefdescription>
     <detaileddescription>
-<para>Taskflow 3.10.0 is the newest developing line to new features and improvements we continue to support. It is also where this documentation is generated. Many things are considered <emphasis>experimental</emphasis> and may change or break from time to time. While it may be difficult to be keep all things consistent when introducing new features, we continue to try our best to ensure backward compatibility.</para>
+<sect1 id="release-3-10-0_1release-3-10-0_summary">
+<title>Release Summary</title>
+<para>This release improves scheduling performance through optimized work-stealing threshold tuning and a constrained decentralized buffer. It also introduces index-range-based parallel-for and parallel-reduction algorithms and modifies subflow tasking behavior to significantly enhance the performance of recursive parallelism.</para>
+</sect1>
 <sect1 id="release-3-10-0_1release-3-10-0_download">
 <title>Download</title>
-<para>To download the newest version of Taskflow, please clone the master branch from <ulink url="https://github.com/taskflow/taskflow">Taskflow&apos;s GitHub</ulink>.</para>
+<para>Taskflow 3.10.0 can be downloaded from <ulink url="https://github.com/taskflow/taskflow/releases/tag/v3.10.0">here</ulink>.</para>
 </sect1>
 <sect1 id="release-3-10-0_1release-3-10-0_system_requirements">
 <title>System Requirements</title>
@@ -65,7 +68,7 @@
 </listitem>
 <listitem><para>Microsoft Visual Studio at least v19.27 with /std:c++17 </para>
 </listitem>
-<listitem><para>AppleClang Xcode Version at least v12.0 with -std=c++17 </para>
+<listitem><para>Apple Clang Xcode Version at least v12.0 with -std=c++17 </para>
 </listitem>
 <listitem><para>Nvidia CUDA Toolkit and Compiler (nvcc) at least v11.1 with -std=c++17 </para>
 </listitem>
@@ -79,10 +82,6 @@ Taskflow works on Linux, Windows, and Mac OS X.</para>
 </simplesect>
 </para>
 </sect1>
-<sect1 id="release-3-10-0_1release-3-10-0_summary">
-<title>Release Summary</title>
-<para>This release improves scheduling performance through optimized work-stealing threshold tuning and a constrained decentralized buffer. It also introduces index-range-based parallel-for and parallel-reduction algorithms and modifies subflow tasking behavior to significantly enhance the performance of recursive parallelism.</para>
-</sect1>
 <sect1 id="release-3-10-0_1release-3-10-0_new_features">
 <title>New Features</title>
 <sect2 id="release-3-10-0_1release-3-10-0_taskflow_core">
@@ -91,6 +90,7 @@ Taskflow works on Linux, Windows, and Mac OS X.</para>
 <listitem><para>optimized work-stealing loop with an adaptive breaking strategy</para>
 </listitem><listitem><para>optimized shut-down signal detection using decentralized variables</para>
 </listitem><listitem><para>optimized memory layout of node by combining successors and predecessors together</para>
+</listitem><listitem><para>changed the default notifier to use the atomic notification algorithm under C++20</para>
 </listitem><listitem><para>added debug mode for the windows CI to GitHub actions</para>
 </listitem><listitem><para>added index range-based parallel-for algorithm (<ulink url="https://github.com/taskflow/taskflow/issues/551">#551</ulink>)</para>
 </listitem></itemizedlist>
@@ -110,7 +110,7 @@ Taskflow works on Linux, Windows, and Mac OS X.</para>
 <codeline><highlight class="normal">});</highlight></codeline>
 </programlisting></para>
 <para><itemizedlist>
-<listitem><para>added index range-based parallel-reduction algorithm (<ulink url="https://github.com/taskflow/taskflow/issues/654">i#654</ulink>)</para>
+<listitem><para>added index range-based parallel-reduction algorithm (<ulink url="https://github.com/taskflow/taskflow/issues/654">#654</ulink>)</para>
 </listitem></itemizedlist>
 </para>
 <para><programlisting filename=".cpp"><codeline><highlight class="normal"><ref refid="cpp/container/vector" kindref="compound" external="/home/thuang295/Code/taskflow/doxygen/cppreference-doxygen-web.tag.xml">std::vector&lt;double&gt;</ref><sp/>data(100000);</highlight></codeline>
@@ -136,6 +136,11 @@ Taskflow works on Linux, Windows, and Mac OS X.</para>
 </programlisting></para>
 <para><itemizedlist>
 <listitem><para>added <computeroutput>static</computeroutput> keyword to the executor creation in taskflow benchmarks</para>
+</listitem><listitem><para>added waiter test to detect over-subscription issues</para>
+</listitem><listitem><para>added <ref refid="classtf_1_1Executor_1a5205c78ec06ef01de0c7d6a71adad07a" kindref="member">tf::Executor::num_waiters</ref> (C++20 only) for querying the number of non-stealing workers</para>
+</listitem><listitem><para>added <ref refid="namespacetf_1aae281ad3b89a5c421a1f4058f425e54c" kindref="member">tf::make_module_task</ref> to the algorithm collection (see <ref refid="ModuleAlgorithm" kindref="compound">Module Algorithm</ref>)</para>
+</listitem><listitem><para>added <ref refid="classtf_1_1Runtime_1a20d9756a7aa6b58d0d04437818c10066" kindref="member">tf::Runtime::is_cancelled</ref> to query if the parent taskflow is cancelled</para>
+</listitem><listitem><para>added <ref refid="classtf_1_1Runtime" kindref="compound">tf::Runtime</ref> to async tasking to simplify designs of recursive parallelism (see <ref refid="RuntimeTasking" kindref="compound">Runtime Tasking</ref>)</para>
 </listitem></itemizedlist>
 </para>
 </sect2>
@@ -157,7 +162,7 @@ Taskflow works on Linux, Windows, and Mac OS X.</para>
 </listitem><listitem><para>fixed the MSVC compilation error due to macro clash with std::min and std::max (<ulink url="https://github.com/taskflow/taskflow/issues/670">#670</ulink>)</para>
 </listitem><listitem><para>fixed the runtime error due to the use of latch in <ref refid="classtf_1_1Executor_1a23b4c858279616d79612dccd9a715365" kindref="member">tf::Executor::Executor</ref> (<ulink url="https://github.com/taskflow/taskflow/issues/667">#667</ulink>)</para>
 </listitem><listitem><para>fixed the compilation error due to incorrect const qualifier used in algorithms (<ulink url="https://github.com/taskflow/taskflow/issues/673">#673</ulink>)</para>
-</listitem><listitem><para>fixed the tsan error when using find-if algorithm tasks with closure wrapper (<ulink url="https://github.com/taskflow/taskflow/issues/675">#675</ulink>)</para>
+</listitem><listitem><para>fixed the TSAN error when using find-if algorithm tasks with closure wrapper (<ulink url="https://github.com/taskflow/taskflow/issues/675">#675</ulink>)</para>
 </listitem><listitem><para>fixed the task trait bug in incorrect detection for subflow and runtime tasks (<ulink url="https://github.com/taskflow/taskflow/issues/679">#679</ulink>)</para>
 </listitem><listitem><para>fixed the infinite steal caused by incorrect <computeroutput>num_empty_steals</computeroutput> (<ulink url="https://github.com/taskflow/taskflow/issues/681">#681</ulink>)</para>
 </listitem></itemizedlist>
@@ -204,20 +209,44 @@ Taskflow works on Linux, Windows, and Mac OS X.</para>
 <codeline><highlight class="normal"></highlight><highlight class="comment">//<sp/>The<sp/>subflow<sp/>graph<sp/>is<sp/>now<sp/>retained<sp/>and<sp/>can<sp/>be<sp/>visualized<sp/>using<sp/>taskflow.dump(...)</highlight><highlight class="normal"></highlight></codeline>
 <codeline><highlight class="normal">taskflow.<ref refid="classtf_1_1Taskflow_1ac433018262e44b12c4cc9f0c4748d758" kindref="member">dump</ref>(<ref refid="cpp/io/basic_ostream" kindref="compound" external="/home/thuang295/Code/taskflow/doxygen/cppreference-doxygen-web.tag.xml">std::cout</ref>);</highlight></codeline>
 </programlisting></para>
+<para><itemizedlist>
+<listitem><para>disabled the support for tf::cudaFlow and tf::cudaFlowCapturer<itemizedlist>
+<listitem><para>introduced a cleaner interface <ref refid="namespacetf_1ac76b07f7b7055967f6a2f1dc78b0978a" kindref="member">tf::cudaGraph</ref> directly atop <ulink url="https://developer.nvidia.com/blog/cuda-graphs/">CUDA Graph</ulink> (see <ref refid="GPUTasking" kindref="compound">GPU Tasking</ref>)</para>
+</listitem><listitem><para><ref refid="namespacetf_1ac76b07f7b7055967f6a2f1dc78b0978a" kindref="member">tf::cudaGraph</ref> has similar interface to tf::cudaFlow and can be changed as follows:</para>
+</listitem></itemizedlist>
+</para>
+</listitem></itemizedlist>
+</para>
+<para><programlisting filename=".cpp"><codeline><highlight class="comment">//<sp/>programming<sp/>tf::cudaGraph<sp/>is<sp/>consistent<sp/>with<sp/>Nvidia<sp/>CUDA<sp/>Graph<sp/>but<sp/>offers<sp/>a<sp/>simpler<sp/></highlight><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="comment">//<sp/>and<sp/>more<sp/>intuitive<sp/>interface<sp/>by<sp/>abstracting<sp/>away<sp/>low-level<sp/>CUDA<sp/>Graph<sp/>boilerplate.</highlight><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal"><ref refid="classtf_1_1cudaGraphBase" kindref="compound">tf::cudaGraph</ref><sp/>cg;</highlight></codeline>
+<codeline><highlight class="normal">cg.<ref refid="classtf_1_1cudaGraphBase_1a1473a15a6023fbc25e1f029f2ff84aec" kindref="member">kernel</ref>(...);<sp/><sp/><sp/></highlight><highlight class="comment">//<sp/>same<sp/>as<sp/>cudaFlow/cudaFlowCapturer</highlight><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="comment">//<sp/>unlike<sp/>cudaFlow/cudaFlowCapturer,<sp/>you<sp/>need<sp/>to<sp/>explicitly<sp/>instantiate<sp/>an<sp/>executable<sp/></highlight><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal"></highlight><highlight class="comment">//<sp/>CUDA<sp/>graph<sp/>now<sp/>and<sp/>submit<sp/>it<sp/>to<sp/>a<sp/>stream<sp/>for<sp/>execution</highlight><highlight class="normal"></highlight></codeline>
+<codeline><highlight class="normal"><ref refid="classtf_1_1cudaGraphExecBase" kindref="compound">tf::cudaGraphExec</ref><sp/>exec(cg);</highlight></codeline>
+<codeline><highlight class="normal"><ref refid="classtf_1_1cudaStreamBase" kindref="compound">tf::cudaStream</ref><sp/>stream;</highlight></codeline>
+<codeline><highlight class="normal">stream.<ref refid="classtf_1_1cudaStreamBase_1aadd2d02a691b40305aa3965475dc98d7" kindref="member">run</ref>(exec).<ref refid="classtf_1_1cudaStreamBase_1a685019ae199f86668257f802bd77b2cd" kindref="member">synchronize</ref>();</highlight></codeline>
+</programlisting></para>
 </sect1>
 <sect1 id="release-3-10-0_1release-3-10-0_documentation">
 <title>Documentation</title>
 <para><itemizedlist>
-<listitem><para>revised <ref refid="SubflowTasking" kindref="compound">Subflow Tasking</ref></para>
+<listitem><para>added <ref refid="ModuleAlgorithm" kindref="compound">Module Algorithm</ref></para>
+</listitem><listitem><para>revised <ref refid="SubflowTasking" kindref="compound">Subflow Tasking</ref></para>
+</listitem><listitem><para>revised <ref refid="AsyncTasking" kindref="compound">Asynchronous Tasking</ref></para>
+</listitem><listitem><para>revised <ref refid="RuntimeTasking" kindref="compound">Runtime Tasking</ref></para>
+</listitem><listitem><para>revised <ref refid="classtf_1_1Executor" kindref="compound">Executor</ref></para>
 </listitem><listitem><para>revised <ref refid="ParallelIterations" kindref="compound">Parallel Iterations</ref></para>
 </listitem><listitem><para>revised <ref refid="ParallelReduction" kindref="compound">Parallel Reduction</ref></para>
 </listitem><listitem><para>revised <ref refid="ParallelFind" kindref="compound">Parallel Find</ref></para>
+</listitem><listitem><para>revised <ref refid="fibonacci" kindref="compound">Fibonacci Number</ref></para>
 </listitem></itemizedlist>
 </para>
 </sect1>
 <sect1 id="release-3-10-0_1release-3-10-0_miscellaneous_items">
 <title>Miscellaneous Items</title>
-<para>Please do not hesitate to contact <ulink url="https://tsung-wei-huang.github.io/">Dr. Tsung-Wei Huang</ulink> if you intend to collaborate with us on using Taskflow in your scientific computing projects. </para>
+<para>If you are interested in collaborating with us on applying Taskflow to your projects, please feel free to reach out to <ulink url="https://tsung-wei-huang.github.io/">Dr. Tsung-Wei Huang</ulink>! </para>
 </sect1>
     </detaileddescription>
     <location file="doxygen/releases/release-3.10.0.dox"/>

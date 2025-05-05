@@ -1,3 +1,5 @@
+// This example demonstrates how to use Taskflow's subflow and runtime tasking features
+// to create recursive parallelism, using the famous Fibonacci recursion as an example.
 #include <taskflow/taskflow.hpp>
 
 tf::Executor& get_executor() {
@@ -6,7 +8,7 @@ tf::Executor& get_executor() {
 }
 
 // ------------------------------------------------------------------------------------------------
-// implementation using subflow
+// implementation using subflow (slower)
 // ------------------------------------------------------------------------------------------------
 
 size_t spawn_subflow(size_t n, tf::Subflow& sbf) {
@@ -40,7 +42,7 @@ size_t fibonacci_subflow(size_t N) {
 }
 
 // ------------------------------------------------------------------------------------------------
-// implementation using async
+// implementation using async (faster)
 // ------------------------------------------------------------------------------------------------
 
 size_t spawn_async(size_t N, tf::Runtime& rt) {

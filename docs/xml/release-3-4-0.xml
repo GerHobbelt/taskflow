@@ -157,7 +157,6 @@ Taskflow works on Linux, Windows, and Mac OS X.</para>
 <listitem><para>Added <ref refid="ExecuteTaskflow_1ExecuteATaskflowFromAnInternalWorker" kindref="member">Execute a Taskflow from an Internal Worker</ref></para>
 </listitem></itemizedlist>
 </para>
-</listitem><listitem><para>Revised <ref refid="CUDASTDExecutionPolicy" kindref="compound">Execution Policy</ref></para>
 </listitem><listitem><para>Revised <ref refid="TaskParallelPipeline" kindref="compound">Task-parallel Pipeline</ref><itemizedlist>
 <listitem><para>Added <ref refid="TaskParallelPipeline_1TaskParallelPipelineLearnMore" kindref="member">Learn More about Taskflow Pipeline</ref></para>
 </listitem></itemizedlist>

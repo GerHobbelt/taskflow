@@ -22,6 +22,8 @@
 <para><itemizedlist>
 <listitem><para><ulink url="https://github.com/Neumann-A">Alexander Neumann</ulink>: made Taskflow importable from external CMake projects </para>
 </listitem>
+<listitem><para><ulink url="https://github.com/andatr">Andatr</ulink>: improved the hashing performance in freelist </para>
+</listitem>
 <listitem><para><ulink url="https://github.com/Anesthesia4">Anesthesia4</ulink>: added unit tests for parallel-transform algorithms <linebreak/>
  </para>
 </listitem>

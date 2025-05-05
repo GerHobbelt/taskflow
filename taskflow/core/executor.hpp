@@ -518,6 +518,11 @@ class Executor {
   size_t num_workers() const noexcept;
   
   /**
+  @brief queries the number of workers that are currently not making any stealing attempts
+  */
+  size_t num_waiters() const noexcept;
+  
+  /**
   @brief queries the number of queues used in the work-stealing loop
   */
   size_t num_queues() const noexcept;
@@ -1054,10 +1059,8 @@ class Executor {
   DefaultNotifier _notifier;
 
 #if __cplusplus >= TF_CPP20
-  //std::latch _latch;
   std::atomic<size_t> _num_topologies {0};
 #else
-  //Latch _latch;
   std::condition_variable _topology_cv;
   std::mutex _topology_mutex;
   size_t _num_topologies {0};
@@ -1133,10 +1136,9 @@ class Executor {
 
 // Constructor
 inline Executor::Executor(size_t N, std::shared_ptr<WorkerInterface> wix) :
-  _workers         (N),
-  _notifier        (N),
-  //_latch           (N+1),
-  _buffers        (N),
+  _workers  (N),
+  _notifier (N),
+  _buffers  (N),
   _worker_interface(std::move(wix)) {
 
   if(N == 0) {
@@ -1178,6 +1180,17 @@ inline size_t Executor::num_workers() const noexcept {
   return _workers.size();
 }
 
+// Function: num_waiters
+inline size_t Executor::num_waiters() const noexcept {
+#if __cplusplus >= TF_CPP20
+  return _notifier.num_waiters();
+#else
+  // Unfortunately, nonblocking notifier does not have an easy way to return
+  // the number of workers that are not making stealing attempts.
+  return 0;
+#endif
+}
+
 // Function: num_queues
 inline size_t Executor::num_queues() const noexcept {
   return _workers.size() + _buffers.size();
@@ -1206,9 +1219,6 @@ inline int Executor::this_worker_id() const {
 // Procedure: _spawn
 inline void Executor::_spawn(size_t N) {
 
-  // Note: We cannot declare latch as a local variable here because the main thread
-  // may exit earlier than other threads, causing the latch to be destroyed
-  // while other threads are still accessing it, leading to undefined behavior.
   for(size_t id=0; id<N; ++id) {
 
     _workers[id]._id = id;
@@ -1219,9 +1229,6 @@ inline void Executor::_spawn(size_t N) {
 
       pt::this_worker = &w;
 
-      // synchronize with the main thread to ensure all worker data has been set
-      //_latch.arrive_and_wait(); 
-      
       // initialize the random engine and seed for work-stealing loop
       w._rdgen.seed(static_cast<std::default_random_engine::result_type>(
         std::hash<std::thread::id>()(std::this_thread::get_id()))
@@ -1263,8 +1270,6 @@ inline void Executor::_spawn(size_t N) {
 
     });
   } 
-
-  //_latch.arrive_and_wait();
 }
 
 // Function: _corun_until
@@ -1284,23 +1289,25 @@ void Executor::_corun_until(Worker& w, P&& stop_predicate) {
     }
     else {
       size_t num_steals = 0;
+      size_t vtm = w._vtm;
 
       explore:
       
       //auto vtm = udist(w._rdgen);
 
-      t = (w._vtm < _workers.size()) ? _workers[w._vtm]._wsq.steal() : 
-                                    _buffers.steal(w._vtm - _workers.size());
+      t = (vtm < _workers.size()) ? _workers[vtm]._wsq.steal() : 
+                                    _buffers.steal(vtm - _workers.size());
 
       if(t) {
         _invoke(w, t);
+        w._vtm = vtm;
         goto exploit;
       }
       else if(!stop_predicate()) {
         if(++num_steals > MAX_STEALS) {
           std::this_thread::yield();
         }
-        w._vtm = udist(w._rdgen);
+        vtm = udist(w._rdgen);
         goto explore;
       }
       else {
@@ -1469,7 +1476,7 @@ inline size_t Executor::num_observers() const noexcept {
 // Procedure: _schedule
 inline void Executor::_schedule(Worker& worker, Node* node) {
   
-  // caller is a worker to this pool - starting at v3.5 we do not use
+  // caller is a worker of this executor - starting at v3.5 we do not use
   // any complicated notification mechanism as the experimental result
   // has shown no significant advantage.
   if(worker._executor == this) {
@@ -1478,7 +1485,7 @@ inline void Executor::_schedule(Worker& worker, Node* node) {
     return;
   }
   
-  // go through the centralized queue
+  // caller is not a worker of this executor - go through the centralized queue
   _buffers.push(node);
   _notifier.notify_one();
 }
@@ -1513,6 +1520,7 @@ void Executor::_schedule(Worker& worker, I first, I last) {
     return;
   }
   
+  // caller is not a worker of this executor - go through the centralized queue
   for(size_t i=0; i<num_nodes; i++) {
     _buffers.push(detail::get_node_ptr(first[i]));
   }
@@ -1705,7 +1713,6 @@ inline void Executor::_invoke(Worker& worker, Node* node) {
     // non-condition task
     default: {
       for(size_t i=0; i<node->_num_successors; ++i) {
-        //if(auto s = node->_successors[i]; --(s->_join_counter) == 0) {
         if(auto s = node->_edges[i]; s->_join_counter.fetch_sub(1, std::memory_order_acq_rel) == 1) {
           join_counter.fetch_add(1, std::memory_order_relaxed);
           _update_cache(worker, cache, s);
