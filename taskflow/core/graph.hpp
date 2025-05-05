@@ -13,7 +13,6 @@
 #include "../utility/small_vector.hpp"
 #include "../utility/serializer.hpp"
 #include "../utility/latch.hpp"
-#include "../utility/mpmc.hpp"
 #include "error.hpp"
 #include "declarations.hpp"
 #include "semaphore.hpp"
@@ -333,9 +332,6 @@ class Node {
   std::unique_ptr<Semaphores> _semaphores;
   
   std::exception_ptr _exception_ptr {nullptr};
-
-  // free list
-  //Node* _freelist_next{nullptr};
 
   bool _is_cancelled() const;
   bool _is_conditioner() const;

@@ -17,13 +17,24 @@ namespace tf {
 // Default Notifier
 // ----------------------------------------------------------------------------
 
+
 /**
 @private
 */
-#ifdef TF_ENABLE_ATOMIC_NOTIFIER
+#ifdef TF_ENABLE_ATOMIC_NOTIFIER_V1
+  using DefaultNotifier = AtomicNotifierV1;
+#elif TF_ENABLE_ATOMIC_NOTIFIER_V2
   using DefaultNotifier = AtomicNotifierV2;
-#else
+#elif TF_ENABLE_NONBLOCKING_NOTIFIER_V1
+  using DefaultNotifier = NonblockingNotifierV1;
+#elif TF_ENABLE_NONBLOCKING_NOTIFIER_V2
   using DefaultNotifier = NonblockingNotifierV2;
+#else
+  #if __cplusplus >= TF_CPP20
+    using DefaultNotifier = AtomicNotifierV2;
+  #else
+    using DefaultNotifier = NonblockingNotifierV2;
+  #endif
 #endif
 
 // ----------------------------------------------------------------------------

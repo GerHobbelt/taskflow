@@ -8,8 +8,6 @@ namespace tf {
 template <typename B, typename E, typename C, typename P = DefaultPartitioner>
 auto make_for_each_task(B b, E e, C c, P part = P()) {
   
-  using namespace std::string_literals;
-
   using B_t = std::decay_t<unwrap_ref_decay_t<B>>;
   using E_t = std::decay_t<unwrap_ref_decay_t<E>>;
 
@@ -79,8 +77,6 @@ auto make_for_each_task(B b, E e, C c, P part = P()) {
 template <typename B, typename E, typename S, typename C, typename P = DefaultPartitioner>
 auto make_for_each_index_task(B b, E e, S s, C c, P part = P()){
   
-  using namespace std::string_literals;
-
   using B_t = std::decay_t<unwrap_ref_decay_t<B>>;
   using E_t = std::decay_t<unwrap_ref_decay_t<E>>;
   using S_t = std::decay_t<unwrap_ref_decay_t<S>>;
@@ -149,9 +145,9 @@ auto make_for_each_index_task(B b, E e, S s, C c, P part = P()){
   };
 }
 
-// Function: make_for_each_index_task
+// Function: make_for_each_by_index_task
 template <typename R, typename C, typename P = DefaultPartitioner>
-auto make_for_each_index_task(R range, C c, P part = P()){
+auto make_for_each_by_index_task(R range, C c, P part = P()){
   
   using range_type = std::decay_t<unwrap_ref_decay_t<R>>;
 
@@ -231,11 +227,11 @@ Task FlowBuilder::for_each_index(B beg, E end, S inc, C c, P part){
   );
 }
 
-// Function: for_each_index
+// Function: for_each_by_index
 template <typename R, typename C, typename P>
-Task FlowBuilder::for_each_index(R range, C c, P part){
+Task FlowBuilder::for_each_by_index(R range, C c, P part){
   return emplace(
-    make_for_each_index_task(range, c, part)
+    make_for_each_by_index_task(range, c, part)
   );
 }
 

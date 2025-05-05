@@ -41,6 +41,8 @@ through `-std=c++20` to achieve better performance due to new C++20 features.
 
 @subsection release-3-10-0_taskflow_core Taskflow Core
 
++ improved work-stealing loop with an adaptive breaking strategy
++ improved shut-down signal detection using decentralized variables
 + fixed MSVC compilation warnings due to signed conversion on sort
 + added debug mode for the windows CI to GitHub actions
 + added index range-based parallel-for algorithm ([#551](https://github.com/taskflow/taskflow/issues/551))
@@ -54,7 +56,7 @@ taskflow.for_each_index(0, 100, 1, [&](int i){ data1[i] = 10; });
 
 // Approach 2: initialize data2 using tf::IndexRange
 tf::IndexRange<int> range(0, 100, 1);
-taskflow.for_each_index(range, [&](tf::IndexRange<int>& subrange){
+taskflow.for_each_by_index(range, [&](tf::IndexRange<int>& subrange){
   for(int i=subrange.begin(); i<subrange.end(); i+=subrange.step_size()) {
     data2[i] = 10;
   }
