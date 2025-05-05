@@ -1259,7 +1259,7 @@ inline FlowBuilder::FlowBuilder(Graph& graph) :
 // Function: emplace
 template <typename C, std::enable_if_t<is_static_task_v<C>, void>*>
 Task FlowBuilder::emplace(C&& c) {
-  return Task(_graph._emplace_back(NSTATE::NONE, ESTATE::NONE, "", nullptr, nullptr, 0,
+  return Task(_graph._emplace_back(NSTATE::NONE, ESTATE::NONE, DefaultTaskParams{}, nullptr, nullptr, 0,
     std::in_place_type_t<Node::Static>{}, std::forward<C>(c)
   ));
 }
@@ -1267,7 +1267,7 @@ Task FlowBuilder::emplace(C&& c) {
 // Function: emplace
 template <typename C, std::enable_if_t<is_runtime_task_v<C>, void>*>
 Task FlowBuilder::emplace(C&& c) {
-  return Task(_graph._emplace_back(NSTATE::NONE, ESTATE::NONE, "", nullptr, nullptr, 0,
+  return Task(_graph._emplace_back(NSTATE::NONE, ESTATE::NONE, DefaultTaskParams{}, nullptr, nullptr, 0,
     std::in_place_type_t<Node::Runtime>{}, std::forward<C>(c)
   ));
 }
@@ -1275,7 +1275,7 @@ Task FlowBuilder::emplace(C&& c) {
 // Function: emplace
 template <typename C, std::enable_if_t<is_subflow_task_v<C>, void>*>
 Task FlowBuilder::emplace(C&& c) {
-  return Task(_graph._emplace_back(NSTATE::NONE, ESTATE::NONE, "", nullptr, nullptr, 0,
+  return Task(_graph._emplace_back(NSTATE::NONE, ESTATE::NONE, DefaultTaskParams{}, nullptr, nullptr, 0,
     std::in_place_type_t<Node::Subflow>{}, std::forward<C>(c)
   ));
 }
@@ -1283,7 +1283,7 @@ Task FlowBuilder::emplace(C&& c) {
 // Function: emplace
 template <typename C, std::enable_if_t<is_condition_task_v<C>, void>*>
 Task FlowBuilder::emplace(C&& c) {
-  return Task(_graph._emplace_back(NSTATE::NONE, ESTATE::NONE, "", nullptr, nullptr, 0,
+  return Task(_graph._emplace_back(NSTATE::NONE, ESTATE::NONE, DefaultTaskParams{}, nullptr, nullptr, 0,
     std::in_place_type_t<Node::Condition>{}, std::forward<C>(c)
   ));
 }
@@ -1291,9 +1291,26 @@ Task FlowBuilder::emplace(C&& c) {
 // Function: emplace
 template <typename C, std::enable_if_t<is_multi_condition_task_v<C>, void>*>
 Task FlowBuilder::emplace(C&& c) {
-  return Task(_graph._emplace_back(NSTATE::NONE, ESTATE::NONE, "", nullptr, nullptr, 0,
+  return Task(_graph._emplace_back(NSTATE::NONE, ESTATE::NONE, DefaultTaskParams{}, nullptr, nullptr, 0,
     std::in_place_type_t<Node::MultiCondition>{}, std::forward<C>(c)
   ));
+}
+
+// Function: composed_of
+template <typename T>
+Task FlowBuilder::composed_of(T& object) {
+  auto node = _graph._emplace_back(NSTATE::NONE, ESTATE::NONE, DefaultTaskParams{}, nullptr, nullptr, 0,
+    std::in_place_type_t<Node::Module>{}, object
+  );
+  return Task(node);
+}
+
+// Function: placeholder
+inline Task FlowBuilder::placeholder() {
+  auto node = _graph._emplace_back(NSTATE::NONE, ESTATE::NONE, DefaultTaskParams{}, nullptr, nullptr, 0,
+    std::in_place_type_t<Node::Placeholder>{}
+  );
+  return Task(node);
 }
 
 // Function: emplace
@@ -1322,22 +1339,6 @@ inline void FlowBuilder::erase(Task task) {
   _graph._erase(task._node);
 }
 
-// Function: composed_of
-template <typename T>
-Task FlowBuilder::composed_of(T& object) {
-  auto node = _graph._emplace_back(NSTATE::NONE, ESTATE::NONE, "", nullptr, nullptr, 0,
-    std::in_place_type_t<Node::Module>{}, object
-  );
-  return Task(node);
-}
-
-// Function: placeholder
-inline Task FlowBuilder::placeholder() {
-  auto node = _graph._emplace_back(NSTATE::NONE, ESTATE::NONE, "", nullptr, nullptr, 0,
-    std::in_place_type_t<Node::Placeholder>{}
-  );
-  return Task(node);
-}
 
 // Procedure: _linearize
 template <typename L>
@@ -1465,13 +1466,13 @@ class Subflow : public FlowBuilder {
     Setting this flag to `true` allows the application to retain the subflow's structure 
     for post-execution analysis like visualization.
     */
-    void retain_on_join(bool flag) noexcept;
+    void retain(bool flag) noexcept;
 
     /**
     @brief queries if the subflow will be retained after it is joined
     @return `true` if the subflow will be retained after it is joined; `false` otherwise
     */
-    bool retain_on_join() const;
+    bool retain() const;
 
   private:
     
@@ -1494,7 +1495,7 @@ inline Subflow::Subflow(Executor& executor, Worker& worker, Node* parent, Graph&
   _parent     {parent} {
   
   // need to reset since there could have iterative control flow
-  _parent->_nstate &= ~(NSTATE::JOINED | NSTATE::RETAIN_ON_JOIN);
+  _parent->_nstate &= ~(NSTATE::JOINED_SUBFLOW | NSTATE::RETAIN_SUBFLOW);
 
   // clear the graph
   graph.clear();
@@ -1502,7 +1503,7 @@ inline Subflow::Subflow(Executor& executor, Worker& worker, Node* parent, Graph&
 
 // Function: joinable
 inline bool Subflow::joinable() const noexcept {
-  return !(_parent->_nstate & NSTATE::JOINED);
+  return !(_parent->_nstate & NSTATE::JOINED_SUBFLOW);
 }
 
 // Function: executor
@@ -1510,23 +1511,23 @@ inline Executor& Subflow::executor() noexcept {
   return _executor;
 }
 
-// Function: retain_on_join
-inline void Subflow::retain_on_join(bool flag) noexcept {
+// Function: retain
+inline void Subflow::retain(bool flag) noexcept {
   // default value is not to retain 
   if TF_LIKELY(flag == true) {
-    _parent->_nstate |= NSTATE::RETAIN_ON_JOIN;
+    _parent->_nstate |= NSTATE::RETAIN_SUBFLOW;
   }
   else {
-    _parent->_nstate &= ~NSTATE::RETAIN_ON_JOIN;
+    _parent->_nstate &= ~NSTATE::RETAIN_SUBFLOW;
   }
 
-  //_parent->_nstate = (_parent->_nstate & ~NSTATE::RETAIN_ON_JOIN) | 
-  //                   (-static_cast<int>(flag) & NSTATE::RETAIN_ON_JOIN);
+  //_parent->_nstate = (_parent->_nstate & ~NSTATE::RETAIN_SUBFLOW) | 
+  //                   (-static_cast<int>(flag) & NSTATE::RETAIN_SUBFLOW);
 }
 
-// Function: retain_on_join
-inline bool Subflow::retain_on_join() const {
-  return _parent->_nstate & NSTATE::RETAIN_ON_JOIN;
+// Function: retain
+inline bool Subflow::retain() const {
+  return _parent->_nstate & NSTATE::RETAIN_SUBFLOW;
 }
 
 }  // end of namespace tf. ---------------------------------------------------

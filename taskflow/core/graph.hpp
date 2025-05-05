@@ -12,6 +12,7 @@
 #include "../utility/math.hpp"
 #include "../utility/small_vector.hpp"
 #include "../utility/serializer.hpp"
+#include "../utility/lazy_string.hpp"
 #include "error.hpp"
 #include "declarations.hpp"
 #include "semaphore.hpp"
@@ -19,13 +20,13 @@
 #include "topology.hpp"
 #include "tsq.hpp"
 
+
 /**
 @file graph.hpp
 @brief graph include file
 */
 
 namespace tf {
-
 
 // ----------------------------------------------------------------------------
 // Class: Graph
@@ -284,15 +285,10 @@ class Node {
   Node() = default;
   
   template <typename... Args>
-  Node(nstate_t, estate_t, const std::string&, Topology*, Node*, size_t, Args&&...);
-  
-  template <typename... Args>
   Node(nstate_t, estate_t, const TaskParams&, Topology*, Node*, size_t, Args&&...);
   
   template <typename... Args>
   Node(nstate_t, estate_t, const DefaultTaskParams&, Topology*, Node*, size_t, Args&&...);
-
-  //~Node();
 
   size_t num_successors() const;
   size_t num_predecessors() const;
@@ -312,9 +308,6 @@ class Node {
   
   Topology* _topology {nullptr};
   Node* _parent {nullptr};
-
-  //SmallVector<Node*> _successors;
-  //SmallVector<Node*> _predecessors;
 
   size_t _num_successors {0};
   SmallVector<Node*, 4> _edges;
@@ -454,26 +447,6 @@ template <typename... Args>
 Node::Node(
   nstate_t nstate,
   estate_t estate,
-  const std::string& name,
-  Topology* topology, 
-  Node* parent, 
-  size_t join_counter,
-  Args&&... args
-) :
-  _nstate       {nstate},
-  _estate       {estate},
-  _name         {name},
-  _topology     {topology},
-  _parent       {parent},
-  _join_counter {join_counter},
-  _handle       {std::forward<Args>(args)...} {
-}
-
-// Constructor
-template <typename... Args>
-Node::Node(
-  nstate_t nstate,
-  estate_t estate,
   const TaskParams& params,
   Topology* topology, 
   Node* parent, 
@@ -509,42 +482,6 @@ Node::Node(
   _handle       {std::forward<Args>(args)...} {
 }
 
-// Destructor
-//inline Node::~Node() {
-//  // this is to avoid stack overflow
-//  if(_handle.index() == SUBFLOW) {
-//    auto& subgraph = std::get_if<Subflow>(&_handle)->subgraph;
-//    std::vector<Node*> nodes;
-//    nodes.reserve(subgraph.size());
-//
-//    std::move(
-//      subgraph._nodes.begin(), subgraph._nodes.end(), std::back_inserter(nodes)
-//    );
-//    subgraph._nodes.clear();
-//
-//    size_t i = 0;
-//
-//    while(i < nodes.size()) {
-//
-//      if(nodes[i]->_handle.index() == SUBFLOW) {
-//        auto& sbg = std::get_if<Subflow>(&(nodes[i]->_handle))->subgraph;
-//        std::move(
-//          sbg._nodes.begin(), sbg._nodes.end(), std::back_inserter(nodes)
-//        );
-//        sbg._nodes.clear();
-//      }
-//
-//      ++i;
-//    }
-//
-//    //auto& np = Graph::_node_pool();
-//    for(i=0; i<nodes.size(); ++i) {
-//      recycle(nodes[i]);
-//    }
-//  }
-//}
-
-
 // Procedure: _precede
 /*
 u successor   layout: s1, s2, s3, p1, p2 (num_successors = 3)
@@ -561,9 +498,6 @@ inline void Node::_precede(Node* v) {
   _edges.push_back(v);
   std::swap(_edges[_num_successors++], _edges[_edges.size() - 1]);
   v->_edges.push_back(this);
-
-  //_successors.push_back(v);
-  //v->_predecessors.push_back(this);
 }
 
 // Function: _remove_successors
@@ -585,14 +519,11 @@ inline void Node::_remove_predecessors(Node* node) {
 // Function: num_successors
 inline size_t Node::num_successors() const {
   return _num_successors;
-
-  //return _successors.size();
 }
 
 // Function: predecessors
 inline size_t Node::num_predecessors() const {
   return _edges.size() - _num_successors;
-  //return _predecessors.size();
 }
 
 // Function: num_weak_dependencies
@@ -602,14 +533,6 @@ inline size_t Node::num_weak_dependencies() const {
     n += _edges[i]->_is_conditioner();
   }
   return n;
-
-  //size_t n = 0;
-  //for(size_t i=0; i<_predecessors.size(); i++) {
-  //  if(_predecessors[i]->_is_conditioner()) {
-  //    n++;
-  //  }
-  //}
-  //return n;
 }
 
 // Function: num_strong_dependencies
@@ -619,14 +542,6 @@ inline size_t Node::num_strong_dependencies() const {
     n += !_edges[i]->_is_conditioner();
   }
   return n;
-
-  //size_t n = 0;
-  //for(size_t i=0; i<_predecessors.size(); i++) {
-  //  if(!_predecessors[i]->_is_conditioner()) {
-  //    n++;
-  //  }
-  //}
-  //return n;
 }
 
 // Function: name
@@ -661,15 +576,6 @@ inline void Node::_set_up_join_counter() {
     bool is_cond = _edges[i]->_is_conditioner();
     _nstate = (_nstate + is_cond) | (is_cond * NSTATE::CONDITIONED);  // weak dependency
     c += !is_cond;  // strong dependency
-
-    //// weak dependency
-    //if(_edges[i]->_is_conditioner()) {
-    //  _nstate = (_nstate + 1) | NSTATE::CONDITIONED;
-    //}
-    //// strong dependency
-    //else {
-    //  c++;
-    //}
   }
   _join_counter.store(c, std::memory_order_relaxed);
 }

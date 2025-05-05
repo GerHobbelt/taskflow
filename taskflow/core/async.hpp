@@ -11,11 +11,7 @@ namespace tf {
 // ----------------------------------------------------------------------------
 
 // Procedure: _schedule_async_task
-inline void Executor::_schedule_async_task(Node* node) {  
-  // Here we don't use _this_worker since _schedule will check if the
-  // given worker belongs to this executor.
-  //(pt::this_worker && pt::this_worker->_executor == this) ? _schedule(*pt::this_worker, node) : 
-  //                                                          _schedule(node);
+TF_FORCE_INLINE void Executor::_schedule_async_task(Node* node) {  
   (pt::this_worker) ? _schedule(*pt::this_worker, node) : _schedule(node);
 }
 
@@ -59,7 +55,7 @@ auto Executor::async(F&& f) {
 template <typename P, typename F>
 auto Executor::_async(P&& params, F&& f, Topology* tpg, Node* parent) {
   
-  // async task with runtime: [] (tf::Runtime&) -> void { ... }
+  // async task with runtime: [] (tf::Runtime&) -> void {}
   if constexpr (is_runtime_task_v<F>) {
 
     std::promise<void> p;
@@ -110,9 +106,7 @@ auto Executor::_async(P&& params, F&& f, Topology* tpg, Node* parent) {
 template <typename P, typename F>
 void Executor::silent_async(P&& params, F&& f) {
   _increment_topology();
-  _silent_async(
-    std::forward<P>(params), std::forward<F>(f), nullptr, nullptr
-  );
+  _silent_async(std::forward<P>(params), std::forward<F>(f), nullptr, nullptr);
 }
 
 // Function: silent_async

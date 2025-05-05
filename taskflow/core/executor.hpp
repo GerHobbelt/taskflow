@@ -1104,7 +1104,7 @@ class Executor {
   bool _invoke_runtime_task_impl(Worker&, Node*, std::function<void(Runtime&, bool)>&);
 
   template <typename I>
-  I _set_up_graph(I, I, Topology*, Node*, nstate_t);
+  I _set_up_graph(I, I, Topology*, Node*);
   
   template <typename P>
   void _corun_until(Worker&, P&&);
@@ -1119,7 +1119,7 @@ class Executor {
   void _schedule(I, I);
 
   template <typename I>
-  void _schedule_graph_with_parent(Worker&, I, I, Node*, nstate_t);
+  void _schedule_graph_with_parent(Worker&, I, I, Node*);
 
   template <typename P, typename F>
   auto _async(P&&, F&&, Topology*, Node*);
@@ -1226,8 +1226,6 @@ inline void Executor::_spawn(size_t N) {
       w._rdgen.seed(static_cast<std::default_random_engine::result_type>(
         std::hash<std::thread::id>()(std::this_thread::get_id()))
       );
-      //w._udist = std::uniform_int_distribution<size_t>(0, _workers.size() - 1);
-      w._udist = std::uniform_int_distribution<size_t>(0, _workers.size() + _buffers.size() - 2);
 
       // before entering the work-stealing loop, call the scheduler prologue
       if(_worker_interface) {
@@ -1272,8 +1270,10 @@ inline void Executor::_spawn(size_t N) {
 // Function: _corun_until
 template <typename P>
 void Executor::_corun_until(Worker& w, P&& stop_predicate) {
-  
+
   const size_t MAX_STEALS = ((num_queues() + 1) << 1);
+    
+  std::uniform_int_distribution<size_t> udist(0, num_queues()-1);
   
   exploit:
 
@@ -1286,10 +1286,11 @@ void Executor::_corun_until(Worker& w, P&& stop_predicate) {
       size_t num_steals = 0;
 
       explore:
+      
+      //auto vtm = udist(w._rdgen);
 
-      //t = (w._id == w._vtm) ? _wsq.steal() : _workers[w._vtm]._wsq.steal();
       t = (w._vtm < _workers.size()) ? _workers[w._vtm]._wsq.steal() : 
-                                       _buffers.steal(w._vtm - _workers.size());
+                                    _buffers.steal(w._vtm - _workers.size());
 
       if(t) {
         _invoke(w, t);
@@ -1299,8 +1300,7 @@ void Executor::_corun_until(Worker& w, P&& stop_predicate) {
         if(++num_steals > MAX_STEALS) {
           std::this_thread::yield();
         }
-        // skip worker-id
-        w._vtm = w._rdvtm();
+        w._vtm = udist(w._rdgen);
         goto explore;
       }
       else {
@@ -1316,19 +1316,25 @@ inline bool Executor::_explore_task(Worker& w, Node*& t) {
   //assert(!t);
   
   const size_t MAX_STEALS = ((num_queues() + 1) << 1);
+  std::uniform_int_distribution<size_t> udist(0, num_queues()-1);
 
   size_t num_steals = 0;
-  size_t num_empty_steals = 0;
+  size_t vtm = w._vtm;
 
   // Make the worker steal immediately from the assigned victim.
   while(true) {
-    // If the worker's victim thread (w._vtm) is within the worker pool, steal from the worker's queue.
+    
+    // Randomely generate a next victim.
+    //vtm = udist(w._rdgen); //w._rdvtm();
+
+    // If the worker's victim thread is within the worker pool, steal from the worker's queue.
     // Otherwise, steal from the buffer, adjusting the victim index based on the worker pool size.
-    t = (w._vtm < _workers.size())
-      ? _workers[w._vtm]._wsq.steal_with_hint(num_empty_steals)
-      : _buffers.steal_with_hint(w._vtm - _workers.size(), num_empty_steals);
+    t = (vtm < _workers.size())
+      ? _workers[vtm]._wsq.steal()
+      : _buffers.steal(vtm - _workers.size());
 
     if(t) {
+      w._vtm = vtm;
       break;
     }
 
@@ -1336,7 +1342,7 @@ inline bool Executor::_explore_task(Worker& w, Node*& t) {
     // If the number of *consecutive* empty steals reaches MAX_STEALS, exit the loop.
     if (++num_steals > MAX_STEALS) {
       std::this_thread::yield();
-      if(num_empty_steals == MAX_STEALS) {
+      if(num_steals > 100 + MAX_STEALS) {
         break;
       }
     }
@@ -1348,11 +1354,9 @@ inline bool Executor::_explore_task(Worker& w, Node*& t) {
   #endif
       return false;
     } 
-    
-    // Randomely generate a next victim.
-    w._vtm = w._rdvtm();
-  } 
 
+    vtm = udist(w._rdgen); //w._rdvtm();
+  } 
   return true;
 }
 
@@ -1384,8 +1388,8 @@ inline bool Executor::_wait_for_task(Worker& w, Node*& t) {
   // Condition #1: buffers should be empty
   for(size_t vtm=0; vtm<_buffers.size(); ++vtm) {
     if(!_buffers._buckets[vtm].queue.empty()) {
-      w._vtm = vtm + _workers.size();
       _notifier.cancel_wait(w._waiter);
+      w._vtm = vtm + _workers.size();
       goto explore_task;
     }
   }
@@ -1395,8 +1399,8 @@ inline bool Executor::_wait_for_task(Worker& w, Node*& t) {
   // which initializes other worker data structure at the same time
   for(size_t vtm=0; vtm<w._id; ++vtm) {
     if(!_workers[vtm]._wsq.empty()) {
-      w._vtm = vtm;
       _notifier.cancel_wait(w._waiter);
+      w._vtm = vtm;
       goto explore_task;
     }
   }
@@ -1405,8 +1409,8 @@ inline bool Executor::_wait_for_task(Worker& w, Node*& t) {
   // the queue of this worker
   for(size_t vtm=w._id+1; vtm<_workers.size(); vtm++) {
     if(!_workers[vtm]._wsq.empty()) {
-      w._vtm = vtm;
       _notifier.cancel_wait(w._waiter);
+      w._vtm = vtm;
       goto explore_task;
     }
   }
@@ -1421,7 +1425,7 @@ inline bool Executor::_wait_for_task(Worker& w, Node*& t) {
     return false;
   }
   
-  // Now I really need to relinquish my self to others.
+  // Now I really need to relinquish myself to others.
   _notifier.commit_wait(w._waiter);
   goto explore_task;
 }
@@ -1495,12 +1499,11 @@ void Executor::_schedule(Worker& worker, I first, I last) {
     return;
   }
   
-  // NOTE: We cannot use first/last as the for-loop condition 
-  // (e.g., for(; first != last; ++first)) since when a node is inserted
-  // into the queue the node can run and finish immediately.
-  // If this is the last node in the graph, it will tear down the parent
-  // container which cause the last ++first to fail.
-  // This problem is specific to MSVC which has strict iterator arithmetics.
+  // NOTE: We cannot use first/last in the for-loop (e.g., for(; first != last; ++first)).
+  // This is because when a node v is inserted into the queue, v can run and finish 
+  // immediately. If v is the last node in the graph, it will tear down the parent task vector
+  // which cause the last ++first to fail. This problem is specific to MSVC which has a stricter
+  // iterator implementation in std::vector than GCC/Clang.
   if(worker._executor == this) {
     for(size_t i=0; i<num_nodes; i++) {
       auto node = detail::get_node_ptr(first[i]);
@@ -1526,6 +1529,11 @@ inline void Executor::_schedule(I first, I last) {
     return;
   }
 
+  // NOTE: We cannot use first/last in the for-loop (e.g., for(; first != last; ++first)).
+  // This is because when a node v is inserted into the queue, v can run and finish 
+  // immediately. If v is the last node in the graph, it will tear down the parent task vector
+  // which cause the last ++first to fail. This problem is specific to MSVC which has a stricter
+  // iterator implementation in std::vector than GCC/Clang.
   for(size_t i=0; i<num_nodes; i++) {
     _buffers.push(detail::get_node_ptr(first[i]));
   }
@@ -1533,10 +1541,8 @@ inline void Executor::_schedule(I first, I last) {
 }
   
 template <typename I>
-void Executor::_schedule_graph_with_parent(
-  Worker& worker, I beg, I end, Node* parent, nstate_t nstate
-) {
-  auto send = _set_up_graph(beg, end, parent->_topology, parent, nstate);
+void Executor::_schedule_graph_with_parent(Worker& worker, I beg, I end, Node* parent) {
+  auto send = _set_up_graph(beg, end, parent->_topology, parent);
   parent->_join_counter.fetch_add(send - beg, std::memory_order_relaxed);
   _schedule(worker, beg, send);
 }
@@ -1823,7 +1829,7 @@ inline bool Executor::_invoke_subflow_task(Worker& worker, Node* node) {
       node->_nstate |= NSTATE::PREEMPTED;
 
       // set up and schedule the graph
-      _schedule_graph_with_parent(worker, g.begin(), g.end(), node, NSTATE::NONE);
+      _schedule_graph_with_parent(worker, g.begin(), g.end(), node);
       return true;
     }
   }
@@ -1832,7 +1838,7 @@ inline bool Executor::_invoke_subflow_task(Worker& worker, Node* node) {
   }
 
   // the subflow has finished or joined
-  if((node->_nstate & NSTATE::RETAIN_ON_JOIN) == 0) {
+  if((node->_nstate & NSTATE::RETAIN_SUBFLOW) == 0) {
     g.clear();
   }
 
@@ -1879,7 +1885,7 @@ inline bool Executor::_invoke_module_task_impl(Worker& w, Node* node, Graph& gra
   if((node->_nstate & NSTATE::PREEMPTED) == 0) {
     // signal the executor to preempt this node
     node->_nstate |= NSTATE::PREEMPTED;
-    _schedule_graph_with_parent(w, graph.begin(), graph.end(), node, NSTATE::NONE);
+    _schedule_graph_with_parent(w, graph.begin(), graph.end(), node);
     return true;
   }
 
@@ -2104,7 +2110,7 @@ void Executor::_corun_graph(Worker& w, Node* p, I first, I last) {
   // anchor this parent as the blocking point
   {
     AnchorGuard anchor(p);
-    _schedule_graph_with_parent(w, first, last, p, NSTATE::NONE);
+    _schedule_graph_with_parent(w, first, last, p);
     _corun_until(w, [p] () -> bool { 
       return p->_join_counter.load(std::memory_order_acquire) == 0; }
     );
@@ -2158,7 +2164,7 @@ inline void Executor::_set_up_topology(Worker* w, Topology* tpg) {
   // ---- under taskflow lock ----
   auto& g = tpg->_taskflow._graph;
   
-  auto send = _set_up_graph(g.begin(), g.end(), tpg, nullptr, NSTATE::NONE);
+  auto send = _set_up_graph(g.begin(), g.end(), tpg, nullptr);
   tpg->_join_counter.store(send - g.begin(), std::memory_order_relaxed);
 
   w ? _schedule(*w, g.begin(), send) : _schedule(g.begin(), send);
@@ -2166,7 +2172,7 @@ inline void Executor::_set_up_topology(Worker* w, Topology* tpg) {
 
 // Function: _set_up_graph
 template <typename I>
-I Executor::_set_up_graph(I first, I last, Topology* tpg, Node* parent, nstate_t state) {
+I Executor::_set_up_graph(I first, I last, Topology* tpg, Node* parent) {
 
   auto send = first;
   for(; first != last; ++first) {
@@ -2174,8 +2180,8 @@ I Executor::_set_up_graph(I first, I last, Topology* tpg, Node* parent, nstate_t
     auto node = first->get();
     node->_topology = tpg;
     node->_parent = parent;
-    node->_nstate = state;
-    node->_estate.store(0, std::memory_order_relaxed);
+    node->_nstate = NSTATE::NONE;
+    node->_estate.store(ESTATE::NONE, std::memory_order_relaxed);
     node->_set_up_join_counter();
     node->_exception_ptr = nullptr;
 
@@ -2264,7 +2270,7 @@ inline void Subflow::join() {
   _executor._corun_graph(_worker, _parent, _graph.begin(), _graph.end());
   
   // join here since corun graph may throw exception
-  _parent->_nstate |= NSTATE::JOINED;
+  _parent->_nstate |= NSTATE::JOINED_SUBFLOW;
 }
 
 #endif

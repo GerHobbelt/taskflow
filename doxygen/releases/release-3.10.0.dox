@@ -43,8 +43,9 @@ It also introduces index-range-based parallel-for and parallel-reduction algorit
 
 @subsection release-3-10-0_taskflow_core Taskflow Core
 
-+ improved work-stealing loop with an adaptive breaking strategy
-+ improved shut-down signal detection using decentralized variables
++ optimized work-stealing loop with an adaptive breaking strategy
++ optimized shut-down signal detection using decentralized variables
++ optimized memory layout of node by combining successors and predecessors together
 + added debug mode for the windows CI to GitHub actions
 + added index range-based parallel-for algorithm ([#551](https://github.com/taskflow/taskflow/issues/551))
 
@@ -105,6 +106,8 @@ taskflow.reduce_by_index(
 + fixed the runtime error due to the use of latch in tf::Executor::Executor ([#667](https://github.com/taskflow/taskflow/issues/667))
 + fixed the compilation error due to incorrect const qualifier used in algorithms ([#673](https://github.com/taskflow/taskflow/issues/673))
 + fixed the tsan error when using find-if algorithm tasks with closure wrapper ([#675](https://github.com/taskflow/taskflow/issues/675))
++ fixed the task trait bug in incorrect detection for subflow and runtime tasks ([#679](https://github.com/taskflow/taskflow/issues/679))
++ fixed the infinite steal caused by incorrect `num_empty_steals` ([#681](https://github.com/taskflow/taskflow/issues/681))
 
 @section release-3-10-0_breaking_changes Breaking Changes
 
@@ -116,19 +119,19 @@ taskflow.reduce_by_index(
 + disabled the support for tf::Subflow::detach due to multiple intricate and unresolved issues:
   + detached subflows are inherently difficult to reason about their execution logic
   + detached subflows can incur excessive memory consumption, especially in recursive workloads
-  + detached subflows lack a manner to safe lifecycle control and graph cleanup
+  + detached subflows lack a manner to safe life cycle control and graph cleanup
   + detached subflows have limited practical benefits for most use cases
   + detached subflows can be re-implemented using taskflow composition
 + changed the default behavior of tf::Subflow to no longer retain its task graph after join
   + default retention can incur significant memory consumption problem ([#674](https://github.com/taskflow/taskflow/issues/674))
-  + users must explicitly call tf::Subflow::retain_on_join to retain a subflow after join 
+  + users must explicitly call tf::Subflow::retain to retain a subflow after join 
 
 @code{.cpp}
 tf::Taskflow taskflow;
 tf::Executor executor;
 
 taskflow.emplace([&](tf::Subflow& sf){
-  sf.retain_on_join(true);  // retain the subflow after join for visualization
+  sf.retain(true);  // retain the subflow after join for visualization
   auto A = sf.emplace([](){ std::cout << "A\n"; });
   auto B = sf.emplace([](){ std::cout << "B\n"; });
   auto C = sf.emplace([](){ std::cout << "C\n"; });

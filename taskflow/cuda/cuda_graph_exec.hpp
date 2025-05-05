@@ -42,10 +42,18 @@ struct cudaGraphExecCreator {
     );
     return exec;
   }
+
+  /**
+  @brief returns a newly instantiated executable graph from the given CUDA graph
+  */
+  template <typename C, typename D>
+  cudaGraphExec_t operator () (const cudaGraphBase<C, D>& graph) const {
+    return this->operator()(graph.get());
+  }
 };
   
 /**
-@struct cudaGraphDeleter
+@struct cudaGraphExecDeleter
 @brief a functor for deleting an executable CUDA graph
 
 This structure provides an overloaded function call operator to safely
@@ -97,26 +105,17 @@ class cudaGraphExecBase : public std::unique_ptr<std::remove_pointer_t<cudaGraph
   template <typename... ArgsT>
   explicit cudaGraphExecBase(ArgsT&& ... args) : base_type(
     Creator{}(std::forward<ArgsT>(args)...), Deleter()
-  ) {
-  }  
-  
-  /**
-  @brief implicit conversion to the underlying `cudaGraphExec_t` object
- 
-  Returns the underlying `cudaGraphExec_t` object, equivalently calling base_type::get().
-  */
-  operator cudaGraphExec_t () const noexcept {
-    return this->get();
-  }
+  ) {}  
 
-  /** 
-  @brief runs the executable graph via the given CUDA stream
+  /**
+  @brief constructs a `cudaGraphExec` from the given rhs using move semantics
   */
-  void run(cudaStream_t stream) {
-    TF_CHECK_CUDA(
-      cudaGraphLaunch(this->get(), stream), "failed to launch a CUDA executable graph"
-    );  
-  }
+  cudaGraphExecBase(cudaGraphExecBase&&) = default;
+
+  /**
+  @brief assign the rhs to `*this` using move semantics
+  */
+  cudaGraphExecBase& operator = (cudaGraphExecBase&&) = default;
 
   // ----------------------------------------------------------------------------------------------
   // Update Methods
@@ -207,6 +206,50 @@ class cudaGraphExecBase : public std::unique_ptr<std::remove_pointer_t<cudaGraph
     std::enable_if_t<!std::is_same_v<T, void>, void>* = nullptr
   >
   void copy(cudaTask task, T* tgt, const T* src, size_t num);
+  
+  //---------------------------------------------------------------------------
+  // Algorithm Primitives
+  //---------------------------------------------------------------------------
+
+  /**
+  @brief updates a single-threaded kernel task
+
+  This method is similar to cudaFlow::single_task but operates
+  on an existing task.
+  */
+  template <typename C>
+  void single_task(cudaTask task, C c);
+  
+  /**
+  @brief updates parameters of a `for_each` kernel task created from the CUDA graph of `*this`
+  */
+  template <typename I, typename C, typename E = cudaDefaultExecutionPolicy>
+  void for_each(cudaTask task, I first, I last, C callable);
+  
+  /**
+  @brief updates parameters of a `for_each_index` kernel task created from the CUDA graph of `*this`
+  */
+  template <typename I, typename C, typename E = cudaDefaultExecutionPolicy>
+  void for_each_index(cudaTask task, I first, I last, I step, C callable);
+
+  /**
+  @brief updates parameters of a `transform` kernel task created from the CUDA graph of `*this`
+  */
+  template <typename I, typename O, typename C, typename E = cudaDefaultExecutionPolicy>
+  void transform(cudaTask task, I first, I last, O output, C c);
+
+  /**
+  @brief updates parameters of a `transform` kernel task created from the CUDA graph of `*this`
+  */
+  template <typename I1, typename I2, typename O, typename C, typename E = cudaDefaultExecutionPolicy>
+  void transform(cudaTask task, I1 first1, I1 last1, I2 first2, O output, C c);
+
+  
+  private:
+
+  cudaGraphExecBase(const cudaGraphExecBase&) = delete;
+
+  cudaGraphExecBase& operator = (const cudaGraphExecBase&) = delete;
 };
 
 // ------------------------------------------------------------------------------------------------
@@ -306,9 +349,24 @@ void cudaGraphExecBase<Creator, Deleter>::zero(cudaTask task, T* dst, size_t cou
   );
 }
 
-/**
-@brief default smart pointer type to manage a `cudaGraphExec_t` object with unique ownership
-*/
-using cudaGraphExec = cudaGraphExecBase<cudaGraphExecCreator, cudaGraphExecDeleter>;
+//-------------------------------------------------------------------------------------------------
+// forward declaration
+//-------------------------------------------------------------------------------------------------
+
+template <typename SC, typename SD>
+cudaStreamBase<SC, SD>& cudaStreamBase<SC, SD>::run(cudaGraphExec_t exec) {
+  TF_CHECK_CUDA(
+    cudaGraphLaunch(exec, this->get()), "failed to launch a CUDA executable graph"
+  );  
+  return *this;
+}
+
+template <typename SC, typename SD>
+template <typename EC, typename ED>
+cudaStreamBase<SC, SD>& cudaStreamBase<SC, SD>::run(const cudaGraphExecBase<EC, ED>& exec) {
+  return run(exec.get());
+}
+
+
 
 }  // end of namespace tf -------------------------------------------------------------------------
