@@ -26,6 +26,7 @@
 
 namespace tf {
 
+
 // ----------------------------------------------------------------------------
 // Class: Graph
 // ----------------------------------------------------------------------------
@@ -283,19 +284,10 @@ class Node {
   Node() = default;
   
   template <typename... Args>
-  Node(const std::string&, Topology*, Node*, size_t, Args&&...);
-  
-  template <typename... Args>
   Node(nstate_t, estate_t, const std::string&, Topology*, Node*, size_t, Args&&...);
   
   template <typename... Args>
-  Node(const TaskParams&, Topology*, Node*, size_t, Args&&...);
-  
-  template <typename... Args>
   Node(nstate_t, estate_t, const TaskParams&, Topology*, Node*, size_t, Args&&...);
-  
-  template <typename... Args>
-  Node(const DefaultTaskParams&, Topology*, Node*, size_t, Args&&...);
   
   template <typename... Args>
   Node(nstate_t, estate_t, const DefaultTaskParams&, Topology*, Node*, size_t, Args&&...);
@@ -321,8 +313,11 @@ class Node {
   Topology* _topology {nullptr};
   Node* _parent {nullptr};
 
-  SmallVector<Node*> _successors;
-  SmallVector<Node*> _predecessors;
+  //SmallVector<Node*> _successors;
+  //SmallVector<Node*> _predecessors;
+
+  size_t _num_successors {0};
+  SmallVector<Node*, 4> _edges;
 
   std::atomic<size_t> _join_counter {0};
   
@@ -340,6 +335,8 @@ class Node {
   void _precede(Node*);
   void _set_up_join_counter();
   void _rethrow_exception();
+  void _remove_successors(Node*);
+  void _remove_predecessors(Node*);
 };
 
 // ----------------------------------------------------------------------------
@@ -455,22 +452,6 @@ Node::DependentAsync::DependentAsync(C&& c) : work {std::forward<C>(c)} {
 // Constructor
 template <typename... Args>
 Node::Node(
-  const std::string& name,
-  Topology* topology, 
-  Node* parent, 
-  size_t join_counter,
-  Args&&... args
-) :
-  _name         {name},
-  _topology     {topology},
-  _parent       {parent},
-  _join_counter {join_counter},
-  _handle       {std::forward<Args>(args)...} {
-}
-
-// Constructor
-template <typename... Args>
-Node::Node(
   nstate_t nstate,
   estate_t estate,
   const std::string& name,
@@ -482,23 +463,6 @@ Node::Node(
   _nstate       {nstate},
   _estate       {estate},
   _name         {name},
-  _topology     {topology},
-  _parent       {parent},
-  _join_counter {join_counter},
-  _handle       {std::forward<Args>(args)...} {
-}
-
-// Constructor
-template <typename... Args>
-Node::Node(
-  const TaskParams& params,
-  Topology* topology, 
-  Node* parent, 
-  size_t join_counter,
-  Args&&... args
-) :
-  _name         {params.name},
-  _data         {params.data},
   _topology     {topology},
   _parent       {parent},
   _join_counter {join_counter},
@@ -520,21 +484,6 @@ Node::Node(
   _estate       {estate},
   _name         {params.name},
   _data         {params.data},
-  _topology     {topology},
-  _parent       {parent},
-  _join_counter {join_counter},
-  _handle       {std::forward<Args>(args)...} {
-}
-
-// Constructor
-template <typename... Args>
-Node::Node(
-  const DefaultTaskParams&,
-  Topology* topology, 
-  Node* parent, 
-  size_t join_counter,
-  Args&&... args
-) :
   _topology     {topology},
   _parent       {parent},
   _join_counter {join_counter},
@@ -595,42 +544,89 @@ Node::Node(
 //  }
 //}
 
+
 // Procedure: _precede
+/*
+u successor   layout: s1, s2, s3, p1, p2 (num_successors = 3)
+v predecessor layout: s1, p1, p2
+
+add a new successor: u->v
+u successor   layout: 
+  s1, s2, s3, p1, p2, v (push_back v)
+  s1, s2, s3, v, p2, p1 (swap adj[num_successors] with adj[n-1])
+v predecessor layout: 
+  s1, p1, p2, u         (push_back u)
+*/ 
 inline void Node::_precede(Node* v) {
-  _successors.push_back(v);
-  v->_predecessors.push_back(this);
+  _edges.push_back(v);
+  std::swap(_edges[_num_successors++], _edges[_edges.size() - 1]);
+  v->_edges.push_back(this);
+
+  //_successors.push_back(v);
+  //v->_predecessors.push_back(this);
+}
+
+// Function: _remove_successors
+inline void Node::_remove_successors(Node* node) {
+  auto sit = std::remove(_edges.begin(), _edges.begin() + _num_successors, node);
+  size_t new_num_successors = std::distance(_edges.begin(), sit);
+  std::move(_edges.begin() + _num_successors, _edges.end(), sit);
+  _edges.resize(_edges.size() - (_num_successors - new_num_successors));
+  _num_successors = new_num_successors;
+}
+
+// Function: _remove_predecessors
+inline void Node::_remove_predecessors(Node* node) {
+  _edges.erase( 
+    std::remove(_edges.begin() + _num_successors, _edges.end(), node), _edges.end()
+  );
 }
 
 // Function: num_successors
 inline size_t Node::num_successors() const {
-  return _successors.size();
+  return _num_successors;
+
+  //return _successors.size();
 }
 
 // Function: predecessors
 inline size_t Node::num_predecessors() const {
-  return _predecessors.size();
+  return _edges.size() - _num_successors;
+  //return _predecessors.size();
 }
 
 // Function: num_weak_dependencies
 inline size_t Node::num_weak_dependencies() const {
   size_t n = 0;
-  for(size_t i=0; i<_predecessors.size(); i++) {
-    if(_predecessors[i]->_is_conditioner()) {
-      n++;
-    }
+  for(size_t i=_num_successors; i<_edges.size(); i++) {
+    n += _edges[i]->_is_conditioner();
   }
   return n;
+
+  //size_t n = 0;
+  //for(size_t i=0; i<_predecessors.size(); i++) {
+  //  if(_predecessors[i]->_is_conditioner()) {
+  //    n++;
+  //  }
+  //}
+  //return n;
 }
 
 // Function: num_strong_dependencies
 inline size_t Node::num_strong_dependencies() const {
   size_t n = 0;
-  for(size_t i=0; i<_predecessors.size(); i++) {
-    if(!_predecessors[i]->_is_conditioner()) {
-      n++;
-    }
+  for(size_t i=_num_successors; i<_edges.size(); i++) {
+    n += !_edges[i]->_is_conditioner();
   }
   return n;
+
+  //size_t n = 0;
+  //for(size_t i=0; i<_predecessors.size(); i++) {
+  //  if(!_predecessors[i]->_is_conditioner()) {
+  //    n++;
+  //  }
+  //}
+  //return n;
 }
 
 // Function: name
@@ -660,14 +656,20 @@ inline bool Node::_is_cancelled() const {
 // Procedure: _set_up_join_counter
 inline void Node::_set_up_join_counter() {
   size_t c = 0;
-  for(auto p : _predecessors) {
-    if(p->_is_conditioner()) {
-      //_nstate |= NSTATE::CONDITIONED;
-      _nstate = (_nstate + 1) | NSTATE::CONDITIONED;
-    }
-    else {
-      c++;
-    }
+  //for(auto p : _predecessors) {
+  for(size_t i=_num_successors; i<_edges.size(); i++) {
+    bool is_cond = _edges[i]->_is_conditioner();
+    _nstate = (_nstate + is_cond) | (is_cond * NSTATE::CONDITIONED);  // weak dependency
+    c += !is_cond;  // strong dependency
+
+    //// weak dependency
+    //if(_edges[i]->_is_conditioner()) {
+    //  _nstate = (_nstate + 1) | NSTATE::CONDITIONED;
+    //}
+    //// strong dependency
+    //else {
+    //  c++;
+    //}
   }
   _join_counter.store(c, std::memory_order_relaxed);
 }

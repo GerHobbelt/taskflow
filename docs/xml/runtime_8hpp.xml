@@ -337,8 +337,8 @@
       <memberdef kind="define" id="runtime_8hpp_1a0b140fb327db1df313203abc7782693b" prot="public" static="no">
         <name>TF_RUNTIME_CHECK_CALLER</name>
         <param><defname>msg</defname></param>
-        <initializer>  if(pt::this_worker == nullptr || pt::this_worker-&gt;_executor != &amp;_executor) {  \
-    TF_THROW(msg);                                                              \
+        <initializer>  if(pt::this_worker != &amp;_worker) {    \
+    TF_THROW(msg);                     \
   }</initializer>
         <briefdescription>
         </briefdescription>

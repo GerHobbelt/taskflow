@@ -20,7 +20,7 @@
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/cuda/cuda_stream.hpp" line="120" column="16" bodyfile="taskflow/cuda/cuda_stream.hpp" bodystart="120" bodyend="122"/>
+        <location file="taskflow/cuda/cuda_stream.hpp" line="129" column="16" bodyfile="taskflow/cuda/cuda_stream.hpp" bodystart="129" bodyend="131"/>
       </memberdef>
       <memberdef kind="function" id="structtf_1_1cudaStreamCreator_1a45240b5459cef8b2d5c8d48d57cc3910" prot="public" static="no" const="yes" explicit="no" inline="yes" virt="non-virtual">
         <type>cudaStream_t</type>
@@ -34,7 +34,7 @@
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/cuda/cuda_stream.hpp" line="127" column="16" bodyfile="taskflow/cuda/cuda_stream.hpp" bodystart="127" bodyend="131"/>
+        <location file="taskflow/cuda/cuda_stream.hpp" line="136" column="16" bodyfile="taskflow/cuda/cuda_stream.hpp" bodystart="136" bodyend="140"/>
       </memberdef>
       </sectiondef>
     <briefdescription>
@@ -42,7 +42,7 @@
     </briefdescription>
     <detaileddescription>
     </detaileddescription>
-    <location file="taskflow/cuda/cuda_stream.hpp" line="115" column="1" bodyfile="taskflow/cuda/cuda_stream.hpp" bodystart="115" bodyend="132"/>
+    <location file="taskflow/cuda/cuda_stream.hpp" line="124" column="1" bodyfile="taskflow/cuda/cuda_stream.hpp" bodystart="124" bodyend="141"/>
     <listofallmembers>
       <member refid="structtf_1_1cudaStreamCreator_1aa3a5085f22ba5a44a3332b488fab891f" prot="public" virt="non-virtual"><scope>tf::cudaStreamCreator</scope><name>operator()</name></member>
       <member refid="structtf_1_1cudaStreamCreator_1a45240b5459cef8b2d5c8d48d57cc3910" prot="public" virt="non-virtual"><scope>tf::cudaStreamCreator</scope><name>operator()</name></member>

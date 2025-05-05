@@ -1197,12 +1197,6 @@ inline size_t Executor::num_taskflows() const {
   return _taskflows.size();
 }
 
-// Function: _this_worker
-//inline Worker* Executor::_this_worker() const {
-//  auto w = pt::this_worker;
-//  return (w && w->_executor == this) ? w : nullptr;
-//}
-
 // Function: this_worker_id
 inline int Executor::this_worker_id() const {
   auto w = pt::this_worker;
@@ -1388,10 +1382,12 @@ inline bool Executor::_wait_for_task(Worker& w, Node*& t) {
   _notifier.prepare_wait(w._waiter);
   
   // Condition #1: buffers should be empty
-  if(!_buffers.empty(w._vtm)) {
-    w._vtm += _workers.size();
-    _notifier.cancel_wait(w._waiter);
-    goto explore_task;
+  for(size_t vtm=0; vtm<_buffers.size(); ++vtm) {
+    if(!_buffers._buckets[vtm].queue.empty()) {
+      w._vtm = vtm + _workers.size();
+      _notifier.cancel_wait(w._waiter);
+      goto explore_task;
+    }
   }
   
   // Condition #2: worker queues should be empty
@@ -1404,7 +1400,9 @@ inline bool Executor::_wait_for_task(Worker& w, Node*& t) {
       goto explore_task;
     }
   }
-
+  
+  // due to the property of the work-stealing queue, we don't need to check
+  // the queue of this worker
   for(size_t vtm=w._id+1; vtm<_workers.size(); vtm++) {
     if(!_workers[vtm]._wsq.empty()) {
       w._vtm = vtm;
@@ -1425,9 +1423,7 @@ inline bool Executor::_wait_for_task(Worker& w, Node*& t) {
   
   // Now I really need to relinquish my self to others.
   _notifier.commit_wait(w._waiter);
-  w._vtm = w._id;
   goto explore_task;
-
 }
 
 // Function: make_observer
@@ -1689,8 +1685,8 @@ inline void Executor::_invoke(Worker& worker, Node* node) {
     case Node::CONDITION:
     case Node::MULTI_CONDITION: {
       for(auto cond : conds) {
-        if(cond >= 0 && static_cast<size_t>(cond) < node->_successors.size()) {
-          auto s = node->_successors[cond];
+        if(cond >= 0 && static_cast<size_t>(cond) < node->_num_successors) {
+          auto s = node->_edges[cond]; 
           // zeroing the join counter for invariant
           s->_join_counter.store(0, std::memory_order_relaxed);
           join_counter.fetch_add(1, std::memory_order_relaxed);
@@ -1702,10 +1698,9 @@ inline void Executor::_invoke(Worker& worker, Node* node) {
 
     // non-condition task
     default: {
-      for(size_t i=0; i<node->_successors.size(); ++i) {
+      for(size_t i=0; i<node->_num_successors; ++i) {
         //if(auto s = node->_successors[i]; --(s->_join_counter) == 0) {
-        if(auto s = node->_successors[i]; 
-          s->_join_counter.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+        if(auto s = node->_edges[i]; s->_join_counter.fetch_sub(1, std::memory_order_acq_rel) == 1) {
           join_counter.fetch_add(1, std::memory_order_relaxed);
           _update_cache(worker, cache, s);
         }
@@ -1730,7 +1725,7 @@ inline void Executor::_tear_down_invoke(Worker& worker, Node* node, Node*& cache
     }
   }
   else {  
-    // needs to fetch every data before join-counter becomes zero at which
+    // needs to fetch every data before join counter becomes zero at which
     // the node may be deleted
     auto state = parent->_nstate;
     if(parent->_join_counter.fetch_sub(1, std::memory_order_acq_rel) == 1) {
@@ -1804,12 +1799,12 @@ inline void Executor::_invoke_static_task(Worker& worker, Node* node) {
 
 // Procedure: _invoke_subflow_task
 inline bool Executor::_invoke_subflow_task(Worker& worker, Node* node) {
+    
+  auto& h = *std::get_if<Node::Subflow>(&node->_handle);
+  auto& g = h.subgraph;
 
   if((node->_nstate & NSTATE::PREEMPTED) == 0) {
     
-    auto& h = *std::get_if<Node::Subflow>(&node->_handle);
-    auto& g = h.subgraph;
-
     // set up the subflow
     Subflow sf(*this, worker, node, g);
 
@@ -1822,18 +1817,23 @@ inline bool Executor::_invoke_subflow_task(Worker& worker, Node* node) {
     
     // spawn the subflow if it is joinable and its graph is non-empty
     // implicit join is faster than Subflow::join as it does not involve corun
-    if(sf.joinable() && g.size() > sf._tag) {
+    if(sf.joinable() && g.size()) {
 
       // signal the executor to preempt this node
       node->_nstate |= NSTATE::PREEMPTED;
 
       // set up and schedule the graph
-      _schedule_graph_with_parent(worker, g.begin() + sf._tag, g.end(), node, NSTATE::NONE);
+      _schedule_graph_with_parent(worker, g.begin(), g.end(), node, NSTATE::NONE);
       return true;
     }
   }
   else {
     node->_nstate &= ~NSTATE::PREEMPTED;
+  }
+
+  // the subflow has finished or joined
+  if((node->_nstate & NSTATE::RETAIN_ON_JOIN) == 0) {
+    g.clear();
   }
 
   return false;
@@ -1882,10 +1882,10 @@ inline bool Executor::_invoke_module_task_impl(Worker& w, Node* node, Graph& gra
     _schedule_graph_with_parent(w, graph.begin(), graph.end(), node, NSTATE::NONE);
     return true;
   }
+
   // second entry - already spawned
-  else {
-    node->_nstate &= ~NSTATE::PREEMPTED;
-  }
+  node->_nstate &= ~NSTATE::PREEMPTED;
+
   return false;
 }
 
@@ -1934,14 +1934,14 @@ inline bool Executor::_invoke_dependent_async_task(Worker& worker, Node* node) {
       _observer_epilogue(worker, node);
     break;
     
-    // void(Runtime&)
+    // void(Runtime&) - silent async
     case 1:
       if(_invoke_runtime_task_impl(worker, node, *std::get_if<1>(&work))) {
         return true;
       }
     break;
 
-    // void(Runtime&, bool)
+    // void(Runtime&, bool) - async
     case 2:
       if(_invoke_runtime_task_impl(worker, node, *std::get_if<2>(&work))) {
         return true;
@@ -2017,16 +2017,16 @@ tf::Future<void> Executor::run_until(Taskflow& f, P&& p, C&& c) {
 
   _increment_topology();
 
-  // Need to check the empty under the lock since subflow task may
-  // define detached blocks that modify the taskflow at the same time
-  bool empty;
-  {
-    std::lock_guard<std::mutex> lock(f._mutex);
-    empty = f.empty();
-  }
+  //// Need to check the empty under the lock since subflow task may
+  //// define detached blocks that modify the taskflow at the same time
+  //bool empty;
+  //{
+  //  std::lock_guard<std::mutex> lock(f._mutex);
+  //  empty = f.empty();
+  //}
 
   // No need to create a real topology but returns an dummy future
-  if(empty || p()) {
+  if(f.empty() || p()) {
     c();
     std::promise<void> promise;
     promise.set_value();
@@ -2157,7 +2157,6 @@ inline void Executor::_set_up_topology(Worker* w, Topology* tpg) {
 
   // ---- under taskflow lock ----
   auto& g = tpg->_taskflow._graph;
-  //g._clear_detached();
   
   auto send = _set_up_graph(g.begin(), g.end(), tpg, nullptr, NSTATE::NONE);
   tpg->_join_counter.store(send - g.begin(), std::memory_order_relaxed);
@@ -2181,20 +2180,9 @@ I Executor::_set_up_graph(I first, I last, Topology* tpg, Node* parent, nstate_t
     node->_exception_ptr = nullptr;
 
     // move source to the first partition
+    // root, root, root, v1, v2, v3, v4, ...
     if(node->num_predecessors() == 0) {
       std::iter_swap(send++, first);
-    }
-
-    // handle-specific clear
-    switch(node->_handle.index()) {
-
-      // clear detached nodes
-      case Node::SUBFLOW: {
-        std::get_if<Node::Subflow>(&node->_handle)->subgraph.clear();
-      } break;
-
-      default:
-      break;
     }
   }
   return send;
@@ -2211,9 +2199,6 @@ inline void Executor::_tear_down_topology(Worker& worker, Topology* tpg) {
   if(!tpg->_exception_ptr && !tpg->cancelled() && !tpg->_pred()) {
     //assert(tpg->_join_counter == 0);
     std::lock_guard<std::mutex> lock(f._mutex);
-    //auto& g = tpg->_taskflow._graph;
-    //tpg->_join_counter.store(tpg->_num_sources, std::memory_order_relaxed);
-    //_schedule(worker, g.begin(), g.begin() + tpg->_num_sources);
     _set_up_topology(&worker, tpg);
   }
   // case 2: the final run of this topology
@@ -2273,34 +2258,13 @@ inline void Executor::_tear_down_topology(Worker& worker, Topology* tpg) {
 inline void Subflow::join() {
 
   if(!joinable()) {
-    TF_THROW("subflow already joined or detached");
+    TF_THROW("subflow already joined");
   }
     
-  // iterator to the begining of the subflow
-  auto gbeg = _graph.begin() + _tag;
-
-  // join here since corun graph may throw exception
-  _tag |= JOINED_BIT;
-
-  _executor._corun_graph(_worker, _parent, gbeg, _graph.end());
-}
-
-inline void Subflow::detach() {
-
-  if(!joinable()) {
-    TF_THROW("subflow already joined or detached");
-  }
-
-  if(_graph.size() > _tag) {
-    auto sbeg = _graph.begin() + _tag;
-    auto send = _executor._set_up_graph(
-      sbeg, _graph.end(), _parent->_topology, nullptr, NSTATE::DETACHED
-    );
-    _parent->_topology->_join_counter.fetch_add(send - sbeg, std::memory_order_relaxed);
-    _executor._schedule(_worker, sbeg, send);
-  }
+  _executor._corun_graph(_worker, _parent, _graph.begin(), _graph.end());
   
-  _tag |= JOINED_BIT;
+  // join here since corun graph may throw exception
+  _parent->_nstate |= NSTATE::JOINED;
 }
 
 #endif

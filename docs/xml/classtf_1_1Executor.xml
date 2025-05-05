@@ -2838,7 +2838,7 @@ The example below creates three named asynchronous tasks, <computeroutput>A</com
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/core/executor.hpp" line="1102" column="8" bodyfile="taskflow/core/runtime.hpp" bodystart="459" bodyend="463"/>
+        <location file="taskflow/core/executor.hpp" line="1102" column="8" bodyfile="taskflow/core/runtime.hpp" bodystart="468" bodyend="472"/>
       </memberdef>
       <memberdef kind="function" id="classtf_1_1Executor_1a7dbf235bdda813dd63e851cbae573bb4" prot="private" static="no" const="no" explicit="no" inline="yes" virt="non-virtual">
         <type>bool</type>
@@ -2863,7 +2863,7 @@ The example below creates three named asynchronous tasks, <computeroutput>A</com
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/core/executor.hpp" line="1103" column="8" bodyfile="taskflow/core/runtime.hpp" bodystart="466" bodyend="490"/>
+        <location file="taskflow/core/executor.hpp" line="1103" column="8" bodyfile="taskflow/core/runtime.hpp" bodystart="475" bodyend="499"/>
       </memberdef>
       <memberdef kind="function" id="classtf_1_1Executor_1aa7ccdd2724a8782e04d8a19567912e67" prot="private" static="no" const="no" explicit="no" inline="yes" virt="non-virtual">
         <type>bool</type>
@@ -2888,7 +2888,7 @@ The example below creates three named asynchronous tasks, <computeroutput>A</com
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/core/executor.hpp" line="1104" column="8" bodyfile="taskflow/core/runtime.hpp" bodystart="493" bodyend="522"/>
+        <location file="taskflow/core/executor.hpp" line="1104" column="8" bodyfile="taskflow/core/runtime.hpp" bodystart="502" bodyend="531"/>
       </memberdef>
       <memberdef kind="function" id="classtf_1_1Executor_1a816c1e16ad3979e9f6420f1f87f9dd5a" prot="private" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
         <templateparamlist>
@@ -3076,19 +3076,15 @@ The example below creates three named asynchronous tasks, <computeroutput>A</com
         <name>_async</name>
         <param>
           <type>P &amp;&amp;</type>
-          <defname>params</defname>
         </param>
         <param>
           <type>F &amp;&amp;</type>
-          <defname>f</defname>
         </param>
         <param>
           <type>Topology *</type>
-          <defname>tpg</defname>
         </param>
         <param>
           <type>Node *</type>
-          <defname>parent</defname>
         </param>
         <briefdescription>
         </briefdescription>
@@ -3096,7 +3092,7 @@ The example below creates three named asynchronous tasks, <computeroutput>A</com
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/core/executor.hpp" line="1125" column="8" bodyfile="taskflow/core/runtime.hpp" bodystart="530" bodyend="573"/>
+        <location file="taskflow/core/executor.hpp" line="1125" column="8"/>
       </memberdef>
       <memberdef kind="function" id="classtf_1_1Executor_1aa3b32388be14b03249de29bae34b7b52" prot="private" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
         <templateparamlist>
@@ -3113,19 +3109,15 @@ The example below creates three named asynchronous tasks, <computeroutput>A</com
         <name>_silent_async</name>
         <param>
           <type>P &amp;&amp;</type>
-          <defname>params</defname>
         </param>
         <param>
           <type>F &amp;&amp;</type>
-          <defname>f</defname>
         </param>
         <param>
           <type>Topology *</type>
-          <defname>tpg</defname>
         </param>
         <param>
           <type>Node *</type>
-          <defname>parent</defname>
         </param>
         <briefdescription>
         </briefdescription>
@@ -3133,7 +3125,7 @@ The example below creates three named asynchronous tasks, <computeroutput>A</com
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/core/executor.hpp" line="1128" column="8" bodyfile="taskflow/core/runtime.hpp" bodystart="577" bodyend="593"/>
+        <location file="taskflow/core/executor.hpp" line="1128" column="8"/>
       </memberdef>
       </sectiondef>
     <briefdescription>

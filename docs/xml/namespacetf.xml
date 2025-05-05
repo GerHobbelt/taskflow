@@ -80,6 +80,12 @@
     <innerclass refid="structtf_1_1cudaStreamDeleter" prot="public">tf::cudaStreamDeleter</innerclass>
     <innerclass refid="classtf_1_1cudaStreamBase" prot="public">tf::cudaStreamBase</innerclass>
     <innerclass refid="classtf_1_1cudaTask" prot="public">tf::cudaTask</innerclass>
+    <innerclass refid="structtf_1_1cudaGraphCreator" prot="public">tf::cudaGraphCreator</innerclass>
+    <innerclass refid="structtf_1_1cudaGraphDeleter" prot="public">tf::cudaGraphDeleter</innerclass>
+    <innerclass refid="classtf_1_1cudaGraphBase" prot="public">tf::cudaGraphBase</innerclass>
+    <innerclass refid="structtf_1_1cudaGraphExecCreator" prot="public">tf::cudaGraphExecCreator</innerclass>
+    <innerclass refid="structtf_1_1cudaGraphExecDeleter" prot="public">tf::cudaGraphExecDeleter</innerclass>
+    <innerclass refid="classtf_1_1cudaGraphExecBase" prot="public">tf::cudaGraphExecBase</innerclass>
     <innerclass refid="classtf_1_1cudaFlow" prot="public">tf::cudaFlow</innerclass>
     <innerclass refid="classtf_1_1cudaFlowOptimizerBase" prot="private">tf::cudaFlowOptimizerBase</innerclass>
     <innerclass refid="classtf_1_1cudaFlowSequentialOptimizer" prot="public">tf::cudaFlowSequentialOptimizer</innerclass>
@@ -315,7 +321,7 @@
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/cuda/cuda_stream.hpp" line="104" column="1" bodyfile="taskflow/cuda/cuda_stream.hpp" bodystart="104" bodyend="-1"/>
+        <location file="taskflow/cuda/cuda_stream.hpp" line="113" column="1" bodyfile="taskflow/cuda/cuda_stream.hpp" bodystart="113" bodyend="-1"/>
       </memberdef>
       <memberdef kind="typedef" id="namespacetf_1a45b31698cd7ee9a4dcd55465d1e8942a" prot="public" static="no">
         <type><ref refid="classtf_1_1cudaStreamBase" kindref="compound">cudaStreamBase</ref>&lt; <ref refid="structtf_1_1cudaStreamCreator" kindref="compound">cudaStreamCreator</ref>, <ref refid="structtf_1_1cudaStreamDeleter" kindref="compound">cudaStreamDeleter</ref> &gt;</type>
@@ -329,7 +335,35 @@
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/cuda/cuda_stream.hpp" line="281" column="1" bodyfile="taskflow/cuda/cuda_stream.hpp" bodystart="281" bodyend="-1"/>
+        <location file="taskflow/cuda/cuda_stream.hpp" line="299" column="1" bodyfile="taskflow/cuda/cuda_stream.hpp" bodystart="299" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="typedef" id="namespacetf_1ac76b07f7b7055967f6a2f1dc78b0978a" prot="public" static="no">
+        <type><ref refid="classtf_1_1cudaGraphBase" kindref="compound">cudaGraphBase</ref>&lt; <ref refid="structtf_1_1cudaGraphCreator" kindref="compound">cudaGraphCreator</ref>, <ref refid="structtf_1_1cudaGraphDeleter" kindref="compound">cudaGraphDeleter</ref> &gt;</type>
+        <definition>using tf::cudaGraph = typedef cudaGraphBase&lt;cudaGraphCreator, cudaGraphDeleter&gt;</definition>
+        <argsstring></argsstring>
+        <name>cudaGraph</name>
+        <briefdescription>
+<para>default smart pointer type to manage a <computeroutput>cudaGraph_t</computeroutput> object with unique ownership </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="taskflow/cuda/cuda_graph.hpp" line="942" column="1" bodyfile="taskflow/cuda/cuda_graph.hpp" bodystart="942" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="typedef" id="namespacetf_1a21efbebd2a9b305f43dde90b7b837dc7" prot="public" static="no">
+        <type><ref refid="classtf_1_1cudaGraphExecBase" kindref="compound">cudaGraphExecBase</ref>&lt; <ref refid="structtf_1_1cudaGraphExecCreator" kindref="compound">cudaGraphExecCreator</ref>, <ref refid="structtf_1_1cudaGraphExecDeleter" kindref="compound">cudaGraphExecDeleter</ref> &gt;</type>
+        <definition>using tf::cudaGraphExec = typedef cudaGraphExecBase&lt;cudaGraphExecCreator, cudaGraphExecDeleter&gt;</definition>
+        <argsstring></argsstring>
+        <name>cudaGraphExec</name>
+        <briefdescription>
+<para>default smart pointer type to manage a <computeroutput>cudaGraphExec_t</computeroutput> object with unique ownership </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="taskflow/cuda/cuda_graph_exec.hpp" line="312" column="1" bodyfile="taskflow/cuda/cuda_graph_exec.hpp" bodystart="312" bodyend="-1"/>
       </memberdef>
       <memberdef kind="typedef" id="namespacetf_1a0e267ab3e1baeb1962f3b3a374de9553" prot="public" static="no">
         <type><ref refid="classtf_1_1cudaExecutionPolicy" kindref="compound">cudaExecutionPolicy</ref>&lt; 512, 7 &gt;</type>
@@ -374,7 +408,7 @@
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/core/graph.hpp" line="134" column="16" bodyfile="taskflow/core/graph.hpp" bodystart="134" bodyend="-1"/>
+        <location file="taskflow/core/graph.hpp" line="135" column="16" bodyfile="taskflow/core/graph.hpp" bodystart="135" bodyend="-1"/>
       </memberdef>
       <memberdef kind="variable" id="namespacetf_1aea3945d9b15c96a72540ea4fe61947e7" prot="public" static="no" constexpr="yes" mutable="no">
         <templateparamlist>
@@ -433,7 +467,7 @@ Example usage: <programlisting><codeline><highlight class="normal">struct<sp/>A<
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/core/graph.hpp" line="803" column="16" bodyfile="taskflow/core/graph.hpp" bodystart="803" bodyend="-1"/>
+        <location file="taskflow/core/graph.hpp" line="805" column="16" bodyfile="taskflow/core/graph.hpp" bodystart="805" bodyend="-1"/>
       </memberdef>
       <memberdef kind="variable" id="namespacetf_1a3d823d8776745f3348dc87bba2fcc91b" prot="private" static="no" constexpr="yes" mutable="no">
         <type>constexpr <ref refid="cpp/container/array" kindref="compound" external="/home/thuang295/Code/taskflow/doxygen/cppreference-doxygen-web.tag.xml">std::array</ref>&lt; <ref refid="namespacetf_1a1355048578785a80414707ff308b395a" kindref="member">TaskType</ref>, 7 &gt;</type>
@@ -1779,7 +1813,7 @@ The distance of a range represents the number of required iterations to traverse
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/core/graph.hpp" line="360" column="22" bodyfile="taskflow/core/graph.hpp" bodystart="360" bodyend="366"/>
+        <location file="taskflow/core/graph.hpp" line="357" column="22" bodyfile="taskflow/core/graph.hpp" bodystart="357" bodyend="363"/>
       </memberdef>
       <memberdef kind="function" id="namespacetf_1a445fe5f14e30fe86b18bf7c35df34ad5" prot="private" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
         <type>TF_FORCE_INLINE void</type>
@@ -1796,7 +1830,7 @@ The distance of a range represents the number of required iterations to traverse
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/core/graph.hpp" line="371" column="22" bodyfile="taskflow/core/graph.hpp" bodystart="371" bodyend="377"/>
+        <location file="taskflow/core/graph.hpp" line="368" column="22" bodyfile="taskflow/core/graph.hpp" bodystart="368" bodyend="374"/>
       </memberdef>
       <memberdef kind="function" id="namespacetf_1a97960776f3c78e18e68c79c336ba4f2d" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
         <templateparamlist>
@@ -1900,7 +1934,7 @@ The distance of a range represents the number of required iterations to traverse
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/core/task.hpp" line="624" column="8" bodyfile="taskflow/core/task.hpp" bodystart="624" bodyend="627"/>
+        <location file="taskflow/core/task.hpp" line="631" column="8" bodyfile="taskflow/core/task.hpp" bodystart="631" bodyend="634"/>
       </memberdef>
       <memberdef kind="function" id="namespacetf_1aa3fc0699b2c2b8f2f76bb39f91be1acb" prot="public" static="no" const="no" explicit="no" inline="yes" virt="non-virtual">
         <type>const char *</type>
@@ -2756,6 +2790,314 @@ The method calls <computeroutput>cudaMemsetAsync</computeroutput> with the given
         </inbodydescription>
         <location file="taskflow/cuda/cuda_memory.hpp" line="153" column="13" bodyfile="taskflow/cuda/cuda_memory.hpp" bodystart="153" bodyend="160"/>
       </memberdef>
+      <memberdef kind="function" id="namespacetf_1aebe9b7a5647bec130362384b5ef12e6f" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <templateparamlist>
+          <param>
+            <type>typename T</type>
+          </param>
+          <param>
+            <type>std::enable_if_t&lt;!std::is_same_v&lt; T, void &gt;, void &gt; *</type>
+            <defval>nullptr</defval>
+          </param>
+        </templateparamlist>
+        <type>cudaMemcpy3DParms</type>
+        <definition>cudaMemcpy3DParms tf::cuda_get_copy_parms</definition>
+        <argsstring>(T *tgt, const T *src, size_t num)</argsstring>
+        <name>cuda_get_copy_parms</name>
+        <param>
+          <type>T *</type>
+          <declname>tgt</declname>
+        </param>
+        <param>
+          <type>const T *</type>
+          <declname>src</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>num</declname>
+        </param>
+        <briefdescription>
+<para>gets the memcpy node parameter of a copy task </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="taskflow/cuda/cuda_graph.hpp" line="23" column="19" bodyfile="taskflow/cuda/cuda_graph.hpp" bodystart="23" bodyend="39"/>
+      </memberdef>
+      <memberdef kind="function" id="namespacetf_1a6d7fe7b199f0264b24a831100083f813" prot="public" static="no" const="no" explicit="no" inline="yes" virt="non-virtual">
+        <type>cudaMemcpy3DParms</type>
+        <definition>cudaMemcpy3DParms tf::cuda_get_memcpy_parms</definition>
+        <argsstring>(void *tgt, const void *src, size_t bytes)</argsstring>
+        <name>cuda_get_memcpy_parms</name>
+        <param>
+          <type>void *</type>
+          <declname>tgt</declname>
+        </param>
+        <param>
+          <type>const void *</type>
+          <declname>src</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>bytes</declname>
+        </param>
+        <briefdescription>
+<para>gets the memcpy node parameter of a memcpy task (untyped) </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="taskflow/cuda/cuda_graph.hpp" line="44" column="26" bodyfile="taskflow/cuda/cuda_graph.hpp" bodystart="44" bodyend="64"/>
+      </memberdef>
+      <memberdef kind="function" id="namespacetf_1abdd529e729947d7b3123de89e43eb871" prot="public" static="no" const="no" explicit="no" inline="yes" virt="non-virtual">
+        <type>cudaMemsetParams</type>
+        <definition>cudaMemsetParams tf::cuda_get_memset_parms</definition>
+        <argsstring>(void *dst, int ch, size_t count)</argsstring>
+        <name>cuda_get_memset_parms</name>
+        <param>
+          <type>void *</type>
+          <declname>dst</declname>
+        </param>
+        <param>
+          <type>int</type>
+          <declname>ch</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>count</declname>
+        </param>
+        <briefdescription>
+<para>gets the memset node parameter of a memcpy task (untyped) </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="taskflow/cuda/cuda_graph.hpp" line="69" column="25" bodyfile="taskflow/cuda/cuda_graph.hpp" bodystart="69" bodyend="82"/>
+      </memberdef>
+      <memberdef kind="function" id="namespacetf_1abf3eeb8a29df53ea51239159ebb08431" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <templateparamlist>
+          <param>
+            <type>typename T</type>
+          </param>
+          <param>
+            <type>std::enable_if_t&lt; is_pod_v&lt; T &gt; &amp;&amp;(sizeof(T)==1||sizeof(T)==2||sizeof(T)==4), void &gt; *</type>
+            <defval>nullptr</defval>
+          </param>
+        </templateparamlist>
+        <type>cudaMemsetParams</type>
+        <definition>cudaMemsetParams tf::cuda_get_fill_parms</definition>
+        <argsstring>(T *dst, T value, size_t count)</argsstring>
+        <name>cuda_get_fill_parms</name>
+        <param>
+          <type>T *</type>
+          <declname>dst</declname>
+        </param>
+        <param>
+          <type>T</type>
+          <declname>value</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>count</declname>
+        </param>
+        <briefdescription>
+<para>gets the memset node parameter of a fill task (typed) </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="taskflow/cuda/cuda_graph.hpp" line="90" column="18" bodyfile="taskflow/cuda/cuda_graph.hpp" bodystart="90" bodyend="106"/>
+      </memberdef>
+      <memberdef kind="function" id="namespacetf_1a2e7a47a53034abe3218bcc583b0e9a56" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
+        <templateparamlist>
+          <param>
+            <type>typename T</type>
+          </param>
+          <param>
+            <type>std::enable_if_t&lt; is_pod_v&lt; T &gt; &amp;&amp;(sizeof(T)==1||sizeof(T)==2||sizeof(T)==4), void &gt; *</type>
+            <defval>nullptr</defval>
+          </param>
+        </templateparamlist>
+        <type>cudaMemsetParams</type>
+        <definition>cudaMemsetParams tf::cuda_get_zero_parms</definition>
+        <argsstring>(T *dst, size_t count)</argsstring>
+        <name>cuda_get_zero_parms</name>
+        <param>
+          <type>T *</type>
+          <declname>dst</declname>
+        </param>
+        <param>
+          <type>size_t</type>
+          <declname>count</declname>
+        </param>
+        <briefdescription>
+<para>gets the memset node parameter of a zero task (typed) </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="taskflow/cuda/cuda_graph.hpp" line="114" column="18" bodyfile="taskflow/cuda/cuda_graph.hpp" bodystart="114" bodyend="125"/>
+      </memberdef>
+      <memberdef kind="function" id="namespacetf_1a8c9a4702aab3ce76a55c62ec276cd9fc" prot="public" static="no" const="no" explicit="no" inline="yes" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t tf::cuda_graph_get_num_root_nodes</definition>
+        <argsstring>(cudaGraph_t graph)</argsstring>
+        <name>cuda_graph_get_num_root_nodes</name>
+        <param>
+          <type>cudaGraph_t</type>
+          <declname>graph</declname>
+        </param>
+        <briefdescription>
+<para>queries the number of root nodes in a native CUDA graph </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="taskflow/cuda/cuda_graph.hpp" line="130" column="15" bodyfile="taskflow/cuda/cuda_graph.hpp" bodystart="130" bodyend="137"/>
+      </memberdef>
+      <memberdef kind="function" id="namespacetf_1a874ee3b3ee52d7cf6b6a7cc13859365f" prot="public" static="no" const="no" explicit="no" inline="yes" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t tf::cuda_graph_get_num_nodes</definition>
+        <argsstring>(cudaGraph_t graph)</argsstring>
+        <name>cuda_graph_get_num_nodes</name>
+        <param>
+          <type>cudaGraph_t</type>
+          <declname>graph</declname>
+        </param>
+        <briefdescription>
+<para>queries the number of nodes in a native CUDA graph </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="taskflow/cuda/cuda_graph.hpp" line="142" column="15" bodyfile="taskflow/cuda/cuda_graph.hpp" bodystart="142" bodyend="149"/>
+      </memberdef>
+      <memberdef kind="function" id="namespacetf_1a8fc7af3adc7dd7e646bd5275d8ae3f56" prot="public" static="no" const="no" explicit="no" inline="yes" virt="non-virtual">
+        <type>size_t</type>
+        <definition>size_t tf::cuda_graph_get_num_edges</definition>
+        <argsstring>(cudaGraph_t graph)</argsstring>
+        <name>cuda_graph_get_num_edges</name>
+        <param>
+          <type>cudaGraph_t</type>
+          <declname>graph</declname>
+        </param>
+        <briefdescription>
+<para>queries the number of edges in a native CUDA graph </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="taskflow/cuda/cuda_graph.hpp" line="154" column="15" bodyfile="taskflow/cuda/cuda_graph.hpp" bodystart="154" bodyend="161"/>
+      </memberdef>
+      <memberdef kind="function" id="namespacetf_1ad5459c5551b8416d586bbbbac34a4e33" prot="public" static="no" const="no" explicit="no" inline="yes" virt="non-virtual">
+        <type><ref refid="cpp/container/vector" kindref="compound" external="/home/thuang295/Code/taskflow/doxygen/cppreference-doxygen-web.tag.xml">std::vector</ref>&lt; cudaGraphNode_t &gt;</type>
+        <definition>std::vector&lt;cudaGraphNode_t&gt; tf::cuda_graph_get_nodes</definition>
+        <argsstring>(cudaGraph_t graph)</argsstring>
+        <name>cuda_graph_get_nodes</name>
+        <param>
+          <type>cudaGraph_t</type>
+          <declname>graph</declname>
+        </param>
+        <briefdescription>
+<para>acquires the nodes in a native CUDA graph </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="taskflow/cuda/cuda_graph.hpp" line="168" column="20" bodyfile="taskflow/cuda/cuda_graph.hpp" bodystart="168" bodyend="176"/>
+      </memberdef>
+      <memberdef kind="function" id="namespacetf_1afee3e3a745757ec5b6ae36e2b0b0808d" prot="public" static="no" const="no" explicit="no" inline="yes" virt="non-virtual">
+        <type><ref refid="cpp/container/vector" kindref="compound" external="/home/thuang295/Code/taskflow/doxygen/cppreference-doxygen-web.tag.xml">std::vector</ref>&lt; cudaGraphNode_t &gt;</type>
+        <definition>std::vector&lt;cudaGraphNode_t&gt; tf::cuda_graph_get_root_nodes</definition>
+        <argsstring>(cudaGraph_t graph)</argsstring>
+        <name>cuda_graph_get_root_nodes</name>
+        <param>
+          <type>cudaGraph_t</type>
+          <declname>graph</declname>
+        </param>
+        <briefdescription>
+<para>acquires the root nodes in a native CUDA graph </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="taskflow/cuda/cuda_graph.hpp" line="181" column="20" bodyfile="taskflow/cuda/cuda_graph.hpp" bodystart="181" bodyend="189"/>
+      </memberdef>
+      <memberdef kind="function" id="namespacetf_1a007dfebb3ef1ab54da66cdd604494b38" prot="public" static="no" const="no" explicit="no" inline="yes" virt="non-virtual">
+        <type><ref refid="cpp/container/vector" kindref="compound" external="/home/thuang295/Code/taskflow/doxygen/cppreference-doxygen-web.tag.xml">std::vector</ref>&lt; <ref refid="cpp/utility/pair" kindref="compound" external="/home/thuang295/Code/taskflow/doxygen/cppreference-doxygen-web.tag.xml">std::pair</ref>&lt; cudaGraphNode_t, cudaGraphNode_t &gt; &gt;</type>
+        <definition>std::vector&lt;std::pair&lt;cudaGraphNode_t, cudaGraphNode_t&gt; &gt; tf::cuda_graph_get_edges</definition>
+        <argsstring>(cudaGraph_t graph)</argsstring>
+        <name>cuda_graph_get_edges</name>
+        <param>
+          <type>cudaGraph_t</type>
+          <declname>graph</declname>
+        </param>
+        <briefdescription>
+<para>acquires the edges in a native CUDA graph </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="taskflow/cuda/cuda_graph.hpp" line="195" column="1" bodyfile="taskflow/cuda/cuda_graph.hpp" bodystart="195" bodyend="207"/>
+      </memberdef>
+      <memberdef kind="function" id="namespacetf_1afb8f9fd1a826738ea95b4cf224c65cb0" prot="public" static="no" const="no" explicit="no" inline="yes" virt="non-virtual">
+        <type>cudaGraphNodeType</type>
+        <definition>cudaGraphNodeType tf::cuda_get_graph_node_type</definition>
+        <argsstring>(cudaGraphNode_t node)</argsstring>
+        <name>cuda_get_graph_node_type</name>
+        <param>
+          <type>cudaGraphNode_t</type>
+          <declname>node</declname>
+        </param>
+        <briefdescription>
+<para>queries the type of a native CUDA graph node </para>
+        </briefdescription>
+        <detaileddescription>
+<para>valid type values are:<itemizedlist>
+<listitem><para>cudaGraphNodeTypeKernel = 0x00</para>
+</listitem><listitem><para>cudaGraphNodeTypeMemcpy = 0x01</para>
+</listitem><listitem><para>cudaGraphNodeTypeMemset = 0x02</para>
+</listitem><listitem><para>cudaGraphNodeTypeHost = 0x03</para>
+</listitem><listitem><para>cudaGraphNodeTypeGraph = 0x04</para>
+</listitem><listitem><para>cudaGraphNodeTypeEmpty = 0x05</para>
+</listitem><listitem><para>cudaGraphNodeTypeWaitEvent = 0x06</para>
+</listitem><listitem><para>cudaGraphNodeTypeEventRecord = 0x07 </para>
+</listitem></itemizedlist>
+</para>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="taskflow/cuda/cuda_graph.hpp" line="222" column="26" bodyfile="taskflow/cuda/cuda_graph.hpp" bodystart="222" bodyend="228"/>
+      </memberdef>
+      <memberdef kind="function" id="namespacetf_1a70a7cb15356a204af1b73b4ac0bbc64a" prot="public" static="no" constexpr="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <type>constexpr const char *</type>
+        <definition>constexpr const char* tf::to_string</definition>
+        <argsstring>(cudaGraphNodeType type)</argsstring>
+        <name>to_string</name>
+        <param>
+          <type>cudaGraphNodeType</type>
+          <declname>type</declname>
+        </param>
+        <briefdescription>
+<para>convert a cuda_task type to a human-readable string </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="taskflow/cuda/cuda_graph.hpp" line="237" column="22" bodyfile="taskflow/cuda/cuda_graph.hpp" bodystart="237" bodyend="254"/>
+      </memberdef>
       <memberdef kind="function" id="namespacetf_1a9cca69f61d792afb3ad501b703d795c1" prot="public" static="no" const="no" explicit="no" inline="yes" virt="non-virtual">
         <type><ref refid="cpp/io/basic_ostream" kindref="compound" external="/home/thuang295/Code/taskflow/doxygen/cppreference-doxygen-web.tag.xml">std::ostream</ref> &amp;</type>
         <definition>std::ostream&amp; tf::operator&lt;&lt;</definition>
@@ -2776,7 +3118,7 @@ The method calls <computeroutput>cudaMemsetAsync</computeroutput> with the given
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/cuda/cuda_task.hpp" line="184" column="8" bodyfile="taskflow/cuda/cuda_task.hpp" bodystart="184" bodyend="187"/>
+        <location file="taskflow/cuda/cuda_graph.hpp" line="402" column="8" bodyfile="taskflow/cuda/cuda_graph.hpp" bodystart="402" bodyend="405"/>
       </memberdef>
       <memberdef kind="function" id="namespacetf_1a2ff1cf81426c856fc6db1f6ead47878f" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
         <templateparamlist>

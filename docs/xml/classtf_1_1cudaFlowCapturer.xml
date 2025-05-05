@@ -1574,7 +1574,7 @@ Offloads the present cudaFlowCapturer onto a GPU asynchronously via the given st
         <location file="taskflow/cuda/cuda_capturer.hpp" line="505" column="17" bodyfile="taskflow/cuda/cuda_capturer.hpp" bodystart="657" bodyend="659"/>
       </memberdef>
       <memberdef kind="function" id="classtf_1_1cudaFlowCapturer_1abacdc4f183477580e24452a2a27437cd" prot="public" static="no" const="no" explicit="no" inline="yes" virt="non-virtual">
-        <type>cudaGraphExec</type>
+        <type><ref refid="namespacetf_1a21efbebd2a9b305f43dde90b7b837dc7" kindref="member">cudaGraphExec</ref></type>
         <definition>cudaGraphExec tf::cudaFlowCapturer::instantiate</definition>
         <argsstring>()</argsstring>
         <name>instantiate</name>

@@ -132,7 +132,7 @@ Taskflow works on Linux, Windows, and Mac OS X.</para>
 </listitem>
 <listitem><para>modified <ref refid="classtf_1_1ObserverInterface_1a8225fcacb03089677a1efc4b16b734cc" kindref="member">tf::ObserverInterface::on_entry</ref> and <ref refid="classtf_1_1ObserverInterface_1aa22f5378154653f08d9a58326bda4754" kindref="member">tf::ObserverInterface::on_exit</ref> to take <ref refid="classtf_1_1WorkerView" kindref="compound">tf::WorkerView</ref> </para>
 </listitem>
-<listitem><para>added a custom graph interface to support dynamic polymorphism for tf::cudaGraph </para>
+<listitem><para>added a custom graph interface to support dynamic polymorphism for <ref refid="namespacetf_1ac76b07f7b7055967f6a2f1dc78b0978a" kindref="member">tf::cudaGraph</ref> </para>
 </listitem>
 <listitem><para>supported separate compilations between Taskflow and CUDA (see <ref refid="CompileTaskflowWithCUDA" kindref="compound">Compile Taskflow with CUDA</ref>) </para>
 </listitem>
@@ -154,7 +154,7 @@ Taskflow works on Linux, Windows, and Mac OS X.</para>
 </listitem>
 <listitem><para>added tf::Taskflow::emplace_on to place a cudaFlow on a GPU </para>
 </listitem>
-<listitem><para>added tf::cudaFlow::dump and <ref refid="classtf_1_1cudaFlowCapturer_1a90d1265bcc27647906bed6e6876c9aa7" kindref="member">tf::cudaFlowCapturer::dump</ref> to visualize cudaFlow </para>
+<listitem><para>added <ref refid="classtf_1_1cudaGraphBase_1abd73a9268b80e74803f241ee10a842b6" kindref="member">tf::cudaFlow::dump</ref> and <ref refid="classtf_1_1cudaFlowCapturer_1a90d1265bcc27647906bed6e6876c9aa7" kindref="member">tf::cudaFlowCapturer::dump</ref> to visualize cudaFlow </para>
 </listitem>
 <listitem><para>added tf::cudaFlow::offload and update methods to run and update a cudaFlow explicitly </para>
 </listitem>

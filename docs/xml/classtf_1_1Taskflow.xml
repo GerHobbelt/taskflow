@@ -275,7 +275,7 @@
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/core/taskflow.hpp" line="184" column="10" bodyfile="taskflow/core/taskflow.hpp" bodystart="400" bodyend="404"/>
+        <location file="taskflow/core/taskflow.hpp" line="184" column="10" bodyfile="taskflow/core/taskflow.hpp" bodystart="394" bodyend="398"/>
       </memberdef>
       <memberdef kind="function" id="classtf_1_1Taskflow_1a9c4900da1831dce708664a06b3e3a3fb" prot="public" static="no" const="yes" explicit="no" inline="yes" virt="non-virtual">
         <type><ref refid="cpp/string/basic_string" kindref="compound" external="/home/thuang295/Code/taskflow/doxygen/cppreference-doxygen-web.tag.xml">std::string</ref></type>
@@ -290,7 +290,7 @@
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/core/taskflow.hpp" line="192" column="17" bodyfile="taskflow/core/taskflow.hpp" bodystart="393" bodyend="397"/>
+        <location file="taskflow/core/taskflow.hpp" line="192" column="17" bodyfile="taskflow/core/taskflow.hpp" bodystart="387" bodyend="391"/>
       </memberdef>
       <memberdef kind="function" id="classtf_1_1Taskflow_1af4f03bca084deb5c2228ac8936d33649" prot="public" static="no" const="yes" explicit="no" inline="yes" virt="non-virtual">
         <type>size_t</type>
@@ -454,7 +454,7 @@
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/core/taskflow.hpp" line="276" column="17" bodyfile="taskflow/core/taskflow.hpp" bodystart="378" bodyend="390"/>
+        <location file="taskflow/core/taskflow.hpp" line="276" column="17" bodyfile="taskflow/core/taskflow.hpp" bodystart="378" bodyend="384"/>
       </memberdef>
       <memberdef kind="function" id="classtf_1_1Taskflow_1a8da984d149b439e88468bf26e02ecf27" prot="public" static="no" const="no" explicit="no" inline="yes" virt="non-virtual">
         <type><ref refid="classtf_1_1Graph" kindref="compound">Graph</ref> &amp;</type>
@@ -492,7 +492,7 @@
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/core/taskflow.hpp" line="298" column="10" bodyfile="taskflow/core/taskflow.hpp" bodystart="407" bodyend="438"/>
+        <location file="taskflow/core/taskflow.hpp" line="298" column="10" bodyfile="taskflow/core/taskflow.hpp" bodystart="401" bodyend="432"/>
       </memberdef>
       <memberdef kind="function" id="classtf_1_1Taskflow_1a22bd6faed11509c504c4a9cb8cb81fd6" prot="private" static="no" const="yes" explicit="no" inline="yes" virt="non-virtual">
         <type>void</type>
@@ -517,7 +517,7 @@
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/core/taskflow.hpp" line="299" column="10" bodyfile="taskflow/core/taskflow.hpp" bodystart="441" bodyend="502"/>
+        <location file="taskflow/core/taskflow.hpp" line="299" column="10" bodyfile="taskflow/core/taskflow.hpp" bodystart="435" bodyend="496"/>
       </memberdef>
       <memberdef kind="function" id="classtf_1_1Taskflow_1afdfa1f01d5471d3cddc39b3bae11c464" prot="private" static="no" const="yes" explicit="no" inline="yes" virt="non-virtual">
         <type>void</type>
@@ -542,7 +542,7 @@
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/core/taskflow.hpp" line="300" column="10" bodyfile="taskflow/core/taskflow.hpp" bodystart="505" bodyend="538"/>
+        <location file="taskflow/core/taskflow.hpp" line="300" column="10" bodyfile="taskflow/core/taskflow.hpp" bodystart="499" bodyend="533"/>
       </memberdef>
       </sectiondef>
     <briefdescription>
