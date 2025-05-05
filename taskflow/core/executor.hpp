@@ -718,7 +718,7 @@ class Executor {
   
   /**
   @brief runs the given function asynchronously 
-         when the given dependents finish
+         when the given predecessors finish
 
   @tparam F callable type
   @tparam Tasks task types convertible to tf::AsyncTask
@@ -750,7 +750,7 @@ class Executor {
   
   /**
   @brief runs the given function asynchronously 
-         when the given dependents finish
+         when the given predecessors finish
   
   @tparam F callable type
   @tparam Tasks task types convertible to tf::AsyncTask
@@ -786,7 +786,7 @@ class Executor {
   
   /**
   @brief runs the given function asynchronously 
-         when the given range of dependents finish
+         when the given range of predecessors finish
   
   @tparam F callable type
   @tparam I iterator type 
@@ -823,7 +823,7 @@ class Executor {
   
   /**
   @brief runs the given function asynchronously 
-         when the given range of dependents finish
+         when the given range of predecessors finish
   
   @tparam F callable type
   @tparam I iterator type 
@@ -866,7 +866,7 @@ class Executor {
   
   /**
   @brief runs the given function asynchronously 
-         when the given dependents finish
+         when the given predecessors finish
   
   @tparam F callable type
   @tparam Tasks task types convertible to tf::AsyncTask
@@ -908,7 +908,7 @@ class Executor {
   
   /**
   @brief runs the given function asynchronously
-         when the given dependents finish
+         when the given predecessors finish
   
   @tparam P task parameters type
   @tparam F callable type
@@ -954,7 +954,7 @@ class Executor {
   
   /**
   @brief runs the given function asynchronously 
-         when the given range of dependents finish
+         when the given range of predecessors finish
   
   @tparam F callable type
   @tparam I iterator type 
@@ -999,7 +999,7 @@ class Executor {
   
   /**
   @brief runs the given function asynchronously 
-         when the given range of dependents finish
+         when the given range of predecessors finish
   
   @tparam P task parameters type
   @tparam F callable type
@@ -1054,10 +1054,10 @@ class Executor {
   DefaultNotifier _notifier;
 
 #if __cplusplus >= TF_CPP20
-  std::latch _latch;
+  //std::latch _latch;
   std::atomic<size_t> _num_topologies {0};
 #else
-  Latch _latch;
+  //Latch _latch;
   std::condition_variable _topology_cv;
   std::mutex _topology_mutex;
   size_t _num_topologies {0};
@@ -1135,7 +1135,7 @@ class Executor {
 inline Executor::Executor(size_t N, std::shared_ptr<WorkerInterface> wix) :
   _workers         (N),
   _notifier        (N),
-  _latch           (N+1),
+  //_latch           (N+1),
   _buffers        (N),
   _worker_interface(std::move(wix)) {
 
@@ -1226,7 +1226,7 @@ inline void Executor::_spawn(size_t N) {
       pt::this_worker = &w;
 
       // synchronize with the main thread to ensure all worker data has been set
-      _latch.arrive_and_wait(); 
+      //_latch.arrive_and_wait(); 
       
       // initialize the random engine and seed for work-stealing loop
       w._rdgen.seed(static_cast<std::default_random_engine::result_type>(
@@ -1272,7 +1272,7 @@ inline void Executor::_spawn(size_t N) {
     });
   } 
 
-  _latch.arrive_and_wait();
+  //_latch.arrive_and_wait();
 }
 
 // Function: _corun_until
@@ -1670,12 +1670,12 @@ inline void Executor::_invoke(Worker& worker, Node* node) {
 
   // Reset the join counter with strong dependencies to support cycles.
   // + We must do this before scheduling the successors to avoid race
-  //   condition on _dependents.
+  //   condition on _predecessors.
   // + We must use fetch_add instead of direct assigning
   //   because the user-space call on "invoke" may explicitly schedule 
   //   this task again (e.g., pipeline) which can access the join_counter.
   node->_join_counter.fetch_add(
-    node->num_dependents() - (node->_nstate & ~NSTATE::MASK), std::memory_order_relaxed
+    node->num_predecessors() - (node->_nstate & ~NSTATE::MASK), std::memory_order_relaxed
   );
 
   // acquire the parent flow counter
@@ -2181,7 +2181,7 @@ I Executor::_set_up_graph(I first, I last, Topology* tpg, Node* parent, nstate_t
     node->_exception_ptr = nullptr;
 
     // move source to the first partition
-    if(node->num_dependents() == 0) {
+    if(node->num_predecessors() == 0) {
       std::iter_swap(send++, first);
     }
 

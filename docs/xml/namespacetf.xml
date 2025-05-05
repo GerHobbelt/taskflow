@@ -73,12 +73,12 @@
     <innerclass refid="classtf_1_1cudaDeviceAllocator" prot="public">tf::cudaDeviceAllocator</innerclass>
     <innerclass refid="classtf_1_1cudaUSMAllocator" prot="public">tf::cudaUSMAllocator</innerclass>
     <innerclass refid="classtf_1_1cudaDeviceVector" prot="private">tf::cudaDeviceVector</innerclass>
-    <innerclass refid="structtf_1_1cudaStreamCreator" prot="private">tf::cudaStreamCreator</innerclass>
-    <innerclass refid="structtf_1_1cudaStreamDeleter" prot="private">tf::cudaStreamDeleter</innerclass>
-    <innerclass refid="classtf_1_1cudaStream" prot="public">tf::cudaStream</innerclass>
-    <innerclass refid="structtf_1_1cudaEventCreator" prot="private">tf::cudaEventCreator</innerclass>
-    <innerclass refid="structtf_1_1cudaEventDeleter" prot="private">tf::cudaEventDeleter</innerclass>
-    <innerclass refid="classtf_1_1cudaEvent" prot="public">tf::cudaEvent</innerclass>
+    <innerclass refid="structtf_1_1cudaEventCreator" prot="public">tf::cudaEventCreator</innerclass>
+    <innerclass refid="structtf_1_1cudaEventDeleter" prot="public">tf::cudaEventDeleter</innerclass>
+    <innerclass refid="classtf_1_1cudaEventBase" prot="public">tf::cudaEventBase</innerclass>
+    <innerclass refid="structtf_1_1cudaStreamCreator" prot="public">tf::cudaStreamCreator</innerclass>
+    <innerclass refid="structtf_1_1cudaStreamDeleter" prot="public">tf::cudaStreamDeleter</innerclass>
+    <innerclass refid="classtf_1_1cudaStreamBase" prot="public">tf::cudaStreamBase</innerclass>
     <innerclass refid="classtf_1_1cudaTask" prot="public">tf::cudaTask</innerclass>
     <innerclass refid="classtf_1_1cudaFlow" prot="public">tf::cudaFlow</innerclass>
     <innerclass refid="classtf_1_1cudaFlowOptimizerBase" prot="private">tf::cudaFlowOptimizerBase</innerclass>
@@ -259,83 +259,6 @@
         </inbodydescription>
         <location file="taskflow/algorithm/pipeline.hpp" line="197" column="1" bodyfile="taskflow/algorithm/pipeline.hpp" bodystart="197" bodyend="202"/>
       </memberdef>
-      <memberdef kind="enum" id="namespacetf_1afebc56ae6d5765010d0dd13a5f04132e" prot="public" static="no" strong="yes">
-        <type>int</type>
-        <name>cudaTaskType</name>
-        <enumvalue id="namespacetf_1afebc56ae6d5765010d0dd13a5f04132eaba2b45bdc11e2a4a6e86aab2ac693cbb" prot="public">
-          <name>EMPTY</name>
-          <initializer>= 0</initializer>
-          <briefdescription>
-<para>empty task type </para>
-          </briefdescription>
-          <detaileddescription>
-          </detaileddescription>
-        </enumvalue>
-        <enumvalue id="namespacetf_1afebc56ae6d5765010d0dd13a5f04132eab9361011891280a44d85b967739cc6a5" prot="public">
-          <name>HOST</name>
-          <briefdescription>
-<para>host task type </para>
-          </briefdescription>
-          <detaileddescription>
-          </detaileddescription>
-        </enumvalue>
-        <enumvalue id="namespacetf_1afebc56ae6d5765010d0dd13a5f04132ea41d4dbfd78ceea21abb0ecb03c3cc921" prot="public">
-          <name>MEMSET</name>
-          <briefdescription>
-<para>memory set task type </para>
-          </briefdescription>
-          <detaileddescription>
-          </detaileddescription>
-        </enumvalue>
-        <enumvalue id="namespacetf_1afebc56ae6d5765010d0dd13a5f04132eac5d10cc70cce96265c445f14e7f5aba4" prot="public">
-          <name>MEMCPY</name>
-          <briefdescription>
-<para>memory copy task type </para>
-          </briefdescription>
-          <detaileddescription>
-          </detaileddescription>
-        </enumvalue>
-        <enumvalue id="namespacetf_1afebc56ae6d5765010d0dd13a5f04132ea35c10219c45ccfb5b07444fd7e17214c" prot="public">
-          <name>KERNEL</name>
-          <briefdescription>
-<para>memory copy task type </para>
-          </briefdescription>
-          <detaileddescription>
-          </detaileddescription>
-        </enumvalue>
-        <enumvalue id="namespacetf_1afebc56ae6d5765010d0dd13a5f04132ea46be697979903d784a70aeec45eb14ad" prot="public">
-          <name>SUBFLOW</name>
-          <briefdescription>
-<para>subflow (child graph) task type </para>
-          </briefdescription>
-          <detaileddescription>
-          </detaileddescription>
-        </enumvalue>
-        <enumvalue id="namespacetf_1afebc56ae6d5765010d0dd13a5f04132eab72f08e0732365cac9599b5c42157bf9" prot="public">
-          <name>CAPTURE</name>
-          <briefdescription>
-<para>capture task type </para>
-          </briefdescription>
-          <detaileddescription>
-          </detaileddescription>
-        </enumvalue>
-        <enumvalue id="namespacetf_1afebc56ae6d5765010d0dd13a5f04132ea0db45d2a4141101bdfe48e3314cfbca3" prot="public">
-          <name>UNDEFINED</name>
-          <briefdescription>
-<para>undefined task type </para>
-          </briefdescription>
-          <detaileddescription>
-          </detaileddescription>
-        </enumvalue>
-        <briefdescription>
-<para>enumeration of all cudaTask types </para>
-        </briefdescription>
-        <detaileddescription>
-        </detaileddescription>
-        <inbodydescription>
-        </inbodydescription>
-        <location file="taskflow/cuda/cuda_task.hpp" line="21" column="1" bodyfile="taskflow/cuda/cuda_task.hpp" bodystart="21" bodyend="38"/>
-      </memberdef>
       </sectiondef>
       <sectiondef kind="typedef">
       <memberdef kind="typedef" id="namespacetf_1a24e111672ff15b86ab128b5ec1cf64ab" prot="private" static="no">
@@ -380,6 +303,34 @@
         </inbodydescription>
         <location file="taskflow/algorithm/partitioner.hpp" line="820" column="1" bodyfile="taskflow/algorithm/partitioner.hpp" bodystart="820" bodyend="-1"/>
       </memberdef>
+      <memberdef kind="typedef" id="namespacetf_1a19f35245e6334fae46dccb73f27417bf" prot="public" static="no">
+        <type><ref refid="classtf_1_1cudaEventBase" kindref="compound">cudaEventBase</ref>&lt; <ref refid="structtf_1_1cudaEventCreator" kindref="compound">cudaEventCreator</ref>, <ref refid="structtf_1_1cudaEventDeleter" kindref="compound">cudaEventDeleter</ref> &gt;</type>
+        <definition>using tf::cudaEvent = typedef cudaEventBase&lt;cudaEventCreator, cudaEventDeleter&gt;</definition>
+        <argsstring></argsstring>
+        <name>cudaEvent</name>
+        <briefdescription>
+<para>default smart pointer type to manage a <computeroutput>cudaEvent_t</computeroutput> object with unique ownership </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="taskflow/cuda/cuda_stream.hpp" line="104" column="1" bodyfile="taskflow/cuda/cuda_stream.hpp" bodystart="104" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="typedef" id="namespacetf_1a45b31698cd7ee9a4dcd55465d1e8942a" prot="public" static="no">
+        <type><ref refid="classtf_1_1cudaStreamBase" kindref="compound">cudaStreamBase</ref>&lt; <ref refid="structtf_1_1cudaStreamCreator" kindref="compound">cudaStreamCreator</ref>, <ref refid="structtf_1_1cudaStreamDeleter" kindref="compound">cudaStreamDeleter</ref> &gt;</type>
+        <definition>using tf::cudaStream = typedef cudaStreamBase&lt;cudaStreamCreator, cudaStreamDeleter&gt;</definition>
+        <argsstring></argsstring>
+        <name>cudaStream</name>
+        <briefdescription>
+<para>default smart pointer type to manage a <computeroutput>cudaStream_t</computeroutput> object with unique ownership </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="taskflow/cuda/cuda_stream.hpp" line="281" column="1" bodyfile="taskflow/cuda/cuda_stream.hpp" bodystart="281" bodyend="-1"/>
+      </memberdef>
       <memberdef kind="typedef" id="namespacetf_1a0e267ab3e1baeb1962f3b3a374de9553" prot="public" static="no">
         <type><ref refid="classtf_1_1cudaExecutionPolicy" kindref="compound">cudaExecutionPolicy</ref>&lt; 512, 7 &gt;</type>
         <definition>using tf::cudaDefaultExecutionPolicy = typedef cudaExecutionPolicy&lt;512, 7&gt;</definition>
@@ -423,7 +374,7 @@
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/core/graph.hpp" line="135" column="16" bodyfile="taskflow/core/graph.hpp" bodystart="135" bodyend="-1"/>
+        <location file="taskflow/core/graph.hpp" line="134" column="16" bodyfile="taskflow/core/graph.hpp" bodystart="134" bodyend="-1"/>
       </memberdef>
       <memberdef kind="variable" id="namespacetf_1aea3945d9b15c96a72540ea4fe61947e7" prot="public" static="no" constexpr="yes" mutable="no">
         <templateparamlist>
@@ -482,7 +433,7 @@ Example usage: <programlisting><codeline><highlight class="normal">struct<sp/>A<
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/core/graph.hpp" line="807" column="16" bodyfile="taskflow/core/graph.hpp" bodystart="807" bodyend="-1"/>
+        <location file="taskflow/core/graph.hpp" line="803" column="16" bodyfile="taskflow/core/graph.hpp" bodystart="803" bodyend="-1"/>
       </memberdef>
       <memberdef kind="variable" id="namespacetf_1a3d823d8776745f3348dc87bba2fcc91b" prot="private" static="no" constexpr="yes" mutable="no">
         <type>constexpr <ref refid="cpp/container/array" kindref="compound" external="/home/thuang295/Code/taskflow/doxygen/cppreference-doxygen-web.tag.xml">std::array</ref>&lt; <ref refid="namespacetf_1a1355048578785a80414707ff308b395a" kindref="member">TaskType</ref>, 7 &gt;</type>
@@ -761,7 +712,7 @@ Example usage: <programlisting><codeline><highlight class="normal">struct<sp/>A<
 <para>computes the floor of the base-2 logarithm of a number using count-leading-zeros (CTL). </para>
         </briefdescription>
         <detaileddescription>
-<para>This function efficiently calculates <computeroutput>log2(n)</computeroutput> for both 32-bit and 64-bit integers.</para>
+<para>This function efficiently calculates the floor of <computeroutput>log2(n)</computeroutput> for both 32-bit and 64-bit integers.</para>
 <para><parameterlist kind="templateparam"><parameteritem>
 <parameternamelist>
 <parametername>T</parametername>
@@ -787,6 +738,27 @@ Example usage: <programlisting><codeline><highlight class="normal">struct<sp/>A<
         <inbodydescription>
         </inbodydescription>
         <location file="taskflow/utility/math.hpp" line="74" column="18" bodyfile="taskflow/utility/math.hpp" bodystart="74" bodyend="100"/>
+      </memberdef>
+      <memberdef kind="function" id="namespacetf_1a908e0f3faf873e897b3e1bafbd4bb876" prot="public" static="no" constexpr="yes" const="no" explicit="no" inline="no" virt="non-virtual">
+        <templateparamlist>
+          <param>
+            <type>size_t</type>
+            <declname>N</declname>
+            <defname>N</defname>
+          </param>
+        </templateparamlist>
+        <type>constexpr size_t</type>
+        <definition>constexpr size_t tf::static_floor_log2</definition>
+        <argsstring>()</argsstring>
+        <name>static_floor_log2</name>
+        <briefdescription>
+<para>returns the floor of <computeroutput>log2(N)</computeroutput> at compile time </para>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="taskflow/utility/math.hpp" line="106" column="18" bodyfile="taskflow/utility/math.hpp" bodystart="106" bodyend="113"/>
       </memberdef>
       <memberdef kind="function" id="namespacetf_1a0b2dc0c0c931b9b627fc0a148085fa5e" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
         <templateparamlist>
@@ -878,7 +850,7 @@ Example usage: <programlisting><codeline><highlight class="normal">struct<sp/>A<
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/utility/math.hpp" line="118" column="9" bodyfile="taskflow/utility/math.hpp" bodystart="118" bodyend="121"/>
+        <location file="taskflow/utility/math.hpp" line="131" column="9" bodyfile="taskflow/utility/math.hpp" bodystart="131" bodyend="134"/>
       </memberdef>
       <memberdef kind="function" id="namespacetf_1a5f9a989c8de663d3ee010cbc6de13c91" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
         <templateparamlist>
@@ -960,7 +932,7 @@ Example usage: <programlisting><codeline><highlight class="normal">struct<sp/>A<
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/utility/math.hpp" line="142" column="9" bodyfile="taskflow/utility/math.hpp" bodystart="142" bodyend="151"/>
+        <location file="taskflow/utility/math.hpp" line="155" column="9" bodyfile="taskflow/utility/math.hpp" bodystart="155" bodyend="164"/>
       </memberdef>
       <memberdef kind="function" id="namespacetf_1a8d3fa9252b0da87bff1df912d0a591fe" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
         <templateparamlist>
@@ -1038,7 +1010,7 @@ Example usage: <programlisting><codeline><highlight class="normal">struct<sp/>A<
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/utility/math.hpp" line="167" column="6" bodyfile="taskflow/utility/math.hpp" bodystart="167" bodyend="169"/>
+        <location file="taskflow/utility/math.hpp" line="180" column="6" bodyfile="taskflow/utility/math.hpp" bodystart="180" bodyend="182"/>
       </memberdef>
       <memberdef kind="function" id="namespacetf_1a86489af717270b8c9b657b347215ef0f" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
         <templateparamlist>
@@ -1128,7 +1100,7 @@ Example usage: <programlisting><codeline><highlight class="normal">struct<sp/>A<
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/utility/math.hpp" line="187" column="6" bodyfile="taskflow/utility/math.hpp" bodystart="187" bodyend="191"/>
+        <location file="taskflow/utility/math.hpp" line="200" column="6" bodyfile="taskflow/utility/math.hpp" bodystart="200" bodyend="204"/>
       </memberdef>
       <memberdef kind="function" id="namespacetf_1a00b75b92482d883f06282d5181e6f6f9" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
         <templateparamlist>
@@ -1168,7 +1140,7 @@ Example usage: <programlisting><codeline><highlight class="normal">struct<sp/>A<
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/utility/math.hpp" line="208" column="3" bodyfile="taskflow/utility/math.hpp" bodystart="208" bodyend="211"/>
+        <location file="taskflow/utility/math.hpp" line="221" column="3" bodyfile="taskflow/utility/math.hpp" bodystart="221" bodyend="224"/>
       </memberdef>
       <memberdef kind="function" id="namespacetf_1a5002af34dc323ff28e87ae83203b2c36" prot="public" static="no" const="no" explicit="no" inline="yes" noexcept="yes" virt="non-virtual">
         <templateparamlist>
@@ -1225,7 +1197,7 @@ Example usage: <programlisting><codeline><highlight class="normal">struct<sp/>A<
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/utility/math.hpp" line="229" column="13" bodyfile="taskflow/utility/math.hpp" bodystart="229" bodyend="235"/>
+        <location file="taskflow/utility/math.hpp" line="242" column="13" bodyfile="taskflow/utility/math.hpp" bodystart="242" bodyend="248"/>
       </memberdef>
       <memberdef kind="function" id="namespacetf_1a512ffa0d24a237b098f5de656b8bdcb0" prot="public" static="no" const="no" explicit="no" inline="yes" noexcept="yes" virt="non-virtual">
         <templateparamlist>
@@ -1282,7 +1254,7 @@ Example usage: <programlisting><codeline><highlight class="normal">struct<sp/>A<
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/utility/math.hpp" line="253" column="13" bodyfile="taskflow/utility/math.hpp" bodystart="253" bodyend="259"/>
+        <location file="taskflow/utility/math.hpp" line="266" column="13" bodyfile="taskflow/utility/math.hpp" bodystart="266" bodyend="272"/>
       </memberdef>
       <memberdef kind="function" id="namespacetf_1a3f8e89aebc29d42259157723c874954d" prot="public" static="no" const="no" explicit="no" inline="yes" noexcept="yes" virt="non-virtual">
         <templateparamlist>
@@ -1314,7 +1286,7 @@ Example usage: <programlisting><codeline><highlight class="normal">struct<sp/>A<
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/utility/math.hpp" line="273" column="10" bodyfile="taskflow/utility/math.hpp" bodystart="273" bodyend="275"/>
+        <location file="taskflow/utility/math.hpp" line="286" column="10" bodyfile="taskflow/utility/math.hpp" bodystart="286" bodyend="288"/>
       </memberdef>
       <memberdef kind="function" id="namespacetf_1a0b8e46604b2d40f0a7f2cc4796003d49" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
         <templateparamlist>
@@ -1365,7 +1337,7 @@ Example usage: <programlisting><codeline><highlight class="normal">struct<sp/>A<
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/utility/math.hpp" line="291" column="6" bodyfile="taskflow/utility/math.hpp" bodystart="291" bodyend="315"/>
+        <location file="taskflow/utility/math.hpp" line="304" column="6" bodyfile="taskflow/utility/math.hpp" bodystart="304" bodyend="328"/>
       </memberdef>
       <memberdef kind="function" id="namespacetf_1a15c9131faea47635a65e6caf21b6f868" prot="public" static="no" constexpr="yes" const="no" explicit="no" inline="no" virt="non-virtual">
         <type>constexpr size_t</type>
@@ -1396,7 +1368,7 @@ Example usage: <programlisting><codeline><highlight class="normal">struct<sp/>A<
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/utility/math.hpp" line="330" column="18" bodyfile="taskflow/utility/math.hpp" bodystart="330" bodyend="340"/>
+        <location file="taskflow/utility/math.hpp" line="343" column="18" bodyfile="taskflow/utility/math.hpp" bodystart="343" bodyend="353"/>
       </memberdef>
       <memberdef kind="function" id="namespacetf_1af96bfc2b11d1743ca2d344e08a484d5e" prot="public" static="no" constexpr="yes" const="no" explicit="no" inline="no" virt="non-virtual">
         <templateparamlist>
@@ -1430,7 +1402,7 @@ Example usage: <programlisting><codeline><highlight class="normal">struct<sp/>A<
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/utility/math.hpp" line="352" column="22" bodyfile="taskflow/utility/math.hpp" bodystart="352" bodyend="359"/>
+        <location file="taskflow/utility/math.hpp" line="365" column="22" bodyfile="taskflow/utility/math.hpp" bodystart="365" bodyend="372"/>
       </memberdef>
       <memberdef kind="function" id="namespacetf_1abbef08f01c467fd4f746c3247af892bc" prot="public" static="no" const="no" explicit="no" inline="yes" virt="non-virtual">
         <type><ref refid="cpp/string/basic_string" kindref="compound" external="/home/thuang295/Code/taskflow/doxygen/cppreference-doxygen-web.tag.xml">std::string</ref></type>
@@ -1807,7 +1779,7 @@ The distance of a range represents the number of required iterations to traverse
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/core/graph.hpp" line="364" column="22" bodyfile="taskflow/core/graph.hpp" bodystart="364" bodyend="370"/>
+        <location file="taskflow/core/graph.hpp" line="360" column="22" bodyfile="taskflow/core/graph.hpp" bodystart="360" bodyend="366"/>
       </memberdef>
       <memberdef kind="function" id="namespacetf_1a445fe5f14e30fe86b18bf7c35df34ad5" prot="private" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
         <type>TF_FORCE_INLINE void</type>
@@ -1824,7 +1796,7 @@ The distance of a range represents the number of required iterations to traverse
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/core/graph.hpp" line="375" column="22" bodyfile="taskflow/core/graph.hpp" bodystart="375" bodyend="381"/>
+        <location file="taskflow/core/graph.hpp" line="371" column="22" bodyfile="taskflow/core/graph.hpp" bodystart="371" bodyend="377"/>
       </memberdef>
       <memberdef kind="function" id="namespacetf_1a97960776f3c78e18e68c79c336ba4f2d" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
         <templateparamlist>
@@ -2784,24 +2756,6 @@ The method calls <computeroutput>cudaMemsetAsync</computeroutput> with the given
         </inbodydescription>
         <location file="taskflow/cuda/cuda_memory.hpp" line="153" column="13" bodyfile="taskflow/cuda/cuda_memory.hpp" bodystart="153" bodyend="160"/>
       </memberdef>
-      <memberdef kind="function" id="namespacetf_1af21fe1eaf680dbddc0503ef5d1a9a664" prot="public" static="no" constexpr="yes" const="no" explicit="no" inline="no" virt="non-virtual">
-        <type>constexpr const char *</type>
-        <definition>constexpr const char* tf::to_string</definition>
-        <argsstring>(cudaTaskType type)</argsstring>
-        <name>to_string</name>
-        <param>
-          <type><ref refid="namespacetf_1afebc56ae6d5765010d0dd13a5f04132e" kindref="member">cudaTaskType</ref></type>
-          <declname>type</declname>
-        </param>
-        <briefdescription>
-<para>convert a cuda_task type to a human-readable string </para>
-        </briefdescription>
-        <detaileddescription>
-        </detaileddescription>
-        <inbodydescription>
-        </inbodydescription>
-        <location file="taskflow/cuda/cuda_task.hpp" line="43" column="22" bodyfile="taskflow/cuda/cuda_task.hpp" bodystart="43" bodyend="54"/>
-      </memberdef>
       <memberdef kind="function" id="namespacetf_1a9cca69f61d792afb3ad501b703d795c1" prot="public" static="no" const="no" explicit="no" inline="yes" virt="non-virtual">
         <type><ref refid="cpp/io/basic_ostream" kindref="compound" external="/home/thuang295/Code/taskflow/doxygen/cppreference-doxygen-web.tag.xml">std::ostream</ref> &amp;</type>
         <definition>std::ostream&amp; tf::operator&lt;&lt;</definition>
@@ -2822,7 +2776,7 @@ The method calls <computeroutput>cudaMemsetAsync</computeroutput> with the given
         </detaileddescription>
         <inbodydescription>
         </inbodydescription>
-        <location file="taskflow/cuda/cuda_task.hpp" line="266" column="8" bodyfile="taskflow/cuda/cuda_task.hpp" bodystart="266" bodyend="269"/>
+        <location file="taskflow/cuda/cuda_task.hpp" line="184" column="8" bodyfile="taskflow/cuda/cuda_task.hpp" bodystart="184" bodyend="187"/>
       </memberdef>
       <memberdef kind="function" id="namespacetf_1a2ff1cf81426c856fc6db1f6ead47878f" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
         <templateparamlist>
