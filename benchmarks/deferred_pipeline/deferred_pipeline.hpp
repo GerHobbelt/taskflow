@@ -23,7 +23,8 @@ static std::vector<char> video_2 = {'I','B','B','B','P','B','B','B','P','B','B',
 // time for I frame processing in PARSEC is 0.011941 sec
 // ~ 12 ms
 inline void work_I() {
-  size_t N = 4;
+  // fix error C2131: expression did not evaluate to a constant
+  constexpr const size_t N = 4;
   size_t mat1[N][N];
   size_t mat2[N][N];
   size_t res[N][N];
@@ -51,7 +52,7 @@ inline void work_I() {
 // time for P frame processing in PARSEC is 0.0094 sec
 // ~ 9 ms
 inline void work_P() {
-  size_t N = 4;
+  constexpr const size_t N = 4;
   size_t mat1[N][N];
   size_t mat2[N][N];
   size_t res[N][N];
@@ -79,7 +80,7 @@ inline void work_P() {
 // time for B frame processing in PARSEC is not available
 // use 11 ms
 inline void work_B() {
-  size_t N = 4;
+  constexpr const size_t N = 4;
   size_t mat1[N][N];
   size_t mat2[N][N];
   size_t res[N][N];
