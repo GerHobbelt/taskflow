@@ -21,7 +21,7 @@ namespace tf {
 
 @brief class to create an executor 
 
-An executor manages a set of worker threads to run one or multiple taskflows
+An tf::Executor manages a set of worker threads to run tasks 
 using an efficient work-stealing scheduling algorithm.
 
 @code{.cpp}
@@ -38,7 +38,7 @@ tf::Task C = taskflow.emplace([] () { std::cout << "This is TaskC\n"; });
 A.precede(B, C);
 
 tf::Future<void> fu = executor.run(taskflow);
-fu.wait();                // block until the execution completes
+fu.wait();  // block until the execution completes
 
 executor.run(taskflow, [](){ std::cout << "end of 1 run"; }).wait();
 executor.run_n(taskflow, 4);
@@ -47,8 +47,18 @@ executor.run_n(taskflow, 4, [](){ std::cout << "end of 4 runs"; }).wait();
 executor.run_until(taskflow, [cnt=0] () mutable { return ++cnt == 10; });
 @endcode
 
-All the @c run methods are @em thread-safe. You can submit multiple
-taskflows at the same time to an executor from different threads.
+All executor methods are @em thread-safe. 
+For example, you can submit multiple taskflows to an executor concurrently 
+from different threads, while other threads simultaneously create asynchronous tasks.
+
+@code{.cpp}
+std::thread t1([&](){ executor.run(taskflow); };
+std::thread t2([&](){ executor.async([](){ std::cout << "async task from t2\n"; }); });
+executor.async([&](){ std::cout << "async task from the main thread\n"; });
+@endcode
+
+@note
+To know more about tf::Executor, please refer to @ref ExecuteTaskflow.
 */
 class Executor {
 
@@ -73,6 +83,9 @@ class Executor {
 
   Users can alter the worker behavior, such as changing thread affinity,
   via deriving an instance from tf::WorkerInterface.
+
+  @attention
+  An exception will be thrown if executor construction fails.
   */
   explicit Executor(
     size_t N = std::thread::hardware_concurrency(),
@@ -1073,6 +1086,7 @@ class Executor {
   std::shared_ptr<WorkerInterface> _worker_interface;
   std::unordered_set<std::shared_ptr<ObserverInterface>> _observers;
 
+  void _shutdown();
   void _observer_prologue(Worker&, Node*);
   void _observer_epilogue(Worker&, Node*);
   void _spawn(size_t);
@@ -1091,7 +1105,7 @@ class Executor {
   void _invoke_static_task(Worker&, Node*);
   void _invoke_condition_task(Worker&, Node*, SmallVector<int>&);
   void _invoke_multi_condition_task(Worker&, Node*, SmallVector<int>&);
-  void _process_async_dependent(Node*, tf::AsyncTask&, size_t&);
+  void _process_dependent_async(Node*, tf::AsyncTask&, size_t&);
   void _process_exception(Worker&, Node*);
   void _schedule_async_task(Node*);
   void _update_cache(Worker&, Node*&, Node*);
@@ -1144,8 +1158,20 @@ inline Executor::Executor(size_t N, std::shared_ptr<WorkerInterface> wix) :
   if(N == 0) {
     TF_THROW("executor must define at least one worker");
   }
-
-  _spawn(N);
+  
+  // If spawning N threads fails, shut down any created threads before 
+  // rethrowing the exception.
+#ifndef TF_DISABLE_EXCEPTION_HANDLING
+  try {
+#endif
+    _spawn(N);
+#ifndef TF_DISABLE_EXCEPTION_HANDLING
+  }
+  catch(...) {
+    _shutdown();
+    std::rethrow_exception(std::current_exception());
+  }
+#endif
 
   // initialize the default observer if requested
   if(has_env(TF_ENABLE_PROFILER)) {
@@ -1155,6 +1181,11 @@ inline Executor::Executor(size_t N, std::shared_ptr<WorkerInterface> wix) :
 
 // Destructor
 inline Executor::~Executor() {
+  _shutdown();
+}
+
+// Function: _shutdown
+inline void Executor::_shutdown() {
 
   // wait for all topologies to complete
   wait_for_all();
@@ -1167,11 +1198,15 @@ inline Executor::~Executor() {
     _workers[i]._done.store(true, std::memory_order_relaxed);
   #endif
   }
-
+  
   _notifier.notify_all();
-
+  
+  // Only join the thread if it is joinable, as std::thread construction 
+  // may fail and throw an exception.
   for(auto& w : _workers) {
-    w._thread.join();
+    if(w._thread.joinable()) {
+      w._thread.join();
+    }
   }
 }
 
@@ -1220,7 +1255,6 @@ inline int Executor::this_worker_id() const {
 inline void Executor::_spawn(size_t N) {
 
   for(size_t id=0; id<N; ++id) {
-
     _workers[id]._id = id;
     _workers[id]._vtm = id;
     _workers[id]._executor = this;
@@ -1245,7 +1279,9 @@ inline void Executor::_spawn(size_t N) {
       // must use 1 as condition instead of !done because
       // the previous worker may stop while the following workers
       // are still preparing for entering the scheduling loop
+#ifndef TF_DISABLE_EXCEPTION_HANDLING
       try {
+#endif
 
         // worker loop
         while(1) {
@@ -1258,10 +1294,13 @@ inline void Executor::_spawn(size_t N) {
             break;
           }
         }
+
+#ifndef TF_DISABLE_EXCEPTION_HANDLING
       } 
       catch(...) {
         ptr = std::current_exception();
       }
+#endif
       
       // call the user-specified epilogue function
       if(_worker_interface) {
@@ -1283,7 +1322,9 @@ void Executor::_corun_until(Worker& w, P&& stop_predicate) {
   exploit:
 
   while(!stop_predicate()) {
-
+    
+    // here we don't do while-loop to drain out the local queue as it can
+    // potentially enter a very deep recursive corun, cuasing stack overflow
     if(auto t = w._wsq.pop(); t) {
       _invoke(w, t);
     }
@@ -1292,8 +1333,6 @@ void Executor::_corun_until(Worker& w, P&& stop_predicate) {
       size_t vtm = w._vtm;
 
       explore:
-      
-      //auto vtm = udist(w._rdgen);
 
       t = (vtm < _workers.size()) ? _workers[vtm]._wsq.steal() : 
                                     _buffers.steal(vtm - _workers.size());
@@ -1331,9 +1370,6 @@ inline bool Executor::_explore_task(Worker& w, Node*& t) {
   // Make the worker steal immediately from the assigned victim.
   while(true) {
     
-    // Randomely generate a next victim.
-    //vtm = udist(w._rdgen); //w._rdvtm();
-
     // If the worker's victim thread is within the worker pool, steal from the worker's queue.
     // Otherwise, steal from the buffer, adjusting the victim index based on the worker pool size.
     t = (vtm < _workers.size())
@@ -1362,6 +1398,7 @@ inline bool Executor::_explore_task(Worker& w, Node*& t) {
       return false;
     } 
 
+    // Randomely generate a next victim.
     vtm = udist(w._rdgen); //w._rdvtm();
   } 
   return true;

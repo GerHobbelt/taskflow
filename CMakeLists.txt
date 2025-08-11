@@ -4,13 +4,24 @@
 # To enable thread sanitizer: 
 # -DCMAKE_CXX_FLAGS="-fsanitize=thread -g"
 #
-# To enable address and leak sanitizers
+# To enable address and leak sanitizers:
 # -DCMAKE_CXX_FLAGS="-fsanitize=address  -fsanitize=leak -g"
 #
-# To enable different c++ standards
+# To enable different c++ standards:
 # -DCMAKE_CXX_STANDARD=17
 # -DCMAKE_CXX_STANDARD=20
 # -DCMAKE_CXX_STANDARD=23
+#
+# To turn on/off taskflow macros:
+# -DTF_DISABLE_EXCEPTION_HANDLING
+# -DTF_ENABLE_ATOMIC_NOTIFIER         // default choice under C++20
+# -DTF_ENABLE_NONBLOCKING_NOTIFIER    // default choice under C++17
+#
+# To build different targets:
+# -DTF_BUILD_BENCHMARKS=OFF/ON        // default OFF
+# -DTF_BUILD_EXAMPLES=OFF/ON          // default ON
+# -DTF_BUILD_PROFILER=OFF/ON          // default OFF
+# -DTF_BUILD_TESTS=OFF/ON             // default ON
 # -------------------------------------------------------------------
 
 
@@ -19,7 +30,7 @@ cmake_minimum_required (VERSION 3.18)
 MESSAGE(STATUS "CMAKE_ROOT: " ${CMAKE_ROOT})
 
 # Project name
-project(Taskflow VERSION 3.10.0 LANGUAGES CXX)
+project(Taskflow VERSION 3.11.0 LANGUAGES CXX)
 
 # build options
 option(TF_BUILD_BENCHMARKS "Enables builds of benchmarks" OFF)
@@ -70,9 +81,10 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
 ## microsoft visual c++
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
   add_definitions(/bigobj)
+  add_compile_options("/Zc:__cplusplus")
   if(NOT MSVC_VERSION GREATER_EQUAL 1914)
     message(STATUS "CMAKE_CXX_COMPILER_VERSION: ${CMAKE_CXX_COMPILER_VERSION}")
-    message(FATAL_ERROR "\nTaskflow requires MSVC++ at least v14.14") 
+    message(FATAL_ERROR "\nTaskflow requires MSVC++ at least v19.14") 
   endif()
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
   if(CMAKE_CXX_COMPILER_VERSION VERSION_LESS "19.0.1")
@@ -82,10 +94,10 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
 else()
   message(FATAL_ERROR "\n\
 Taskflow currently supports the following compilers:\n\
-  - g++ v7.0 or above\n\
+  - g++ v8.4 or above\n\
   - clang++ v6.0 or above\n\
   - MSVC++ v19.14 or above\n\
-  - AppleClang v8 or above\n\
+  - AppleClang v12.0 or above\n\
   - Intel v19.0.1 or above\n\
 ")
 endif()

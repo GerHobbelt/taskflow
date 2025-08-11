@@ -123,26 +123,48 @@
 namespace tf {
 
 /**
- * @brief struct to ensure cacheline-aligned storage for an object.
- *
- * This utility struct aligns the stored object `data` to twice the size of a cacheline.
- * The alignment improves performance by optimizing data access in cache-sensitive scenarios.
- *
- * @tparam T The type of the stored object.
- */
+ @class CachelineAligned
+
+ @brief class to ensure cacheline-aligned storage for an object.
+ 
+ @tparam T The type of the stored object.
+ 
+ This utility class aligns the stored object `data` to twice the size of a cacheline.
+ The alignment improves performance by optimizing data access in cache-sensitive scenarios.
+ 
+ @code{.cpp}
+ // create two integers on two separate cachelines to avoid false sharing
+ tf::CachelineAligned<int> counter1;
+ tf::CachelineAligned<int> counter2;
+ 
+ // two threads access the two counters without false sharing
+ std::thread t1([&]{ counter1.get() = 1; });
+ std::thread t2([&]{ counter2.get() = 2; });
+ t1.join();
+ t2.join();
+ @endcode
+*/
 template <typename T>
-struct CachelineAligned {
+class CachelineAligned {
+  public:
   /**
    * @brief The stored object, aligned to twice the cacheline size.
    */
   alignas (2*TF_CACHELINE_SIZE) T data;
 
   /**
-   * @brief Provides access to the stored object.
+   * @brief accesses the underlying object
    * 
-   * @return A reference to the stored object.
+   * @return a reference to the underlying object.
    */
   T& get() { return data; }
+  
+  /**
+   * @brief accesses the underlying object as a constant reference
+   * 
+   * @return a constant reference to the underlying object.
+   */
+  const T& get() const { return data; }
 };
 
 /**
