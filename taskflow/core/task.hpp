@@ -149,6 +149,13 @@ struct is_runtime_task<C, std::enable_if_t<std::is_invocable_v<C, tf::Runtime&>>
   : std::is_same<std::invoke_result_t<C, tf::Runtime&>, void> {};
 
 /**
+@private
+*/
+template <typename C>
+struct is_runtime_task<C, std::enable_if_t<std::is_invocable_v<C, tf::NonpreemptiveRuntime&>>>
+  : std::is_same<std::invoke_result_t<C, tf::NonpreemptiveRuntime&>, void> {};
+
+/**
 @brief determines if a callable is a runtime task
 
 A runtime task is a callable object constructible from std::function<void(Runtime&)>.
@@ -244,6 +251,7 @@ class Task {
 
   friend class FlowBuilder;
   friend class Runtime;
+  friend class NonpreemptiveRuntime;
   friend class Taskflow;
   friend class TaskView;
   friend class Executor;
@@ -802,7 +810,7 @@ class Task {
     /**
     @brief dumps the task through an output stream
 
-    The method dumps the name and the type of this task through std::cout.
+    The method dumps the name and the type of this task through the given output stream.
 
     @code{.cpp}
     task.dump(std::cout);
@@ -838,6 +846,55 @@ class Task {
     @endcode
     */
     void* data() const;
+
+    /**
+    @brief retrieves the exception pointer of this task
+    
+    This method retrieves the exception pointer of this task 
+    that are silently caught by the executor, if any.
+    When multiple tasks throw exceptions concurrently, only one exception will be propagated, 
+    while the others are silently caught and stored within their respective tasks.
+    For example, in the code below, both tasks `B` and `C` throw exceptions. 
+    However, only one of them will be propagated to the try-catch block, 
+    while the other will be silently caught and stored within its respective task.
+  
+    @code{.cpp}
+    tf::Executor executor(2); 
+    tf::Taskflow taskflow;
+    std::atomic<size_t> arrivals(0);
+    
+    auto [B, C] = taskflow.emplace(
+      [&]() { 
+        // wait for two threads to arrive so we avoid premature cancellation
+        ++arrivals; while(arrivals != 2);
+        throw std::runtime_error("oops"); 
+      },
+      [&]() { 
+        // wait for two threads to arrive so we avoid premature cancellation
+        ++arrivals; while(arrivals != 2);
+        throw std::runtime_error("oops"); 
+      }
+    );
+    
+    try {
+      executor.run(taskflow).get();
+    }
+    catch (const std::runtime_error& e) {
+      std::cerr << e.what();
+    }
+    
+    // exactly one holds an exception as another was propagated to the try-catch block
+    assert((B.exception_ptr() != nullptr) != (C.exception_ptr() != nullptr));
+    @endcode
+    */
+    std::exception_ptr exception_ptr() const;
+    
+    /**
+    @brief queries if the task has an exception pointer
+
+    The method checks whether the task holds a pointer to a silently caught exception.
+    */
+    bool has_exception_ptr() const;
 
   private:
 
@@ -1014,19 +1071,30 @@ inline bool Task::has_work() const {
   return _node ? _node->_handle.index() != 0 : false;
 }
 
+// Function: exception
+inline std::exception_ptr Task::exception_ptr() const {
+  return _node ? _node->_exception_ptr : nullptr;
+}
+
+// Function: has_exception
+inline bool Task::has_exception_ptr() const {
+  return _node ? (_node->_exception_ptr != nullptr) : false;
+}
+
 // Function: task_type
 inline TaskType Task::type() const {
   switch(_node->_handle.index()) {
-    case Node::PLACEHOLDER:     return TaskType::PLACEHOLDER;
-    case Node::STATIC:          return TaskType::STATIC;
-    case Node::RUNTIME:         return TaskType::RUNTIME;
-    case Node::SUBFLOW:         return TaskType::SUBFLOW;
-    case Node::CONDITION:       return TaskType::CONDITION;
-    case Node::MULTI_CONDITION: return TaskType::CONDITION;
-    case Node::MODULE:          return TaskType::MODULE;
-    case Node::ASYNC:           return TaskType::ASYNC;
-    case Node::DEPENDENT_ASYNC: return TaskType::ASYNC;
-    default:                    return TaskType::UNDEFINED;
+    case Node::PLACEHOLDER:           return TaskType::PLACEHOLDER;
+    case Node::STATIC:                return TaskType::STATIC;
+    case Node::RUNTIME:               return TaskType::RUNTIME;
+    case Node::NONPREEMPTIVE_RUNTIME: return TaskType::RUNTIME;
+    case Node::SUBFLOW:               return TaskType::SUBFLOW;
+    case Node::CONDITION:             return TaskType::CONDITION;
+    case Node::MULTI_CONDITION:       return TaskType::CONDITION;
+    case Node::MODULE:                return TaskType::MODULE;
+    case Node::ASYNC:                 return TaskType::ASYNC;
+    case Node::DEPENDENT_ASYNC:       return TaskType::ASYNC;
+    default:                          return TaskType::UNDEFINED;
   }
 }
 
@@ -1229,16 +1297,17 @@ inline size_t TaskView::num_successors() const {
 // Function: type
 inline TaskType TaskView::type() const {
   switch(_node._handle.index()) {
-    case Node::PLACEHOLDER:     return TaskType::PLACEHOLDER;
-    case Node::STATIC:          return TaskType::STATIC;
-    case Node::RUNTIME:         return TaskType::RUNTIME;
-    case Node::SUBFLOW:         return TaskType::SUBFLOW;
-    case Node::CONDITION:       return TaskType::CONDITION;
-    case Node::MULTI_CONDITION: return TaskType::CONDITION;
-    case Node::MODULE:          return TaskType::MODULE;
-    case Node::ASYNC:           return TaskType::ASYNC;
-    case Node::DEPENDENT_ASYNC: return TaskType::ASYNC;
-    default:                    return TaskType::UNDEFINED;
+    case Node::PLACEHOLDER:           return TaskType::PLACEHOLDER;
+    case Node::STATIC:                return TaskType::STATIC;
+    case Node::RUNTIME:               return TaskType::RUNTIME;
+    case Node::NONPREEMPTIVE_RUNTIME: return TaskType::RUNTIME;
+    case Node::SUBFLOW:               return TaskType::SUBFLOW;
+    case Node::CONDITION:             return TaskType::CONDITION;
+    case Node::MULTI_CONDITION:       return TaskType::CONDITION;
+    case Node::MODULE:                return TaskType::MODULE;
+    case Node::ASYNC:                 return TaskType::ASYNC;
+    case Node::DEPENDENT_ASYNC:       return TaskType::ASYNC;
+    default:                          return TaskType::UNDEFINED;
   }
 }
 

@@ -2,6 +2,36 @@
 <doxygen xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:noNamespaceSchemaLocation="compound.xsd" version="1.9.1" xml:lang="en-US">
   <compounddef id="namespacestd" kind="namespace" language="C++">
     <compoundname>std</compoundname>
+      <sectiondef kind="var">
+      <memberdef kind="variable" id="os_8hpp_1ae2bb4333c8a8892536b30304bb8af15d" prot="public" static="no" constexpr="yes" mutable="no">
+        <type>constexpr <ref refid="cpp/types/size_t" kindref="compound" external="/home/thuang295/Code/taskflow/doxygen/cppreference-doxygen-web.tag.xml">std::size_t</ref></type>
+        <definition>constexpr std::size_t std::hardware_constructive_interference_size</definition>
+        <argsstring></argsstring>
+        <name>hardware_constructive_interference_size</name>
+        <initializer>= TF_CACHELINE_SIZE</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="taskflow/utility/os.hpp" line="125" column="25" bodyfile="taskflow/utility/os.hpp" bodystart="125" bodyend="-1"/>
+      </memberdef>
+      <memberdef kind="variable" id="os_8hpp_1adaaa915a388c2816201447c2a7bfefdb" prot="public" static="no" constexpr="yes" mutable="no">
+        <type>constexpr <ref refid="cpp/types/size_t" kindref="compound" external="/home/thuang295/Code/taskflow/doxygen/cppreference-doxygen-web.tag.xml">std::size_t</ref></type>
+        <definition>constexpr std::size_t std::hardware_destructive_interference_size</definition>
+        <argsstring></argsstring>
+        <name>hardware_destructive_interference_size</name>
+        <initializer>= TF_CACHELINE_SIZE</initializer>
+        <briefdescription>
+        </briefdescription>
+        <detaileddescription>
+        </detaileddescription>
+        <inbodydescription>
+        </inbodydescription>
+        <location file="taskflow/utility/os.hpp" line="126" column="25" bodyfile="taskflow/utility/os.hpp" bodystart="126" bodyend="-1"/>
+      </memberdef>
+      </sectiondef>
       <sectiondef kind="func">
       <memberdef kind="function" id="cpp/atomic/atomic_fetch_sub_1" prot="public" static="no" const="no" explicit="no" inline="no" virt="non-virtual">
         <type>T</type>

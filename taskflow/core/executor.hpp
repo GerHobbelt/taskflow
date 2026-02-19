@@ -47,7 +47,7 @@ executor.run_n(taskflow, 4, [](){ std::cout << "end of 4 runs"; }).wait();
 executor.run_until(taskflow, [cnt=0] () mutable { return ++cnt == 10; });
 @endcode
 
-All executor methods are @em thread-safe. 
+Most executor methods are @em thread-safe. 
 For example, you can submit multiple taskflows to an executor concurrently 
 from different threads, while other threads simultaneously create asynchronous tasks.
 
@@ -65,6 +65,7 @@ class Executor {
   friend class FlowBuilder;
   friend class Subflow;
   friend class Runtime;
+  friend class NonpreemptiveRuntime;
   friend class Algorithm;
 
   public:
@@ -89,7 +90,7 @@ class Executor {
   */
   explicit Executor(
     size_t N = std::thread::hardware_concurrency(),
-    std::shared_ptr<WorkerInterface> wix = nullptr
+    std::unique_ptr<WorkerInterface> wix = nullptr
   );
 
   /**
@@ -99,7 +100,7 @@ class Executor {
   taskflows to complete and then notifies all worker threads to stop
   and join these threads.
   */
-  ~Executor();
+  virtual ~Executor();
 
   /**
   @brief runs a taskflow once
@@ -118,10 +119,6 @@ class Executor {
   @endcode
 
   This member function is thread-safe.
-
-  @attention
-  The executor does not own the given taskflow. It is your responsibility to
-  ensure the taskflow remains alive during its execution.
   */
   tf::Future<void> run(Taskflow& taskflow);
 
@@ -167,9 +164,6 @@ class Executor {
 
   This member function is thread-safe.
 
-  @attention
-  The executor does not own the given taskflow. It is your responsibility to
-  ensure the taskflow remains alive during its execution.
   */
   template<typename C>
   tf::Future<void> run(Taskflow& taskflow, C&& callable);
@@ -219,10 +213,6 @@ class Executor {
   @endcode
 
   This member function is thread-safe.
-
-  @attention
-  The executor does not own the given taskflow. It is your responsibility to
-  ensure the taskflow remains alive during its execution.
   */
   tf::Future<void> run_n(Taskflow& taskflow, size_t N);
 
@@ -274,10 +264,6 @@ class Executor {
   @endcode
 
   This member function is thread-safe.
-
-  @attention
-  The executor does not own the given taskflow. It is your responsibility to
-  ensure the taskflow remains alive during its execution.
   */
   template<typename C>
   tf::Future<void> run_n(Taskflow& taskflow, size_t N, C&& callable);
@@ -332,10 +318,6 @@ class Executor {
   @endcode
 
   This member function is thread-safe.
-
-  @attention
-  The executor does not own the given taskflow. It is your responsibility to
-  ensure the taskflow remains alive during its execution.
   */
   template<typename P>
   tf::Future<void> run_until(Taskflow& taskflow, P&& pred);
@@ -393,10 +375,6 @@ class Executor {
   @endcode
 
   This member function is thread-safe.
-
-  @attention
-  The executor does not own the given taskflow. It is your responsibility to
-  ensure the taskflow remains alive during its execution.
   */
   template<typename P, typename C>
   tf::Future<void> run_until(Taskflow& taskflow, P&& pred, C&& callable);
@@ -439,13 +417,11 @@ class Executor {
   @tparam T target type which has `tf::Graph& T::graph()` defined
   @param target the target task graph object
 
-  The method runs a target graph which has `tf::Graph& T::graph()` defined 
-  and waits until the execution completes.
-  Unlike the typical flow of calling `tf::Executor::run` series 
-  plus waiting on the result, this method must be called by an internal
-  worker of this executor. The caller worker will participate in
-  the work-stealing loop of the scheduler, thereby avoiding potential
-  deadlock caused by blocked waiting.
+  The method coruns a target graph cooperatively with other workers in the same executor
+  and block until the execution completes.
+  Under cooperative execution, a worker is not preempted. Instead, it continues 
+  participating in the work-stealing loop, executing available tasks alongside 
+  other workers.  
   
   @code{.cpp}
   tf::Executor executor(2);
@@ -478,13 +454,20 @@ class Executor {
   void corun(T& target);
 
   /**
-  @brief keeps running the work-stealing loop until the predicate becomes true
+  @brief keeps running the work-stealing loop until the predicate returns `true`
   
   @tparam P predicate type
   @param predicate a boolean predicate to indicate when to stop the loop
 
   The method keeps the caller worker running in the work-stealing loop
   until the stop predicate becomes true.
+
+  The method keeps the calling worker running available tasks cooperatively 
+  with other workers in the same executor and block until the predicate return `true`.
+  Under cooperative execution, a worker is not preempted. Instead, it continues 
+  participating in the work-stealing loop, executing available tasks alongside 
+  other workers.  
+
 
   @code{.cpp}
   taskflow.emplace([&](){
@@ -564,6 +547,24 @@ class Executor {
   @endcode
   */
   size_t num_taskflows() const;
+
+  /**
+  @brief queries pointer to the calling worker if it belongs to this executor, otherwise returns `nullptr`
+
+  Returns a pointer to the per-worker storage associated with this executor. 
+  If the calling thread is not a worker of this executor, the function returns `nullptr`.
+
+  @code{.cpp}
+  auto w = executor.this_worker();
+  tf::Taskflow taskflow;
+  tf::Executor executor;
+  executor.async([&](){
+    assert(executor.this_worker() != nullptr);
+    assert(executor.this_worker()->executor() == &executor);
+  });
+  @endcode
+  */
+  Worker* this_worker();
   
   /**
   @brief queries the id of the caller thread within this executor
@@ -913,8 +914,8 @@ class Executor {
   fuC.get();  // C finishes, which in turns means both A and B finish
   @endcode
 
-  You can mixed the use of tf::AsyncTask handles 
-  returned by Executor::dependent_async and Executor::silent_dependent_async
+  You can mix the use of tf::AsyncTask handles 
+  returned by tf::Executor::dependent_async and tf::Executor::silent_dependent_async
   when specifying task dependencies.
 
   This member function is thread-safe.
@@ -959,8 +960,8 @@ class Executor {
   assert(fuC.get()==1);  // C finishes, which in turns means both A and B finish
   @endcode
 
-  You can mixed the use of tf::AsyncTask handles 
-  returned by Executor::dependent_async and Executor::silent_dependent_async
+  You can mix the use of tf::AsyncTask handles 
+  returned by tf::Executor::dependent_async and tf::Executor::silent_dependent_async
   when specifying task dependencies.
 
   This member function is thread-safe.
@@ -1004,8 +1005,8 @@ class Executor {
   assert(fuC.get()==1);  // C finishes, which in turns means both A and B finish
   @endcode
 
-  You can mixed the use of tf::AsyncTask handles 
-  returned by Executor::dependent_async and Executor::silent_dependent_async
+  You can mix the use of tf::AsyncTask handles 
+  returned by tf::Executor::dependent_async and tf::Executor::silent_dependent_async
   when specifying task dependencies.
 
   This member function is thread-safe.
@@ -1053,8 +1054,8 @@ class Executor {
   assert(fuC.get()==1);  // C finishes, which in turns means both A and B finish
   @endcode
 
-  You can mixed the use of tf::AsyncTask handles 
-  returned by Executor::dependent_async and Executor::silent_dependent_async
+  You can mix the use of tf::AsyncTask handles 
+  returned by tf::Executor::dependent_async and tf::Executor::silent_dependent_async
   when specifying task dependencies.
 
   This member function is thread-safe.
@@ -1083,8 +1084,9 @@ class Executor {
 
   Freelist<Node*> _buffers;
 
-  std::shared_ptr<WorkerInterface> _worker_interface;
+  std::unique_ptr<WorkerInterface> _worker_interface;
   std::unordered_set<std::shared_ptr<ObserverInterface>> _observers;
+  std::unordered_map<std::thread::id, Worker*> _t2w;
 
   void _shutdown();
   void _observer_prologue(Worker&, Node*);
@@ -1098,11 +1100,13 @@ class Executor {
   void _tear_down_topology(Worker&, Topology*);
   void _tear_down_async(Worker&, Node*, Node*&);
   void _tear_down_dependent_async(Worker&, Node*, Node*&);
+  void _tear_down_nonasync(Worker&, Node*, Node*&);
   void _tear_down_invoke(Worker&, Node*, Node*&);
   void _increment_topology();
   void _decrement_topology();
   void _invoke(Worker&, Node*);
   void _invoke_static_task(Worker&, Node*);
+  void _invoke_nonpreemptive_runtime_task(Worker&, Node*);
   void _invoke_condition_task(Worker&, Node*, SmallVector<int>&);
   void _invoke_multi_condition_task(Worker&, Node*, SmallVector<int>&);
   void _process_dependent_async(Node*, tf::AsyncTask&, size_t&);
@@ -1144,12 +1148,21 @@ class Executor {
   template <typename P, typename F>
   void _silent_async(P&&, F&&, Topology*, Node*);
 
+  template <typename P, typename F, typename I,
+    std::enable_if_t<is_task_params_v<P> && !std::is_same_v<std::decay_t<I>, AsyncTask>, void>* = nullptr
+  >
+  auto _dependent_async(P&&, F&&, I, I, Topology*, Node*);
+  
+  template <typename P, typename F, typename I, 
+    std::enable_if_t<is_task_params_v<P> && !std::is_same_v<std::decay_t<I>, AsyncTask>, void>* = nullptr
+  >
+  auto _silent_dependent_async(P&&, F&&, I, I, Topology*, Node*);
 };
 
 #ifndef DOXYGEN_GENERATING_OUTPUT
 
 // Constructor
-inline Executor::Executor(size_t N, std::shared_ptr<WorkerInterface> wix) :
+inline Executor::Executor(size_t N, std::unique_ptr<WorkerInterface> wix) :
   _workers  (N),
   _notifier (N),
   _buffers  (N),
@@ -1245,10 +1258,16 @@ inline size_t Executor::num_taskflows() const {
   return _taskflows.size();
 }
 
+// Function: this_worker
+inline Worker* Executor::this_worker() {
+  auto itr = _t2w.find(std::this_thread::get_id());
+  return itr == _t2w.end() ? nullptr : itr->second;
+}
+
 // Function: this_worker_id
 inline int Executor::this_worker_id() const {
-  auto w = pt::this_worker;
-  return (w && w->_executor == this) ? static_cast<int>(w->_id) : -1;
+  auto i = _t2w.find(std::this_thread::get_id());
+  return i == _t2w.end() ? -1 : static_cast<int>(i->second->_id);
 }
 
 // Procedure: _spawn
@@ -1261,8 +1280,6 @@ inline void Executor::_spawn(size_t N) {
     _workers[id]._waiter = &_notifier._waiters[id];
     _workers[id]._thread = std::thread([&, &w=_workers[id]] () {
 
-      pt::this_worker = &w;
-
       // initialize the random engine and seed for work-stealing loop
       w._rdgen.seed(static_cast<std::default_random_engine::result_type>(
         std::hash<std::thread::id>()(std::this_thread::get_id()))
@@ -1272,6 +1289,7 @@ inline void Executor::_spawn(size_t N) {
       if(_worker_interface) {
         _worker_interface->scheduler_prologue(w);
       }
+
 
       Node* t = nullptr;
       std::exception_ptr ptr = nullptr;
@@ -1308,7 +1326,9 @@ inline void Executor::_spawn(size_t N) {
       }
 
     });
-  } 
+
+    _t2w.emplace(_workers[id]._thread.get_id(), &_workers[id]);
+  }
 }
 
 // Function: _corun_until
@@ -1618,6 +1638,8 @@ inline void Executor::_invoke(Worker& worker, Node* node) {
   }
 
   // if the work has been cancelled, there is no need to continue
+  // Here, we do tear_down_invoke since async tasks may also get cancelled where
+  // we need to recycle the node.
   if(node->_is_cancelled()) {
     _tear_down_invoke(worker, node, cache);
     TF_INVOKE_CONTINUATION();
@@ -1650,6 +1672,12 @@ inline void Executor::_invoke(Worker& worker, Node* node) {
       if(_invoke_runtime_task(worker, node)) {
         return;
       }
+    }
+    break;
+    
+    // non-preemptive runtime task
+    case Node::NONPREEMPTIVE_RUNTIME:{
+      _invoke_nonpreemptive_runtime_task(worker, node);
     }
     break;
 
@@ -1719,18 +1747,14 @@ inline void Executor::_invoke(Worker& worker, Node* node) {
   // + We must do this before scheduling the successors to avoid race
   //   condition on _predecessors.
   // + We must use fetch_add instead of direct assigning
-  //   because the user-space call on "invoke" may explicitly schedule 
+  //   because the user-level call on "invoke" may explicitly schedule 
   //   this task again (e.g., pipeline) which can access the join_counter.
   node->_join_counter.fetch_add(
     node->num_predecessors() - (node->_nstate & ~NSTATE::MASK), std::memory_order_relaxed
   );
 
-  // acquire the parent flow counter
-  auto& join_counter = (node->_parent) ? node->_parent->_join_counter :
-                       node->_topology->_join_counter;
-
   // Invoke the task based on the corresponding type
-  switch(node->_handle.index()) {
+  switch(auto& rjc = node->_root_join_counter(); node->_handle.index()) {
 
     // condition and multi-condition tasks
     case Node::CONDITION:
@@ -1740,7 +1764,7 @@ inline void Executor::_invoke(Worker& worker, Node* node) {
           auto s = node->_edges[cond]; 
           // zeroing the join counter for invariant
           s->_join_counter.store(0, std::memory_order_relaxed);
-          join_counter.fetch_add(1, std::memory_order_relaxed);
+          rjc.fetch_add(1, std::memory_order_relaxed);
           _update_cache(worker, cache, s);
         }
       }
@@ -1751,22 +1775,22 @@ inline void Executor::_invoke(Worker& worker, Node* node) {
     default: {
       for(size_t i=0; i<node->_num_successors; ++i) {
         if(auto s = node->_edges[i]; s->_join_counter.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-          join_counter.fetch_add(1, std::memory_order_relaxed);
+          rjc.fetch_add(1, std::memory_order_relaxed);
           _update_cache(worker, cache, s);
         }
       }
     }
     break;
   }
-  
+
+
   // clean up the node after execution
-  _tear_down_invoke(worker, node, cache);
+  _tear_down_nonasync(worker, node, cache);
   TF_INVOKE_CONTINUATION();
 }
 
-// Procedure: _tear_down_invoke
-inline void Executor::_tear_down_invoke(Worker& worker, Node* node, Node*& cache) {
-  
+// Procedure: _tear_down_nonasync
+inline void Executor::_tear_down_nonasync(Worker& worker, Node* node, Node*& cache) {
   // we must check parent first before subtracting the join counter,
   // or it can introduce data race
   if(auto parent = node->_parent; parent == nullptr) {
@@ -1783,6 +1807,23 @@ inline void Executor::_tear_down_invoke(Worker& worker, Node* node, Node*& cache
         _update_cache(worker, cache, parent);
       }
     }
+  }
+}
+
+// Procedure: _tear_down_invoke
+inline void Executor::_tear_down_invoke(Worker& worker, Node* node, Node*& cache) {
+  switch(node->_handle.index()) {
+    case Node::ASYNC:
+      _tear_down_async(worker, node, cache);
+    break;
+
+    case Node::DEPENDENT_ASYNC:
+      _tear_down_dependent_async(worker, node, cache);
+    break;
+
+    default:
+      _tear_down_nonasync(worker, node, cache);
+    break;
   }
 }
 
@@ -2085,7 +2126,8 @@ tf::Future<void> Executor::run_until(Taskflow& f, P&& p, C&& c) {
   }
 
   // create a topology for this run
-  auto t = std::make_shared<Topology>(f, std::forward<P>(p), std::forward<C>(c));
+  //auto t = std::make_shared<Topology>(f, std::forward<P>(p), std::forward<C>(c));
+  std::shared_ptr<Topology> t = std::make_shared<DerivedTopology<P, C>>(f, std::forward<P>(p), std::forward<C>(c));
 
   // need to create future before the topology got torn down quickly
   tf::Future<void> future(t->_promise.get_future(), t);
@@ -2095,7 +2137,7 @@ tf::Future<void> Executor::run_until(Taskflow& f, P&& p, C&& c) {
     std::lock_guard<std::mutex> lock(f._mutex);
     f._topologies.push(t);
     if(f._topologies.size() == 1) {
-      _set_up_topology(pt::this_worker, t.get());
+      _set_up_topology(this_worker(), t.get());
     }
   }
 
@@ -2123,23 +2165,25 @@ void Executor::corun(T& target) {
 
   static_assert(has_graph_v<T>, "target must define a member function 'Graph& graph()'");
   
-  if(pt::this_worker == nullptr || pt::this_worker->_executor != this) {
+  Worker* w = this_worker();
+  if(w == nullptr || w->_executor != this) {
     TF_THROW("corun must be called by a worker of the executor");
   }
 
   Node anchor;
-  _corun_graph(*pt::this_worker, &anchor, target.graph().begin(), target.graph().end());
+  _corun_graph(*w, &anchor, target.graph().begin(), target.graph().end());
 }
 
 // Function: corun_until
 template <typename P>
 void Executor::corun_until(P&& predicate) {
   
-  if(pt::this_worker == nullptr || pt::this_worker->_executor != this) {
+  Worker* w = this_worker();
+  if(w == nullptr || w->_executor != this) {
     TF_THROW("corun_until must be called by a worker of the executor");
   }
 
-  _corun_until(*pt::this_worker, std::forward<P>(predicate));
+  _corun_until(*w, std::forward<P>(predicate));
 }
 
 // Procedure: _corun_graph
@@ -2246,7 +2290,7 @@ inline void Executor::_tear_down_topology(Worker& worker, Topology* tpg) {
   //assert(&tpg == &(f._topologies.front()));
 
   // case 1: we still need to run the topology again
-  if(!tpg->_exception_ptr && !tpg->cancelled() && !tpg->_pred()) {
+  if(!tpg->_exception_ptr && !tpg->cancelled() && !tpg->predicate()) {
     //assert(tpg->_join_counter == 0);
     std::lock_guard<std::mutex> lock(f._mutex);
     _set_up_topology(&worker, tpg);
@@ -2255,16 +2299,16 @@ inline void Executor::_tear_down_topology(Worker& worker, Topology* tpg) {
   else {
 
     // invoke the callback after each run
-    if(tpg->_call != nullptr) {
-      tpg->_call();
-    }
+    //if(tpg->_call != nullptr) {
+      tpg->callback();
+    //}
 
     // If there is another run (interleave between lock)
     if(std::unique_lock<std::mutex> lock(f._mutex); f._topologies.size()>1) {
       //assert(tpg->_join_counter == 0);
 
       // Set the promise
-      tpg->_promise.set_value();
+      tpg->_carry_out_promise();
       f._topologies.pop();
       tpg = f._topologies.front().get();
 

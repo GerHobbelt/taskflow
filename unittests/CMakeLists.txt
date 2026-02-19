@@ -23,14 +23,11 @@ list(APPEND TF_UNITTESTS
   test_find
   test_modules
   test_traversals
-  test_pipelines
-  test_scalable_pipelines
-  test_deferred_pipelines
-  test_deferred_scalable_pipelines
-  test_data_pipelines
   test_runtimes
   test_workers
-  #test_exceptions
+  test_pipelines
+  test_scalable_pipelines
+  test_data_pipelines
 )
 
 # we only do exception tests if sanitizer is not enabled
@@ -56,9 +53,9 @@ if(TF_BUILD_CUDA)
 endif()
 
 # include SYCL tests
-if(TF_BUILD_SYCL)
-  add_subdirectory(${TF_UTEST_DIR}/sycl)
-endif()
+#if(TF_BUILD_SYCL)
+#  add_subdirectory(${TF_UTEST_DIR}/sycl)
+#endif()
 
 
 

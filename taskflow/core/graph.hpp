@@ -32,7 +32,6 @@ namespace tf {
 // Class: Graph
 // ----------------------------------------------------------------------------
 
-
 /**
 @class Graph
 
@@ -40,9 +39,6 @@ namespace tf {
 
 A graph is the ultimate storage for a task dependency graph and is the main
 gateway to interact with an executor.
-A graph manages a set of nodes in a global object pool that animates and
-recycles node objects efficiently without going through repetitive and
-expensive memory allocations and deallocations.
 This class is mainly used for creating an opaque graph object in a custom
 class to interact with the executor through taskflow composition.
 
@@ -82,7 +78,6 @@ class Graph : public std::vector<std::unique_ptr<Node>> {
   @brief assigns a graph using move semantics
   */
   Graph& operator = (Graph&&) = default;
-  
 
   private:
 
@@ -158,11 +153,8 @@ class Node {
   friend class FlowBuilder;
   friend class Subflow;
   friend class Runtime;
+  friend class NonpreemptiveRuntime;
   friend class AnchorGuard;
-  friend class PreemptionGuard;
-
-  //template <typename T>
-  //friend class Freelist;
 
 #ifdef TF_ENABLE_TASK_POOL
   TF_ENABLE_POOLABLE_ON_THIS;
@@ -178,7 +170,7 @@ class Node {
 
     std::function<void()> work;
   };
-  
+
   // runtime work handle
   struct Runtime {
 
@@ -186,6 +178,14 @@ class Node {
     Runtime(C&&);
 
     std::function<void(tf::Runtime&)> work;
+  };
+  
+  struct NonpreemptiveRuntime {
+    
+    template <typename C>
+    NonpreemptiveRuntime(C&&);
+
+    std::function<void(tf::NonpreemptiveRuntime&)> work;
   };
 
   // subflow work handle
@@ -255,15 +255,16 @@ class Node {
   };
 
   using handle_t = std::variant<
-    Placeholder,      // placeholder
-    Static,           // static tasking
-    Runtime,          // runtime tasking
-    Subflow,          // subflow tasking
-    Condition,        // conditional tasking
-    MultiCondition,   // multi-conditional tasking
-    Module,           // composable tasking
-    Async,            // async tasking
-    DependentAsync    // dependent async tasking
+    Placeholder,          // placeholder
+    Static,               // static tasking
+    Runtime,              // runtime tasking
+    NonpreemptiveRuntime, // runtime (non-preemptive) tasking
+    Subflow,              // subflow tasking
+    Condition,            // conditional tasking
+    MultiCondition,       // multi-conditional tasking
+    Module,               // composable tasking
+    Async,                // async tasking
+    DependentAsync        // dependent async tasking
   >;
 
   struct Semaphores {
@@ -274,15 +275,16 @@ class Node {
   public:
 
   // variant index
-  constexpr static auto PLACEHOLDER     = get_index_v<Placeholder, handle_t>;
-  constexpr static auto STATIC          = get_index_v<Static, handle_t>;
-  constexpr static auto RUNTIME         = get_index_v<Runtime, handle_t>;
-  constexpr static auto SUBFLOW         = get_index_v<Subflow, handle_t>;
-  constexpr static auto CONDITION       = get_index_v<Condition, handle_t>;
-  constexpr static auto MULTI_CONDITION = get_index_v<MultiCondition, handle_t>;
-  constexpr static auto MODULE          = get_index_v<Module, handle_t>;
-  constexpr static auto ASYNC           = get_index_v<Async, handle_t>;
-  constexpr static auto DEPENDENT_ASYNC = get_index_v<DependentAsync, handle_t>;
+  constexpr static auto PLACEHOLDER           = get_index_v<Placeholder, handle_t>;
+  constexpr static auto STATIC                = get_index_v<Static, handle_t>;
+  constexpr static auto RUNTIME               = get_index_v<Runtime, handle_t>;
+  constexpr static auto NONPREEMPTIVE_RUNTIME = get_index_v<NonpreemptiveRuntime, handle_t>;
+  constexpr static auto SUBFLOW               = get_index_v<Subflow, handle_t>;
+  constexpr static auto CONDITION             = get_index_v<Condition, handle_t>;
+  constexpr static auto MULTI_CONDITION       = get_index_v<MultiCondition, handle_t>;
+  constexpr static auto MODULE                = get_index_v<Module, handle_t>;
+  constexpr static auto ASYNC                 = get_index_v<Async, handle_t>;
+  constexpr static auto DEPENDENT_ASYNC       = get_index_v<DependentAsync, handle_t>;
 
   Node() = default;
   
@@ -332,6 +334,8 @@ class Node {
   void _rethrow_exception();
   void _remove_successors(Node*);
   void _remove_predecessors(Node*);
+
+  std::atomic<size_t>& _root_join_counter();
 };
 
 // ----------------------------------------------------------------------------
@@ -384,6 +388,11 @@ Node::Static::Static(C&& c) : work {std::forward<C>(c)} {
 // Constructor
 template <typename C>
 Node::Runtime::Runtime(C&& c) : work {std::forward<C>(c)} {
+}
+
+// Constructor
+template <typename C>
+Node::NonpreemptiveRuntime::NonpreemptiveRuntime(C&& c) : work {std::forward<C>(c)} {
 }
 
 // ----------------------------------------------------------------------------
@@ -535,6 +544,12 @@ inline size_t Node::num_weak_dependencies() const {
     n += _edges[i]->_is_conditioner();
   }
   return n;
+}
+
+// Function: _root_join_counter
+// not supposed to be called by async task
+TF_FORCE_INLINE std::atomic<size_t>& Node::_root_join_counter() {
+  return (_parent) ? _parent->_join_counter : _topology->_join_counter; 
 }
 
 // Function: num_strong_dependencies

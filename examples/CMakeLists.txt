@@ -13,6 +13,7 @@ list(APPEND TF_EXAMPLES
   switch_case
   do_while_loop
   while_loop
+  for_loop
   if_else
   nested_if_else
   visualization 
@@ -23,12 +24,10 @@ list(APPEND TF_EXAMPLES
   exclusive_scan
   pipeline
   scalable_pipeline
-  scalable_pipeline_with_deferred_tokens
   text_pipeline
   taskflow_pipeline
   parallel_graph_pipeline
   parallel_data_pipeline
-  pipeline_with_deferred_tokens
   run 
   corun
   runtime

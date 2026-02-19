@@ -2,6 +2,29 @@
 
 #include <doctest.h>
 #include <taskflow/taskflow.hpp>
+#include <taskflow/algorithm/for_each.hpp>
+
+/*
+This exception test should only be enabled without thread sanitizer involved.
+Currently, thread sanitizer has limited support for code with exception.
+For instance,
+
+```
+ThreadSanitizer: data race (/lib/x86_64-linux-gnu/libstdc++.so.6+0xae02c) in std::__exception_ptr::exception_ptr::_M_release()
+```
+
+is a known, commonly seen false positive or benign warning that comes from 
+how libstdc++ implements std::exception_ptr reference counting.
+std::exception_ptr is a small handle internally containing a reference-counted pointer to a shared exception object.
+When you copy or destroy it, libstdc++ increments/decrements that shared refcount.
+
+In GCC’s libstdc++ implementation, the refcount is not always atomic.
+It relies on the assumption that exception_ptr objects are thread-confined unless explicitly synchronized.
+
+When exceptions are captured in one thread and propagated or destroyed in another, 
+TSan can see concurrent increments/decrements to that internal counter and report a race inside _M_release() or _M_addref().
+*/
+
 
 // --------------------------------------------------------
 // Testcase: static_task
@@ -237,9 +260,9 @@ void subflow_task(unsigned W) {
   // subflow work throws
   for(int i=0; i<100; i++) {
     taskflow.emplace([](tf::Subflow& sf){
-      throw std::runtime_error("x");
       sf.emplace([](){});
       sf.emplace([](){ throw std::runtime_error("z"); });
+      throw std::runtime_error("x");
     });
   }
   REQUIRE_THROWS_WITH_AS(executor.run(taskflow).get(), "x", std::runtime_error);
@@ -524,15 +547,17 @@ void nested_subflow(unsigned N) {
   
   // corun the nested subflow from an async task's runtime
   num_tasks = 0;
-  executor.async([&](tf::Runtime& rt){
-    REQUIRE_THROWS_WITH_AS(rt.corun(taskflow), "x", std::runtime_error);
+  executor.async([&](tf::Runtime&){
+    //REQUIRE_THROWS_WITH_AS(rt.corun(taskflow), "x", std::runtime_error);
+    REQUIRE_THROWS_WITH_AS(executor.corun(taskflow), "x", std::runtime_error);
   }).get(); 
   REQUIRE(num_tasks == 12);
   
   // corun the nested subflow from an silent-async task's runtime
   num_tasks = 0;
-  executor.silent_async([&](tf::Runtime& rt){
-    REQUIRE_THROWS_WITH_AS(rt.corun(taskflow), "x", std::runtime_error);
+  executor.silent_async([&](tf::Runtime&){
+    //REQUIRE_THROWS_WITH_AS(rt.corun(taskflow), "x", std::runtime_error);
+    REQUIRE_THROWS_WITH_AS(executor.corun(taskflow), "x", std::runtime_error);
   });
   executor.wait_for_all(); 
   REQUIRE(num_tasks == 12);
@@ -665,15 +690,17 @@ void nested_subflow_2(unsigned N) {
   
   // corun the nested subflow from an async task's runtime
   num_tasks = 0;
-  executor.async([&](tf::Runtime& rt){
-    REQUIRE_THROWS_WITH_AS(rt.corun(taskflow), "x", std::runtime_error);
+  executor.async([&](tf::Runtime&){
+    //REQUIRE_THROWS_WITH_AS(rt.corun(taskflow), "x", std::runtime_error);
+    REQUIRE_THROWS_WITH_AS(executor.corun(taskflow), "x", std::runtime_error);
   }).get(); 
   REQUIRE(num_tasks == 12);
   
   // corun the nested subflow from an silent-async task's runtime
   num_tasks = 0;
-  executor.silent_async([&](tf::Runtime& rt){
-    REQUIRE_THROWS_WITH_AS(rt.corun(taskflow), "x", std::runtime_error);
+  executor.silent_async([&](tf::Runtime&){
+    //REQUIRE_THROWS_WITH_AS(rt.corun(taskflow), "x", std::runtime_error);
+    REQUIRE_THROWS_WITH_AS(executor.corun(taskflow), "x", std::runtime_error);
   });
   executor.wait_for_all(); 
   REQUIRE(num_tasks == 12);
@@ -823,8 +850,8 @@ void runtime_corun_1(unsigned W) {
     throw std::runtime_error("x");
   });
 
-  auto task = taskflow2.emplace([&](tf::Runtime& rt){
-    REQUIRE_THROWS_WITH_AS(rt.corun(taskflow1), "x", std::runtime_error);
+  auto task = taskflow2.emplace([&](tf::Runtime&){
+    REQUIRE_THROWS_WITH_AS(executor.corun(taskflow1), "x", std::runtime_error);
   });
   executor.run(taskflow2).get();
   
@@ -841,8 +868,8 @@ void runtime_corun_1(unsigned W) {
   executor.run(taskflow2).get();
   
   // change it to parent propagation
-  task.work([&](tf::Runtime& rt){
-    rt.corun(taskflow1);
+  task.work([&](tf::Runtime&){
+    executor.corun(taskflow1);
   });
   REQUIRE_THROWS_WITH_AS(executor.run(taskflow2).get(), "x", std::runtime_error);
 }
@@ -889,16 +916,16 @@ void runtime_corun_2(unsigned W) {
   
   // uncaught corun exception propagates to the topology 
   tf::Taskflow taskflow2;
-  taskflow2.emplace([&](tf::Runtime& rt){
-    rt.corun(taskflow);
+  taskflow2.emplace([&](tf::Runtime&){
+    executor.corun(taskflow);
   });
   REQUIRE_THROWS_WITH_AS(executor.run(taskflow2).get(), "x", std::runtime_error);
   REQUIRE(counter == 2);
 
   // catch corun exception directly
   tf::Taskflow taskflow3;
-  taskflow3.emplace([&](tf::Runtime& rt){
-    REQUIRE_THROWS_WITH_AS(rt.corun(taskflow), "x", std::runtime_error);
+  taskflow3.emplace([&](tf::Runtime&){
+    REQUIRE_THROWS_WITH_AS(executor.corun(taskflow), "x", std::runtime_error);
   });
   executor.run(taskflow3).get();
   REQUIRE(counter == 4);
@@ -1249,4 +1276,257 @@ TEST_CASE("Exception.Semaphore.3threads" * doctest::timeout(300)) {
 TEST_CASE("Exception.Semaphore.4threads" * doctest::timeout(300)) {
   semaphore1(4);
 }
+
+// ------------------------------------------------------------------------------------------------
+// algorithm
+// ------------------------------------------------------------------------------------------------
+
+void algorithm(unsigned num_threads) {
+  tf::Executor executor(num_threads);
+  for (size_t j = 0; j < 10; ++j) {
+    tf::Taskflow taskflow;
+    taskflow.for_each_index(
+      0, 50, 1,
+      [&](int) { throw std::runtime_error("algorithm"); }
+    );
+    REQUIRE_THROWS_WITH_AS(executor.run(taskflow).get(), "algorithm", std::runtime_error);
+  }
+}
+
+TEST_CASE("Exception.Algorithm.1thread" * doctest::timeout(600)) {
+  algorithm(1);
+}
+
+TEST_CASE("Exception.Algorithm.2threads" * doctest::timeout(600)) {
+  algorithm(2);
+}
+
+TEST_CASE("Exception.Algorithm.3threads" * doctest::timeout(600)) {
+  algorithm(3);
+}
+
+TEST_CASE("Exception.Algorithm.4threads" * doctest::timeout(600)) {
+  algorithm(4);
+}
+
+// ------------------------------------------------------------------------------------------------
+// nested algorithm
+// ------------------------------------------------------------------------------------------------
+
+void nested_algorithm(unsigned num_threads) {
+  tf::Executor executor(num_threads);
+  for (size_t j = 0; j < 10; ++j) {
+    tf::Taskflow taskflow;
+    taskflow.for_each_index(
+      0, 10, 1,
+      [&](int) {
+        tf::Taskflow taskflow2;
+        taskflow2.for_each_index(
+          0, 10, 1,
+          [&](int) { throw std::runtime_error("oops"); }
+        );
+        executor.corun(taskflow2);
+      }
+    );
+    REQUIRE_THROWS_WITH_AS(executor.run(taskflow).get(), "oops", std::runtime_error);
+  }
+}
+
+TEST_CASE("Exception.NestedAlgorithm.1thread" * doctest::timeout(600)) {
+  nested_algorithm(1);
+}
+
+TEST_CASE("Exception.NestedAlgorithm.2threads" * doctest::timeout(600)) {
+  nested_algorithm(2);
+}
+
+TEST_CASE("Exception.NestedAlgorithm.3threads" * doctest::timeout(600)) {
+  nested_algorithm(3);
+}
+
+TEST_CASE("Exception.NestedAlgorithm.4threads" * doctest::timeout(600)) {
+  nested_algorithm(4);
+}
+
+// ----------------------------------------------------------------------------
+// probe
+// ----------------------------------------------------------------------------
+
+void probe1(size_t num_threads) {
+
+  tf::Executor executor(num_threads);
+  tf::Taskflow taskflow;
+  std::atomic<size_t> arrivals(0);
+  
+  auto [A, B, C, D] = taskflow.emplace(
+    []() {},
+    [&]() { 
+      // wait for two threads to arrive so we avoid premature cancellation
+      ++arrivals; while(arrivals != 2);
+      throw std::runtime_error("oops"); 
+    },
+    [&]() { 
+      // wait for two threads to arrive so we avoid premature cancellation
+      ++arrivals; while(arrivals != 2);
+      throw std::runtime_error("oops"); 
+    },
+    []() {}
+  );
+  A.precede(B, C);  // A runs before B and C
+  D.succeed(B, C);  // D runs after  B and C
+  
+  REQUIRE_THROWS_WITH_AS(executor.run(taskflow).get(), "oops", std::runtime_error);
+
+  REQUIRE((B.exception_ptr() != nullptr) != (C.exception_ptr() != nullptr));
+  REQUIRE(B.has_exception_ptr() != C.has_exception_ptr());
+}
+
+TEST_CASE("Exception.Probe1.2threads") {
+  probe1(2);
+}
+
+TEST_CASE("Exception.Probe1.3threads") {
+  probe1(3);
+}
+
+TEST_CASE("Exception.Probe1.4threads") {
+  probe1(4);
+}
+
+void probe2(size_t num_threads) {
+
+  const size_t N = num_threads;
+
+  tf::Executor executor(num_threads);
+  tf::Taskflow taskflow;
+
+  std::atomic<size_t> arrivals;
+
+  std::vector<tf::Task> tasks;
+
+  auto S = taskflow.emplace([&](){ arrivals = 0; });
+  auto T = taskflow.emplace([&](){ arrivals = 0; });  // due to exception this never runs
+
+  for(size_t n=0; n<N; ++n) {
+    auto task = taskflow.emplace([&](){
+      // ensure all threads arrive at this task
+      ++arrivals; while(arrivals != num_threads);
+      throw std::runtime_error("oops"); 
+    });
+    S.precede(task);
+    task.succeed(T);
+    tasks.push_back(task);
+  }
+  
+  REQUIRE_THROWS_WITH_AS(executor.run(taskflow).get(), "oops", std::runtime_error);
+  REQUIRE(arrivals == num_threads);
+
+  // there must be exactly num_threads-1 exceptions
+  size_t num_exceptions = 0;
+  size_t num_has_exceptions = 0;
+  for(auto task : tasks) {
+    num_exceptions += (task.exception_ptr() != nullptr);
+    num_has_exceptions += task.has_exception_ptr();
+  }
+  REQUIRE(num_exceptions == num_threads - 1);
+  REQUIRE(num_has_exceptions == num_threads - 1);
+}
+
+
+TEST_CASE("Exception.Probe2.2threads") {
+  probe2(2);
+}
+
+TEST_CASE("Exception.Probe2.3threads") {
+  probe2(3);
+}
+
+TEST_CASE("Exception.Probe2.4threads") {
+  probe2(4);
+}
+
+void probe3(size_t num_threads) {
+
+  const size_t N = num_threads;
+
+  tf::Executor executor(num_threads);
+  tf::Taskflow taskflow;
+
+  std::vector<tf::AsyncTask> tasks;
+
+  for(size_t n=0; n<N; ++n) {
+    auto task = executor.silent_dependent_async([&](){
+      throw std::runtime_error("oops"); 
+    });
+    tasks.push_back(task);
+  }
+
+  executor.wait_for_all();
+  
+  // there must be exactly num_threads exceptions
+  size_t num_exceptions = 0;
+  size_t num_has_exceptions = 0;
+  for(auto task : tasks) {
+    num_exceptions += (task.exception_ptr() != nullptr);
+    num_has_exceptions += task.has_exception_ptr();
+  }
+  REQUIRE(num_exceptions == num_threads);
+  REQUIRE(num_has_exceptions == num_threads);
+}
+
+
+TEST_CASE("Exception.Probe3.2threads") {
+  probe3(2);
+}
+
+TEST_CASE("Exception.Probe3.3threads") {
+  probe3(3);
+}
+
+TEST_CASE("Exception.Probe3.4threads") {
+  probe3(4);
+}
+
+void probe4(size_t num_threads) {
+
+  const size_t N = num_threads;
+
+  tf::Executor executor(num_threads);
+  tf::Taskflow taskflow;
+
+  std::vector<tf::AsyncTask> tasks;
+
+  for(size_t n=0; n<N; ++n) {
+    auto [task, fu] = executor.dependent_async([&](){
+      throw std::runtime_error("oops"); 
+    });
+    tasks.push_back(task);
+  }
+
+  executor.wait_for_all();
+  
+  // exceptions have been all propagated to the shared state
+  size_t num_exceptions = 0;
+  size_t num_has_exceptions = 0;
+  for(auto task : tasks) {
+    num_exceptions += (task.exception_ptr() != nullptr);
+    num_has_exceptions += task.has_exception_ptr();
+  }
+  REQUIRE(num_exceptions == 0);
+  REQUIRE(num_has_exceptions == 0);
+}
+
+
+TEST_CASE("Exception.Probe4.2threads") {
+  probe4(2);
+}
+
+TEST_CASE("Exception.Probe4.3threads") {
+  probe4(3);
+}
+
+TEST_CASE("Exception.Probe4.4threads") {
+  probe4(4);
+}
+
 

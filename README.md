@@ -67,9 +67,11 @@ in parallel computing. Check out [Who is Using Taskflow](https://taskflow.github
 + *"Best poster award for open-source parallel programming library." [Cpp Conference 2018][Cpp Conference 2018]*
 + *"Second Prize of Open-source Software Competition." [ACM Multimedia Conference 2019](https://tsung-wei-huang.github.io/img/mm19-ossc-award.jpg)*
 
-See a quick [presentation](https://taskflow.github.io/) and
+See a quick poster presentation below and
 visit the [documentation][documentation] to learn more about Taskflow.
 Technical details can be referred to our [IEEE TPDS paper][TPDS22].
+
+![](image/taskflow-poster.png)
 
 # Start Your First Taskflow Program
 
@@ -365,20 +367,16 @@ executor.run(taskflow).wait();
 
 # Supported Compilers
 
-To use Taskflow, you only need a compiler that supports C++17:
+To use Taskflow v4.0.0, you need a compiler that supports C++20:
 
-+ GNU C++ Compiler at least v8.4 with -std=c++17
-+ Clang C++ Compiler at least v6.0 with -std=c++17
-+ Microsoft Visual Studio at least v19.14 with /std:c++17
-+ AppleClang Xcode Version at least v12.0 with -std=c++17
-+ Nvidia CUDA Toolkit and Compiler (nvcc) at least v11.1 with -std=c++17
-+ Intel C++ Compiler at least v19.0.1 with -std=c++17
-+ Intel DPC++ Clang Compiler at least v13.0.0 with -std=c++17 and SYCL20
+  + GNU C++ Compiler at least v11.0 with -std=c++20
+  + Clang C++ Compiler at least v12.0 with -std=c++20
+  + Microsoft Visual Studio at least v19.29 (VS 2019) with /std:c++20
+  + Apple Clang (Xcode) at least v13.0 with -std=c++20
+  + NVIDIA CUDA Toolkit and Compiler (nvcc) at least v12.0 with host compiler supporting C++20
+  + Intel oneAPI DPC++/C++ Compiler at least v2022.0 with -std=c++20
 
 Taskflow works on Linux, Windows, and Mac OS X.
-
-Although Taskflow supports primarily C++17, you can enable C++20 compilation
-through `-std=c++20` (or `/std:c++20` for MSVC) to achieve better performance due to new C++20 features.
 
 # Learn More about Taskflow
 
@@ -391,9 +389,7 @@ to learn more about Taskflow. To get involved:
   + Find out our technical details at [references][references]
   + Watch our technical talks at YouTube
 
-| [CppCon20 Tech Talk][cppcon20 talk] | [MUC++ Tech Talk](https://www.youtube.com/watch?v=u8Mc_WgGwVY) |
-| :------------: | :-------------: |
-| ![](doxygen/images/cppcon20-thumbnail.jpg) | <img align="right" src="doxygen/images/muc++20-thumbnail.jpg" width="100%"> |
+[![Taskflow Tutorials](https://img.youtube.com/vi/u4vaY0cjzos/0.jpg)](https://www.youtube.com/watch?v=u4vaY0cjzos)
 
 We are committed to support trustworthy developments for 
 both academic and industrial research projects in parallel 
@@ -409,6 +405,8 @@ the following organizations for sponsoring the Taskflow project!
 |:-------------------------:|:-------------------------:|:-------------------------:|:-------------------------:|
 |<img src="doxygen/images/utah-ece-logo.png">|<img src="doxygen/images/nsf.png"> | <img src="doxygen/images/darpa.png"> | <img src="doxygen/images/NumFocus.png">|
 |<img src="doxygen/images/nvidia-logo.png"> | <img src="doxygen/images/uw-madison-ece-logo.png"> | | |
+
+[Taskflow](https://ads.fund/token/0xadf8c696719c904923504683d3f3f7d18774ac06) project is also supported by ADS.FUND.
 
 # License
 
