@@ -1316,13 +1316,11 @@ inline void Executor::_spawn(size_t N) {
 
   for(size_t id=0; id<N; ++id) {
     _workers[id]._id = id;
-    _workers[id]._vtm = id;
+    _workers[id]._sticky_victim = id;
     _workers[id]._thread = std::thread([&, &w=_workers[id]] () {
 
       // initialize the random engine and seed for work-stealing loop
-      w._rdgen.seed(static_cast<std::default_random_engine::result_type>(
-        std::hash<std::thread::id>()(std::this_thread::get_id()))
-      );
+      w._rdgen.seed(std::hash<std::thread::id>()(std::this_thread::get_id()));
 
       // before entering the work-stealing loop, call the scheduler prologue
       if(_worker_if) {
@@ -1390,62 +1388,15 @@ inline void Executor::_spawn(size_t N) {
   }
 }
 
-// Function: _corun_until
-template <typename P>
-void Executor::_corun_until(Worker& w, P&& stop_predicate) {
-
-  const size_t MAX_STEALS = ((num_queues() + 1) << 1);
-    
-  std::uniform_int_distribution<size_t> udist(0, num_queues()-1);
-  
-  exploit:
-
-  while(!stop_predicate()) {
-    
-    // here we don't do while-loop to drain out the local queue as it can
-    // potentially enter a very deep recursive corun, cuasing stack overflow
-    if(auto t = w._wsq.pop(); t) {
-      _invoke(w, t);
-    }
-    else {
-      size_t num_steals = 0;
-      size_t vtm = w._vtm;
-
-      explore:
-
-      t = (vtm < _workers.size()) 
-        ? _workers[vtm]._wsq.steal()
-        : _buffers[vtm-_workers.size()].queue.steal();
-
-      if(t) {
-        _invoke(w, t);
-        w._vtm = vtm;
-        goto exploit;
-      }
-      else if(!stop_predicate()) {
-        if(++num_steals > MAX_STEALS) {
-          std::this_thread::yield();
-        }
-        vtm = udist(w._rdgen);
-        goto explore;
-      }
-      else {
-        break;
-      }
-    }
-  }
-}
-
 // Function: _explore_task
 inline bool Executor::_explore_task(Worker& w, Node*& t) {
 
   //assert(!t);
-  
-  const size_t MAX_STEALS = ((num_queues() + 1) << 1);
-  std::uniform_int_distribution<size_t> udist(0, num_queues()-1);
+  const size_t MAX_VICTIM = num_queues();
+  const size_t MAX_STEALS = ((MAX_VICTIM + 1) << 1);
 
   size_t num_steals = 0;
-  size_t vtm = w._vtm;
+  size_t vtm = w._sticky_victim;
 
   // Make the worker steal immediately from the assigned victim.
   while(true) {
@@ -1457,7 +1408,7 @@ inline bool Executor::_explore_task(Worker& w, Node*& t) {
       : _buffers[vtm - _workers.size()].queue.steal();
 
     if(t) {
-      w._vtm = vtm;
+      w._sticky_victim = vtm;
       break;
     }
 
@@ -1475,7 +1426,7 @@ inline bool Executor::_explore_task(Worker& w, Node*& t) {
     } 
 
     // Randomely generate a next victim.
-    vtm = udist(w._rdgen); //w._rdvtm();
+    vtm = w._rdgen() % MAX_VICTIM;
   } 
   return true;
 }
@@ -1502,35 +1453,27 @@ inline bool Executor::_wait_for_task(Worker& w, Node*& t) {
     return true;
   }
 
-  // Entering the 2PC guard as all queues should be empty after many stealing attempts.
+  // Entering the 2PC guard as all queues are likely empty after many stealing attempts.
   _notifier.prepare_wait(w._id);
   
   // Condition #1: buffers should be empty
   for(size_t b=0; b<_buffers.size(); ++b) {
     if(!_buffers[b].queue.empty()) {
       _notifier.cancel_wait(w._id);
-      w._vtm = b + _workers.size();
+      w._sticky_victim = b + _workers.size();
       goto explore_task;
     }
   }
   
   // Condition #2: worker queues should be empty
   // Note: We need to use index-based looping to avoid data race with _spawan
-  // which initializes other worker data structure at the same time
-  for(size_t vtm=0; vtm<w._id; ++vtm) {
-    if(!_workers[vtm]._wsq.empty()) {
+  // which initializes other worker data structure at the same time.
+  // Also, due to the property of a work-stealing queue, we don't need to check 
+  // this worker's work-stealing queue.
+  for(size_t k=0; k<_workers.size()-1; ++k) {
+    if(size_t vtm = k + (k >= w._id); !_workers[vtm]._wsq.empty()) {
       _notifier.cancel_wait(w._id);
-      w._vtm = vtm;
-      goto explore_task;
-    }
-  }
-  
-  // due to the property of the work-stealing queue, we don't need to check
-  // the queue of this worker
-  for(size_t vtm=w._id+1; vtm<_workers.size(); vtm++) {
-    if(!_workers[vtm]._wsq.empty()) {
-      _notifier.cancel_wait(w._id);
-      w._vtm = vtm;
+      w._sticky_victim = vtm;
       goto explore_task;
     }
   }
@@ -1700,7 +1643,7 @@ inline void Executor::_invoke(Worker& worker, Node* node) {
   // If the work has been cancelled, there is no need to continue.
   // Here, we do tear_down_invoke since async tasks may also get cancelled where
   // we need to recycle the node.
-  if(node->_is_cancelled()) {
+  if(node->_is_parent_cancelled()) {
     _tear_down_invoke(worker, node, cache);
     TF_INVOKE_CONTINUATION();
     return;
@@ -1905,38 +1848,51 @@ inline void Executor::_observer_epilogue(Worker& worker, Node* node) {
 // Procedure: _process_exception
 inline void Executor::_process_exception(Worker&, Node* node) {
 
-  constexpr static auto flag = ESTATE::EXCEPTION | ESTATE::CANCELLED;
-
-  // find the anchor and mark the entire path with exception so recursive
-  // or nested tasks can be cancelled properly
-  // since exception can come from asynchronous task (with runtime), the node
-  // itself can be anchored
-  NodeBase* anchor = node;
-  while(anchor && (anchor->_estate.load(std::memory_order_relaxed) & ESTATE::ANCHORED) == 0) {
-    anchor->_estate.fetch_or(flag, std::memory_order_relaxed);
-    anchor = anchor->_parent;
+  // Finds the anchor and mark the entire path with exception, 
+  // so recursive tasks can be cancelled properly.
+  // Since exception can come from asynchronous task (with runtime), the node itself can be anchored.
+  NodeBase* ea = node;     // explicit anchor
+  NodeBase* ia = nullptr;  // implicit anchor
+  
+  while(ea && (ea->_estate.load(std::memory_order_relaxed) & ESTATE::EXPLICITLY_ANCHORED) == 0) {
+    ea->_estate.fetch_or(ESTATE::EXCEPTION, std::memory_order_relaxed);
+    // e only want the inner-most implicit anchor
+    if(ia == nullptr && (ea->_nstate & NSTATE::IMPLICITLY_ANCHORED)) {
+      ia = ea;
+    }
+    ea = ea->_parent;
   }
+  
+  // flag used to ensure execution is caught in a thread-safe manner
+  constexpr static auto flag = ESTATE::EXCEPTION | ESTATE::CAUGHT;
 
-  // the exception occurs under a blocking call (e.g., corun, join)
-  if(anchor) {
+  // The exception occurs under a blocking call (e.g., corun, join).
+  if(ea) {
     // multiple tasks may throw, and we only take the first thrown exception
-    if((anchor->_estate.fetch_or(flag, std::memory_order_relaxed) & ESTATE::EXCEPTION) == 0) {
-      anchor->_exception_ptr = std::current_exception();
+    if((ea->_estate.fetch_or(flag, std::memory_order_relaxed) & ESTATE::CAUGHT) == 0) {
+      ea->_exception_ptr = std::current_exception();
       return;
     }
   }
   // otherwise, we simply store the exception in the topology and cancel it
   else if(auto tpg = node->_topology; tpg) {
     // multiple tasks may throw, and we only take the first thrown exception
-    if((tpg->_estate.fetch_or(flag, std::memory_order_relaxed) & ESTATE::EXCEPTION) == 0) {
+    if((tpg->_estate.fetch_or(flag, std::memory_order_relaxed) & ESTATE::CAUGHT) == 0) {
       tpg->_exception_ptr = std::current_exception();
       return;
     }
   }
+  // Implicit anchor has the lowest priority
+  else if(ia){
+    if((ia->_estate.fetch_or(flag, std::memory_order_relaxed) & ESTATE::CAUGHT) == 0) {
+      ia->_exception_ptr = std::current_exception();
+      return;
+    }
+  }
   
-  // for now, we simply store the exception in this node; this can happen in an 
+  // For now, we simply store the exception in this node; this can happen in an 
   // execution that does not have any external control to capture the exception,
-  // such as silent async task
+  // such as silent async task without any parent.
   node->_exception_ptr = std::current_exception();
 }
 
@@ -1983,7 +1939,10 @@ inline bool Executor::_invoke_subflow_task(Worker& worker, Node* node) {
     node->_nstate &= ~NSTATE::PREEMPTED;
   }
 
-  // the subflow has finished or joined
+  // The subflow has finished or joined.
+  // By default, we clear the subflow storage as applications can perform recursive
+  // subflow tasking which accumulates a huge amount of memory overhead, hampering 
+  // the performance.
   if((node->_nstate & NSTATE::RETAIN_SUBFLOW) == 0) {
     g.clear();
   }
@@ -2215,6 +2174,63 @@ tf::Future<void> Executor::run_until(Taskflow&& f, P&& pred, C&& c) {
   return run_until(*itr, std::forward<P>(pred), std::forward<C>(c));
 }
 
+// Function: corun_until
+template <typename P>
+void Executor::corun_until(P&& predicate) {
+  
+  Worker* w = this_worker();
+  if(w == nullptr) {
+    TF_THROW("corun_until must be called by a worker of the executor");
+  }
+
+  _corun_until(*w, std::forward<P>(predicate));
+}
+
+// Function: _corun_until
+template <typename P>
+void Executor::_corun_until(Worker& w, P&& stop_predicate) {
+
+  const size_t MAX_VICTIM = num_queues();
+  const size_t MAX_STEALS = ((MAX_VICTIM + 1) << 1);
+    
+  exploit:
+
+  while(!stop_predicate()) {
+    
+    // here we don't do while-loop to drain out the local queue as it can
+    // potentially enter a very deep recursive corun, cuasing stack overflow
+    if(auto t = w._wsq.pop(); t) {
+      _invoke(w, t);
+    }
+    else {
+      size_t num_steals = 0;
+      size_t vtm = w._sticky_victim;
+
+      explore:
+
+      t = (vtm < _workers.size()) 
+        ? _workers[vtm]._wsq.steal()
+        : _buffers[vtm-_workers.size()].queue.steal();
+
+      if(t) {
+        _invoke(w, t);
+        w._sticky_victim = vtm;
+        goto exploit;
+      }
+      else if(!stop_predicate()) {
+        if(++num_steals > MAX_STEALS) {
+          std::this_thread::yield();
+        }
+        vtm = w._rdgen() % MAX_VICTIM;
+        goto explore;
+      }
+      else {
+        break;
+      }
+    }
+  }
+}
+
 // Function: corun
 template <typename T>
 void Executor::corun(T& target) {
@@ -2230,18 +2246,6 @@ void Executor::corun(T& target) {
   _corun_graph(*w, nullptr, &anchor, target.graph().begin(), target.graph().end());
 }
 
-// Function: corun_until
-template <typename P>
-void Executor::corun_until(P&& predicate) {
-  
-  Worker* w = this_worker();
-  if(w == nullptr) {
-    TF_THROW("corun_until must be called by a worker of the executor");
-  }
-
-  _corun_until(*w, std::forward<P>(predicate));
-}
-
 // Procedure: _corun_graph
 template <typename I>
 void Executor::_corun_graph(Worker& w, Topology* tpg, NodeBase* p, I first, I last) {
@@ -2253,14 +2257,14 @@ void Executor::_corun_graph(Worker& w, Topology* tpg, NodeBase* p, I first, I la
   
   // anchor this parent as the blocking point
   {
-    AnchorGuard anchor(p);
+    ExplicitAnchorGuard anchor(p);
     _schedule_graph_with_parent(w, first, last, tpg, p);
     _corun_until(w, [p] () -> bool { 
       return p->_join_counter.load(std::memory_order_acquire) == 0; }
     );
   }
 
-  // rethrow the exception to the blocker
+  // rethrow the exception to the caller
   p->_rethrow_exception();
 }
 

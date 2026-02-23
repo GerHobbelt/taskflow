@@ -1504,6 +1504,9 @@ class Subflow : public FlowBuilder {
     /**
     @brief queries if the subflow will be retained after it is joined
     @return `true` if the subflow will be retained after it is joined; `false` otherwise
+
+    By default, the runtime automatically clears a spawned subflow once it is joined.
+    Users can disable this before by explicitly calling tf::Subflow::retain.
     */
     bool retain() const;
 
@@ -1525,7 +1528,7 @@ inline Subflow::Subflow(Executor& executor, Worker& worker, Node* node, Graph& g
   FlowBuilder {graph}, 
   _executor   {executor}, 
   _worker     {worker}, 
-  _node     {node} {
+  _node       {node} {
   
   // need to reset since there could have iterative control flow
   _node->_nstate &= ~(NSTATE::JOINED_SUBFLOW | NSTATE::RETAIN_SUBFLOW);
