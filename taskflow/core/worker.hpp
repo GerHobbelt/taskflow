@@ -5,7 +5,6 @@
 #include "nonblocking_notifier.hpp"
 #include "atomic_notifier.hpp"
 
-
 /**
 @file worker.hpp
 @brief worker include file
@@ -15,7 +14,7 @@ namespace tf {
 
 // ----------------------------------------------------------------------------
 // Default Notifier
-// Our experiments show that the performance of atomic notifier is the best.
+// Our experiments show that NonblockingNotifier has the most stable performance
 // ----------------------------------------------------------------------------
 
 /**
@@ -34,7 +33,7 @@ See also:
   + [GCC patch discussions on refactoring and fixing atomic notify/race issues](https://gcc.gnu.org/pipermail/gcc-patches/2025-May/685050.html)
 */
 #ifdef TF_ENABLE_ATOMIC_NOTIFIER
-  using DefaultNotifier = AtomicNotifier
+  using DefaultNotifier = AtomicNotifier;
 #else
   using DefaultNotifier = NonblockingNotifier;
 #endif
