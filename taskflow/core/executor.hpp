@@ -66,6 +66,7 @@ class Executor {
   friend class Runtime;
   friend class NonpreemptiveRuntime;
   friend class Algorithm;
+  friend class TaskGroup;
 
   public:
 
@@ -466,7 +467,6 @@ class Executor {
   Under cooperative execution, a worker is not preempted. Instead, it continues 
   participating in the work-stealing loop, executing available tasks alongside 
   other workers.  
-
 
   @code{.cpp}
   taskflow.emplace([&](){
@@ -1066,6 +1066,57 @@ class Executor {
   >
   auto dependent_async(P&& params, F&& func, I first, I last);
 
+  // ----------------------------------------------------------------------------------------------
+  // Task Group
+  // ----------------------------------------------------------------------------------------------
+  
+  /**
+  @brief creates a task group that executes a collection of asynchronous tasks
+  @return a tf::TaskGroup object associated with the current executor
+ 
+  A TaskGroup allows submitting multiple asynchronous tasks to the executor
+  and waiting for their completion collectively using `corun()`. Tasks added
+  to the group can execute in parallel and may capture local variables by value
+  or reference, depending on your needs. 
+  This can be useful for divide-and-conquer
+  algorithms, parallel loops, or any workflow that requires grouping related tasks.
+  
+  Example (computing Fibonacci numbers in parallel):
+
+  @code{.cpp}
+  tf::Executor executor;
+  
+  size_t fibonacci(size_t N) {
+
+    if (N < 2) return N;
+  
+    size_t res1, res2;
+  
+    // Create a task group from the current executor
+    tf::TaskGroup tg = get_executor().task_group();
+  
+    // Submit asynchronous tasks to the group
+    tg.silent_async([N, &res1](){ res1 = fibonacci(N-1); });
+    res2 = fibonacci(N-2);  // compute one branch synchronously
+  
+    // Wait for all tasks in the group to complete
+    tg.corun();
+  
+    return res1 + res2;
+  }
+  
+  int main() {
+    return executor.async([](){ return fibonacci(30); }).get();
+  }
+  @endcode
+  
+  This member function is thread-safe.
+
+  @attention
+  Due to cooperative execution, a task group can only be created by a worker of an executor.
+  */
+  TaskGroup task_group();
+
   private:
   
   struct Buffer {
@@ -1126,13 +1177,13 @@ class Executor {
   bool _invoke_runtime_task_impl(Worker&, Node*, std::function<void(Runtime&, bool)>&);
 
   template <typename I>
-  I _set_up_graph(I, I, Topology*, Node*);
+  I _set_up_graph(I, I, Topology*, NodeBase*);
   
   template <typename P>
   void _corun_until(Worker&, P&&);
   
   template <typename I>
-  void _corun_graph(Worker&, Node*, I, I);
+  void _corun_graph(Worker&, Topology*, NodeBase*, I, I);
 
   template <typename I>
   void _bulk_schedule(Worker&, I, size_t);
@@ -1144,23 +1195,23 @@ class Executor {
   void _bulk_spill(I, size_t);
 
   template <typename I>
-  void _schedule_graph_with_parent(Worker&, I, I, Node*);
+  void _schedule_graph_with_parent(Worker&, I, I, Topology*, NodeBase*);
 
   template <typename P, typename F>
-  auto _async(P&&, F&&, Topology*, Node*);
+  auto _async(P&&, F&&, Topology*, NodeBase*);
 
   template <typename P, typename F>
-  void _silent_async(P&&, F&&, Topology*, Node*);
+  void _silent_async(P&&, F&&, Topology*, NodeBase*);
 
   template <typename P, typename F, typename I,
     std::enable_if_t<is_task_params_v<P> && !std::is_same_v<std::decay_t<I>, AsyncTask>, void>* = nullptr
   >
-  auto _dependent_async(P&&, F&&, I, I, Topology*, Node*);
+  auto _dependent_async(P&&, F&&, I, I, Topology*, NodeBase*);
   
   template <typename P, typename F, typename I, 
     std::enable_if_t<is_task_params_v<P> && !std::is_same_v<std::decay_t<I>, AsyncTask>, void>* = nullptr
   >
-  auto _silent_dependent_async(P&&, F&&, I, I, Topology*, Node*);
+  auto _silent_dependent_async(P&&, F&&, I, I, Topology*, NodeBase*);
 };
 
 #ifndef DOXYGEN_GENERATING_OUTPUT
@@ -1266,7 +1317,6 @@ inline void Executor::_spawn(size_t N) {
   for(size_t id=0; id<N; ++id) {
     _workers[id]._id = id;
     _workers[id]._vtm = id;
-    _workers[id]._executor = this;
     _workers[id]._thread = std::thread([&, &w=_workers[id]] () {
 
       // initialize the random engine and seed for work-stealing loop
@@ -1315,7 +1365,27 @@ inline void Executor::_spawn(size_t N) {
       }
 
     });
-
+    
+    // We avoid using thread-local storage to track the mapping between a thread
+    // and its corresponding worker in an executor. On Windows, thread-local
+    // storage can be unreliable in certain situations (see issue #727).
+    //
+    // Instead, we maintain a per-executor mapping from threads to workers.
+    // This approach has an additional advantage: according to the C++ Standard,
+    // std::thread::id uniquely identifies a thread object. Therefore, once the map
+    // returns a valid worker, we can be certain that the worker belongs to this
+    // executor. This eliminates the need for additional executor validation 
+    // required by using thread-local storage.
+    //
+    // Example:
+    //
+    //   Worker* w = this_worker();
+    //   // Using thread-local storage, we would need additional executor validation:
+    //   if (w == nullptr || w->_executor != this) { /* caller is not a worker of this executor */ }
+    //
+    //   // Using per-executor mapping, it suffices to check:
+    //   if (w == nullptr) { /* caller is not a worker of this executor */ }
+    //
     _t2w.emplace(_workers[id]._thread.get_id(), &_workers[id]);
   }
 }
@@ -1525,6 +1595,8 @@ inline void Executor::_spill(Node* item) {
 template <typename I>
 void Executor::_bulk_spill(I first, size_t N) {
   // assert(N != 0);
+  // Since pointers are aligned to 8 bytes, we perform a simple hash to avoid 
+  // contention caused by hashing to the same slot.
   auto p = reinterpret_cast<uintptr_t>(*first) >> 16;
   auto b = (p ^ (N << 6)) % _buffers.size();
   std::scoped_lock lock(_buffers[b].mutex);
@@ -1533,20 +1605,11 @@ void Executor::_bulk_spill(I first, size_t N) {
 
 // Procedure: _schedule
 inline void Executor::_schedule(Worker& worker, Node* node) {
-  
-  // caller is a worker of this executor - starting at v3.5 we do not use
-  // any complicated notification mechanism as the experimental result
-  // has shown no significant advantage.
-  if(worker._executor == this) {
-    if(worker._wsq.try_push(node) == false) {
-      _spill(node);
-    }
-    _notifier.notify_one();
-    return;
+  // starting at v3.5 we do not use any complicated notification mechanism 
+  // as the experimental result has shown no significant advantage.
+  if(worker._wsq.try_push(node) == false) {
+    _spill(node);
   }
-  
-  // caller is not a worker of this executor - spill to the centralized buffer
-  _spill(node);
   _notifier.notify_one();
 }
 
@@ -1569,24 +1632,16 @@ void Executor::_bulk_schedule(Worker& worker, I first, size_t num_nodes) {
   // immediately. If v is the last node in the graph, it will tear down the parent task vector
   // which cause the last ++first to fail. This problem is specific to MSVC which has a stricter
   // iterator implementation in std::vector than GCC/Clang.
-  if(worker._executor == this) {
-    if(auto n = worker._wsq.try_bulk_push(first, num_nodes); n != num_nodes) {
-      _bulk_spill(first + n, num_nodes - n);
-    }
-    _notifier.notify_n(num_nodes);
-    return;
-    
-    // notify first before spilling to hopefully wake up workers earlier 
-    // however, the experiment does not show any benefit for doing this.
-    //auto n = worker._wsq.try_bulk_push(first, num_nodes);
-    //_notifier.notify_n(n);
-    //_bulk_schedule(first + n, num_nodes - n);
-    //return;
+  if(auto n = worker._wsq.try_bulk_push(first, num_nodes); n != num_nodes) {
+    _bulk_spill(first + n, num_nodes - n);
   }
-  
-  // caller is not a worker of this executor - spill to the centralized queue
-  _bulk_spill(first, num_nodes);
   _notifier.notify_n(num_nodes);
+    
+  // notify first before spilling to hopefully wake up workers earlier 
+  // however, the experiment does not show any benefit for doing this.
+  //auto n = worker._wsq.try_bulk_push(first, num_nodes);
+  //_notifier.notify_n(n);
+  //_bulk_schedule(first + n, num_nodes - n);
 }
 
 // Procedure: _schedule
@@ -1608,8 +1663,10 @@ inline void Executor::_bulk_schedule(I first, size_t num_nodes) {
   
 // Function: _schedule_graph_with_parent
 template <typename I>
-void Executor::_schedule_graph_with_parent(Worker& worker, I beg, I end, Node* parent) {
-  size_t num_srcs = (_set_up_graph(beg, end, parent->_topology, parent) - beg);
+void Executor::_schedule_graph_with_parent(
+  Worker& worker, I beg, I end, Topology* tpg, NodeBase* parent
+) {
+  size_t num_srcs = (_set_up_graph(beg, end, tpg, parent) - beg);
   parent->_join_counter.fetch_add(num_srcs, std::memory_order_relaxed);
   _bulk_schedule(worker, beg, num_srcs);
 }
@@ -1640,7 +1697,7 @@ inline void Executor::_invoke(Worker& worker, Node* node) {
     goto invoke_task;
   }
 
-  // if the work has been cancelled, there is no need to continue
+  // If the work has been cancelled, there is no need to continue.
   // Here, we do tear_down_invoke since async tasks may also get cancelled where
   // we need to recycle the node.
   if(node->_is_cancelled()) {
@@ -1806,8 +1863,9 @@ inline void Executor::_tear_down_nonasync(Worker& worker, Node* node, Node*& cac
     // the node may be deleted
     auto state = parent->_nstate;
     if(parent->_join_counter.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+      // this task is spawned from a preempted parent, so we need to resume it
       if(state & NSTATE::PREEMPTED) {
-        _update_cache(worker, cache, parent);
+        _update_cache(worker, cache, static_cast<Node*>(parent));
       }
     }
   }
@@ -1853,7 +1911,7 @@ inline void Executor::_process_exception(Worker&, Node* node) {
   // or nested tasks can be cancelled properly
   // since exception can come from asynchronous task (with runtime), the node
   // itself can be anchored
-  auto anchor = node;
+  NodeBase* anchor = node;
   while(anchor && (anchor->_estate.load(std::memory_order_relaxed) & ESTATE::ANCHORED) == 0) {
     anchor->_estate.fetch_or(flag, std::memory_order_relaxed);
     anchor = anchor->_parent;
@@ -1917,7 +1975,7 @@ inline bool Executor::_invoke_subflow_task(Worker& worker, Node* node) {
       node->_nstate |= NSTATE::PREEMPTED;
 
       // set up and schedule the graph
-      _schedule_graph_with_parent(worker, g.begin(), g.end(), node);
+      _schedule_graph_with_parent(worker, g.begin(), g.end(), node->_topology, node);
       return true;
     }
   }
@@ -1973,7 +2031,7 @@ inline bool Executor::_invoke_module_task_impl(Worker& w, Node* node, Graph& gra
   if((node->_nstate & NSTATE::PREEMPTED) == 0) {
     // signal the executor to preempt this node
     node->_nstate |= NSTATE::PREEMPTED;
-    _schedule_graph_with_parent(w, graph.begin(), graph.end(), node);
+    _schedule_graph_with_parent(w, graph.begin(), graph.end(), node->_topology, node);
     return true;
   }
 
@@ -2164,12 +2222,12 @@ void Executor::corun(T& target) {
   static_assert(has_graph_v<T>, "target must define a member function 'Graph& graph()'");
   
   Worker* w = this_worker();
-  if(w == nullptr || w->_executor != this) {
+  if(w == nullptr) {
     TF_THROW("corun must be called by a worker of the executor");
   }
 
-  Node anchor;
-  _corun_graph(*w, &anchor, target.graph().begin(), target.graph().end());
+  NodeBase anchor;
+  _corun_graph(*w, nullptr, &anchor, target.graph().begin(), target.graph().end());
 }
 
 // Function: corun_until
@@ -2177,7 +2235,7 @@ template <typename P>
 void Executor::corun_until(P&& predicate) {
   
   Worker* w = this_worker();
-  if(w == nullptr || w->_executor != this) {
+  if(w == nullptr) {
     TF_THROW("corun_until must be called by a worker of the executor");
   }
 
@@ -2186,7 +2244,7 @@ void Executor::corun_until(P&& predicate) {
 
 // Procedure: _corun_graph
 template <typename I>
-void Executor::_corun_graph(Worker& w, Node* p, I first, I last) {
+void Executor::_corun_graph(Worker& w, Topology* tpg, NodeBase* p, I first, I last) {
 
   // empty graph
   if(first == last) {
@@ -2196,7 +2254,7 @@ void Executor::_corun_graph(Worker& w, Node* p, I first, I last) {
   // anchor this parent as the blocking point
   {
     AnchorGuard anchor(p);
-    _schedule_graph_with_parent(w, first, last, p);
+    _schedule_graph_with_parent(w, first, last, tpg, p);
     _corun_until(w, [p] () -> bool { 
       return p->_join_counter.load(std::memory_order_acquire) == 0; }
     );
@@ -2241,7 +2299,7 @@ inline void Executor::_set_up_topology(Worker* w, Topology* tpg) {
 
 // Function: _set_up_graph
 template <typename I>
-I Executor::_set_up_graph(I first, I last, Topology* tpg, Node* parent) {
+I Executor::_set_up_graph(I first, I last, Topology* tpg, NodeBase* parent) {
 
   auto send = first;
   for(; first != last; ++first) {
@@ -2334,10 +2392,10 @@ inline void Subflow::join() {
     TF_THROW("subflow already joined");
   }
     
-  _executor._corun_graph(_worker, _parent, _graph.begin(), _graph.end());
+  _executor._corun_graph(_worker, _node->_topology, _node, _graph.begin(), _graph.end());
   
   // join here since corun graph may throw exception
-  _parent->_nstate |= NSTATE::JOINED_SUBFLOW;
+  _node->_nstate |= NSTATE::JOINED_SUBFLOW;
 }
 
 #endif

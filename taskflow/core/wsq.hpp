@@ -14,6 +14,7 @@
   
   This macro defines the default size of the bounded task queue in Log2. 
   Bounded task queue is used by each worker.
+  By default, the value is set to 8, allowing the queue to hold 256 tasks.
   */
   #define TF_DEFAULT_BOUNDED_TASK_QUEUE_LOG_SIZE 8
 #endif
@@ -23,7 +24,8 @@
   @def TF_DEFAULT_UNBOUNDED_TASK_QUEUE_LOG_SIZE
   
   This macro defines the default size of the unbounded task queue in Log2.
-  Unbounded task queue is used by the executor.
+  Unbounded task queue is used by the executor as an overflow region.
+  By default, the value is set to 10, allowing the queue to hold 1024 tasks initially.
   */
   #define TF_DEFAULT_UNBOUNDED_TASK_QUEUE_LOG_SIZE 10
 #endif
@@ -46,12 +48,14 @@ This class implements the work-stealing queue described in the paper,
 <a href="https://www.di.ens.fr/~zappa/readings/ppopp13.pdf">
 Correct and Efficient Work-Stealing for Weak Memory Models</a>.
 
-The queue supports a single owner thread that performs push and pop
+A work-stealing queue supports a single owner thread that performs push and pop
 operations, while multiple concurrent thief threads may steal tasks
 from the opposite end of the queue. The implementation is designed to
 operate correctly under weak memory models and uses atomic operations
 with carefully chosen memory orderings to ensure correctness and
 scalability.
+
+@dotfile images/unbounded_wsq.dot
 
 Unlike bounded queues, this queue automatically grows its internal
 storage as needed, allowing it to accommodate an arbitrary number of
@@ -121,6 +125,11 @@ class UnboundedWSQ {
   For pointer element types `T`, it is `T` itself and uses `nullptr` to
   indicate an empty result. For non-pointer types, it is `std::optional<T>`,
   where `std::nullopt` denotes the absence of a value.
+
+  @code{.cpp}
+  static_assert(std::is_same_v<tf::UnboundedWSQ<int>::value_type, std::optional<int>>);
+  static_assert(std::is_same_v<tf::UnboundedWSQ<int*>::value_type, nullptr);
+  @endcode
   
   This design avoids the overhead of `std::optional` for pointer types
   while providing a uniform empty-result semantics.
@@ -131,6 +140,11 @@ class UnboundedWSQ {
   @brief constructs the queue with the given size in the base-2 logarithm
 
   @param LogSize the base-2 logarithm of the queue size
+
+  @code{.cpp}
+  tf::UnboundedWSQ<int> wsq(10);  
+  assert(wsq.capacity() == 1024);
+  @endcode
   */
   explicit UnboundedWSQ(int64_t LogSize = TF_DEFAULT_UNBOUNDED_TASK_QUEUE_LOG_SIZE);
 
@@ -141,16 +155,40 @@ class UnboundedWSQ {
 
   /**
   @brief queries if the queue is empty at the time of this call
+  
+  @code{.cpp}
+  tf::UnboundedWSQ<int> wsq(10);  
+  assert(wsq.empty() == true);
+  wsq.push(1);
+  assert(wsq.empty() == false);
+  @endcode
   */
   bool empty() const noexcept;
 
   /**
   @brief queries the number of items at the time of this call
+  
+  @code{.cpp}
+  tf::UnboundedWSQ<int> wsq(10);  
+  assert(wsq.size() == 0);
+  wsq.push(1);
+  assert(wsq.size() == 1);
+  @endcode
   */
   size_t size() const noexcept;
 
   /**
   @brief queries the capacity of the queue
+  
+  @code{.cpp}
+  tf::UnboundedWSQ<int> wsq(10);  
+  assert(wsq.capacity() == 1024);
+  for(int i=0; i<1025; i++){  // insert more than 1024 ints to trigger resizing
+    wsq.push(i);
+  }
+  assert(wsq.capacity() == 2048);
+  assert(wsq.size() == 1025);
+  @endcode
   */
   size_t capacity() const noexcept;
   
@@ -160,8 +198,17 @@ class UnboundedWSQ {
   @param item the item to push to the queue
   
   This method pushes one item into the queue.
-  The operation can trigger the queue to resize its capacity
-  if more space is required.
+  The operation can trigger the queue to resize its capacity if more space is required.
+  
+  @code{.cpp}
+  tf::UnboundedWSQ<int> wsq(10);  
+  assert(wsq.capacity() == 1024);
+  for(int i=0; i<1025; i++) {   // insert more than 1024 items to trigger resizing
+    wsq.push(i);
+  }
+  assert(wsq.capacity() == 2048);
+  assert(wsq.size() == 1025);
+  @endcode
   
   Only the owner thread can insert an item to the queue.
   */
@@ -177,6 +224,16 @@ class UnboundedWSQ {
   This method pushes up to @p N items from the range `[first, first + N)` into the queue. 
   The operation can trigger the queue to resize its capacity 
   if more space is required.
+  Bulk insertion is often faster than inserting elements one by one because it requires fewer atomic operations.
+
+  @code{.cpp}
+  tf::UnboundedWSQ<int> wsq(10);  
+  assert(wsq.capacity() == 1024);
+  std::vector<int> vec(1025, 1);
+  wsq.bulk_push(vec.data(), vec.size()); 
+  assert(wsq.capacity() == 2048);
+  assert(wsq.size() == vec.size());
+  @endcode
   
   Only the owner thread can insert an item to the queue.
   */
@@ -188,6 +245,18 @@ class UnboundedWSQ {
 
   This method pops an item from the queue.
   If the queue is empty, empty_value() is returned.
+  The elements popped out from the queue follow a last-in-first-out (LIFO) order.
+  
+  @code{.cpp}
+  tf::UnboundedWSQ<int> wsq(10);  
+  wsq.push(1);
+  wsq.push(2);
+  wsq.push(3);
+  assert(wsq.pop().value() = 3);
+  assert(wsq.pop().value() = 2);
+  assert(wsq.pop().value() = 1);
+  assert(wsq.pop() == std::nullopt);
+  @endcode
   
   Only the owner thread can pop out an item from the queue.
   */
@@ -198,6 +267,20 @@ class UnboundedWSQ {
 
   Any threads can try to steal an item from the queue.
   The return can be an empty_value() if this operation failed.
+  The elements stolen from the queue follow a first-in-first-out (FIFO) order.
+  
+  @code{.cpp}
+  tf::UnboundedWSQ<int> wsq(10);  
+  wsq.push(1);
+  wsq.push(2);
+  wsq.push(3);
+  assert(wsq.steal().value() = 1);
+  assert(wsq.steal().value() = 2);
+  assert(wsq.steal().value() = 3);
+  assert(wsq.steal() == std::nullopt);
+  @endcode
+
+  Multiple threads can simultaneously steal items from the queue.
   */
   value_type steal();
 
@@ -211,6 +294,23 @@ class UnboundedWSQ {
   Additionally, if the queue is empty, the provided counter `num_empty_steals` is incremented;
   otherwise, `num_empty_steals` is reset to zero.
   The return can be an empty_value() if this operation failed.
+  The elements stolen from the queue follow a first-in-first-out (FIFO) order.
+  
+  @code{.cpp}
+  tf::UnboundedWSQ<int> wsq(10);  
+  size_t num_empty_steals(0);
+  assert(wsq.steal_with_feedback(num_empty_steals) == std::nullopt);
+  assert(wsq.steal_with_feedback(num_empty_steals) == std::nullopt);
+  assert(wsq.steal_with_feedback(num_empty_steals) == std::nullopt);
+  assert(num_empty_steals == 3);
+  wsq.push(1);
+  wsq.push(2);
+  wsq.push(3);
+  assert(wsq.steal_with_feedback(num_empty_steals).value() = 1);
+  assert(num_empty_steals == 0);  // successful steal will reset the feedback to 0
+  @endcode
+
+  Multiple threads can simultaneously steal items from the queue.
   */
   value_type steal_with_feedback(size_t& num_empty_steals);
   
@@ -449,16 +549,18 @@ This class implements the work-stealing queue described in the paper,
 <a href="https://www.di.ens.fr/~zappa/readings/ppopp13.pdf">
 Correct and Efficient Work-Stealing for Weak Memory Models</a>.
 
-The queue supports a single owner thread that performs push and pop
+A work-stealing queue supports a single owner thread that performs push and pop
 operations, while multiple concurrent thief threads may steal tasks
 from the opposite end of the queue. The implementation is designed to
 operate correctly under weak memory models and uses atomic operations
 with carefully chosen memory orderings to ensure correctness and
 scalability.
 
+@dotfile images/bounded_wsq.dot
+
 The queue has a fixed capacity determined at construction time and
 does not grow dynamically. When the queue is full, push operations
-may fail or require external handling, depending on the usage policy.
+may fail or require external handling.
 */
 template <typename T, size_t LogSize = TF_DEFAULT_BOUNDED_TASK_QUEUE_LOG_SIZE>
 class BoundedWSQ {
@@ -482,6 +584,11 @@ class BoundedWSQ {
   indicate an empty result. For non-pointer types, it is `std::optional<T>`,
   where `std::nullopt` denotes the absence of a value.
   
+  @code{.cpp}
+  static_assert(std::is_same_v<tf::UnboundedWSQ<int>::value_type, std::optional<int>>);
+  static_assert(std::is_same_v<tf::UnboundedWSQ<int*>::value_type, nullptr);
+  @endcode
+  
   This design avoids the overhead of `std::optional` for pointer types
   while providing a uniform empty-result semantics.
   */
@@ -489,6 +596,11 @@ class BoundedWSQ {
     
   /**
   @brief constructs the queue with a given capacity
+  
+  @code{.cpp}
+  tf::BoundedWSQ<int, 10> wsq;  
+  static_assert(wsq.capacity() == 1024);
+  @endcode
   */
   BoundedWSQ() = default;
 
@@ -499,16 +611,37 @@ class BoundedWSQ {
   
   /**
   @brief queries if the queue is empty at the time of this call
+  
+  @code{.cpp}
+  tf::BoundedWSQ<int, 10> wsq;  
+  assert(wsq.empty() == true);
+  wsq.push(1);
+  assert(wsq.empty() == false);
+  @endcode
   */
   bool empty() const noexcept;
   
   /**
   @brief queries the number of items at the time of this call
+  
+  @code{.cpp}
+  tf::BoundedWSQ<int, 10> wsq;  
+  assert(wsq.size() == 0);
+  wsq.push(1);
+  assert(wsq.size() == 1);
+  @endcode
   */
   size_t size() const noexcept;
 
   /**
   @brief queries the capacity of the queue
+  
+  The capacity of a bounded work-stealing queue is decided at compile time.
+
+  @code{.cpp}
+  tf::BoundedWSQ<int, 10> wsq;
+  static_assert(wsq.capacity() == 1024);
+  @endcode
   */
   constexpr size_t capacity() const;
   
@@ -521,6 +654,17 @@ class BoundedWSQ {
   
   This method attempts to push one item into the queue.
   If the operation succeed, it returns `true` or `false` otherwise.
+  
+  @code{.cpp}
+  tf::BoundedWSQ<int, 10> wsq;  
+  static_assert(wsq.capacity() == 1024);
+  for(int i=0; i<1024; i++) {
+    assert(wsq.try_push(i) == true);
+  }
+  assert(wsq.size() == 1024);
+  assert(wsq.try_push(0) == false);
+  @endcode
+
   Only the owner thread can insert an item to the queue. 
   */
   template <typename O>
@@ -537,8 +681,17 @@ class BoundedWSQ {
   This method attempts to push up to @p N items from the range
   `[first, first + N)` into the queue. Insertion stops early if the
   queue becomes full. 
-  Only the owner thread can insert items into
-  the queue.
+  Bulk insertion is often faster than inserting elements one by one because it requires fewer atomic operations.
+  
+  @code{.cpp}
+  tf::BoundedWSQ<int, 10> wsq;  
+  static_assert(wsq.capacity() == 1024);
+  std::vector<int> vec(1030, 1);
+  assert(wsq.try_bulk_push(vec.data(), vec.size()) == wsq.capacity());
+  assert(wsq.try_bulk_push(vec.data(), vec.size()) == 0);
+  @endcode
+
+  Only the owner thread can insert items into the queue.
   */
   template <typename I>
   size_t try_bulk_push(I first, size_t N);
@@ -546,8 +699,21 @@ class BoundedWSQ {
   /**
   @brief pops out an item from the queue
 
-  Only the owner thread can pop out an item from the queue. 
+  The method pops an item out of the queue based on a last-in-first-out (LIFO) order.
   The return can be an empty_value() if this operation failed (empty queue).
+
+  @code{.cpp}
+  tf::BoundedWSQ<int, 10> wsq;  
+  wsq.push(1);
+  wsq.push(2);
+  wsq.push(3);
+  assert(wsq.pop().value() = 3);
+  assert(wsq.pop().value() = 2);
+  assert(wsq.pop().value() = 1);
+  assert(wsq.pop() == std::nullopt);
+  @endcode
+
+  Only the owner thread can pop out an item from the queue. 
   */
   value_type pop();
   
@@ -556,6 +722,20 @@ class BoundedWSQ {
 
   Any threads can try to steal an item from the queue.
   The return can be an empty_value() if this operation failed.
+  The elements stolen from the queue follow a first-in-first-out (FIFO) order.
+  
+  @code{.cpp}
+  tf::BoundedWSQ<int, 10> wsq;  
+  wsq.push(1);
+  wsq.push(2);
+  wsq.push(3);
+  assert(wsq.steal().value() = 1);
+  assert(wsq.steal().value() = 2);
+  assert(wsq.steal().value() = 3);
+  assert(wsq.steal() == std::nullopt);
+  @endcode
+  
+  Multiple threads can simultaneously steal items from the queue.
   */
   value_type steal();
 
@@ -569,6 +749,23 @@ class BoundedWSQ {
   Additionally, if the queue is empty, the provided counter `num_empty_steals` is incremented;
   otherwise, `num_empty_steals` is reset to zero.
   The return can be an empty_value() if this operation failed.
+  The elements stolen from the queue follow a first-in-first-out (FIFO) order.
+  
+  @code{.cpp}
+  tf::BoundedWSQ<int, 10> wsq;  
+  size_t num_empty_steals(0);
+  assert(wsq.steal_with_feedback(num_empty_steals) == std::nullopt);
+  assert(wsq.steal_with_feedback(num_empty_steals) == std::nullopt);
+  assert(wsq.steal_with_feedback(num_empty_steals) == std::nullopt);
+  assert(num_empty_steals == 3);
+  wsq.push(1);
+  wsq.push(2);
+  wsq.push(3);
+  assert(wsq.steal_with_feedback(num_empty_steals).value() = 1);
+  assert(num_empty_steals == 0);  // successful steal will reset the feedback to 0
+  @endcode
+
+  Multiple threads can simultaneously steal items from the queue.
   */
   value_type steal_with_feedback(size_t& num_empty_steals);
 

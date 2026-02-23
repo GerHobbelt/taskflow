@@ -9,8 +9,7 @@ This feature is particularly useful for implementing recursive parallel algorith
 
 @section CreateARuntimeTask Create a Runtime Task
 
-
-A runtime task is a special type of task that interacts directly with the Taskflow scheduling runtime through a tf::Runtime object. 
+A runtime task is a special type of task that interacts directly with the %Taskflow scheduling runtime through a tf::Runtime object. 
 By taking a tf::Runtime& parameter, a runtime task can dynamically create and manage other tasks during its execution. 
 This capability enables flexible and expressive patterns such as recursive parallelism, cooperative task execution, 
 and dynamic task spawning based on runtime conditions. 
@@ -161,8 +160,6 @@ int main() {
 The figure below shows the execution diagram, where the task with suffix `*_1` represents the left child spawned by its parent runtime.
 
 @dotfile images/fibonacci_4_tail_optimized.dot
-
-For more details, please refer to @ref AsyncTasking and @ref fibonacci.
 
 
 */

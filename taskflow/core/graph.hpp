@@ -186,7 +186,55 @@ constexpr bool is_task_params_v =
 /**
 @private
 */
-class Node {
+class NodeBase {
+
+  friend class Node;
+  friend class Graph;
+  friend class Task;
+  friend class AsyncTask;
+  friend class TaskView;
+  friend class Taskflow;
+  friend class Executor;
+  friend class FlowBuilder;
+  friend class Subflow;
+  friend class Runtime;
+  friend class NonpreemptiveRuntime;
+  friend class AnchorGuard;
+  friend class TaskGroup;
+  friend class Algorithm;
+  
+  protected:
+  
+  nstate_t _nstate              {NSTATE::NONE};
+  std::atomic<estate_t> _estate {ESTATE::NONE};
+
+  NodeBase* _parent {nullptr};
+  std::atomic<size_t> _join_counter {0};
+  
+  std::exception_ptr _exception_ptr {nullptr};
+
+  NodeBase() = default;
+
+  NodeBase(nstate_t nstate, estate_t estate, NodeBase* parent, size_t join_counter) :
+    _nstate {nstate}, 
+    _estate {estate},
+    _parent {parent},
+    _join_counter {join_counter} {
+  }
+  
+  void _rethrow_exception() {
+    if(_exception_ptr) {
+      auto e = _exception_ptr;
+      _exception_ptr = nullptr;
+      std::rethrow_exception(e);
+    }
+  }
+};
+
+/**
+@private
+*/
+class Node : public NodeBase {
 
   friend class Graph;
   friend class Task;
@@ -199,6 +247,8 @@ class Node {
   friend class Runtime;
   friend class NonpreemptiveRuntime;
   friend class AnchorGuard;
+  friend class TaskGroup;
+  friend class Algorithm;
 
 #ifdef TF_ENABLE_TASK_POOL
   TF_ENABLE_POOLABLE_ON_THIS;
@@ -333,10 +383,10 @@ class Node {
   Node() = default;
   
   template <typename... Args>
-  Node(nstate_t, estate_t, const TaskParams&, Topology*, Node*, size_t, Args&&...);
+  Node(nstate_t, estate_t, const TaskParams&, Topology*, NodeBase*, size_t, Args&&...);
   
   template <typename... Args>
-  Node(nstate_t, estate_t, const DefaultTaskParams&, Topology*, Node*, size_t, Args&&...);
+  Node(nstate_t, estate_t, const DefaultTaskParams&, Topology*, NodeBase*, size_t, Args&&...);
 
   size_t num_successors() const;
   size_t num_predecessors() const;
@@ -347,35 +397,26 @@ class Node {
 
   private:
   
-  nstate_t _nstate              {NSTATE::NONE};
-  std::atomic<estate_t> _estate {ESTATE::NONE};
-
   std::string _name;
   
   void* _data {nullptr};
   
   Topology* _topology {nullptr};
-  Node* _parent {nullptr};
 
   size_t _num_successors {0};
   SmallVector<Node*, 4> _edges;
 
-  std::atomic<size_t> _join_counter {0};
-  
   handle_t _handle;
   
   std::unique_ptr<Semaphores> _semaphores;
   
-  std::exception_ptr _exception_ptr {nullptr};
-
   bool _is_cancelled() const;
   bool _is_conditioner() const;
-  bool _is_preempted() const;
   bool _acquire_all(SmallVector<Node*>&);
   void _release_all(SmallVector<Node*>&);
   void _precede(Node*);
   void _set_up_join_counter();
-  void _rethrow_exception();
+
   void _remove_successors(Node*);
   void _remove_predecessors(Node*);
 
@@ -504,17 +545,14 @@ Node::Node(
   estate_t estate,
   const TaskParams& params,
   Topology* topology, 
-  Node* parent, 
+  NodeBase* parent, 
   size_t join_counter,
   Args&&... args
 ) :
-  _nstate       {nstate},
-  _estate       {estate},
+  NodeBase(nstate, estate, parent, join_counter),
   _name         {params.name},
   _data         {params.data},
   _topology     {topology},
-  _parent       {parent},
-  _join_counter {join_counter},
   _handle       {std::forward<Args>(args)...} {
 }
 
@@ -525,15 +563,12 @@ Node::Node(
   estate_t estate,
   const DefaultTaskParams&,
   Topology* topology, 
-  Node* parent, 
+  NodeBase* parent, 
   size_t join_counter,
   Args&&... args
 ) :
-  _nstate       {nstate},
-  _estate       {estate},
+  NodeBase(nstate, estate, parent, join_counter),
   _topology     {topology},
-  _parent       {parent},
-  _join_counter {join_counter},
   _handle       {std::forward<Args>(args)...} {
 }
 
@@ -616,11 +651,6 @@ inline bool Node::_is_conditioner() const {
          _handle.index() == Node::MULTI_CONDITION;
 }
 
-// Function: _is_preempted
-inline bool Node::_is_preempted() const {
-  return _nstate & NSTATE::PREEMPTED;
-}
-
 // Function: _is_cancelled
 // we currently only support cancellation of taskflow (no async task)
 inline bool Node::_is_cancelled() const {
@@ -641,14 +671,6 @@ inline void Node::_set_up_join_counter() {
   _join_counter.store(c, std::memory_order_relaxed);
 }
 
-// Procedure: _rethrow_exception
-inline void Node::_rethrow_exception() {
-  if(_exception_ptr) {
-    auto e = _exception_ptr;
-    _exception_ptr = nullptr;
-    std::rethrow_exception(e);
-  }
-}
 
 // Function: _acquire_all
 inline bool Node::_acquire_all(SmallVector<Node*>& nodes) {
@@ -689,17 +711,17 @@ class AnchorGuard {
   
   // anchor is at estate as it may be accessed by multiple threads (e.g., corun's
   // parent with tear_down_async's parent).
-  AnchorGuard(Node* node) : _node{node} { 
-    _node->_estate.fetch_or(ESTATE::ANCHORED, std::memory_order_relaxed);
+  AnchorGuard(NodeBase* node_base) : _node_base{node_base} { 
+    _node_base->_estate.fetch_or(ESTATE::ANCHORED, std::memory_order_relaxed);
   }
 
   ~AnchorGuard() {
-    _node->_estate.fetch_and(~ESTATE::ANCHORED, std::memory_order_relaxed);
+    _node_base->_estate.fetch_and(~ESTATE::ANCHORED, std::memory_order_relaxed);
   }
   
   private:
 
-  Node* _node;
+  NodeBase* _node_base;
 };
 
 

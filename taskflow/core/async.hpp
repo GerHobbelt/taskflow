@@ -22,22 +22,32 @@ TF_FORCE_INLINE void Executor::_schedule_async_task(Node* node) {
 // Procedure: _tear_down_async
 inline void Executor::_tear_down_async(Worker& worker, Node* node, Node*& cache) {
   
-  // node->_topology  |  node->_parent  |  secenario
-  // nullptr          |  nullptr        |  exe.async();
-  // nullptr          |  0x---          |  exe.async([](Runtime rt){ rt.async(); });
-  // 0x---            |  nullptr        |  ?
-  // 0x---            |  0x---          |  tf.emplace([](Runtime& rt){ rt.async(); });
+  /*
+  -------------------------------------------------------------------------------------------------
+  node->_topology | node->_parent | secenario
+  -------------------------------------------------------------------------------------------------
+  nullptr         | nullptr       | exe.async();
+  -------------------------------------------------------------------------------------------------
+  nullptr         | 0x123         | exe.async([](Runtime rt){ rt.async(); });
+                  |               | task_group.async([](){});
+  -------------------------------------------------------------------------------------------------
+  0x123           | nullptr       | ?
+  -------------------------------------------------------------------------------------------------
+  0x123           | 0x123         | tf.emplace([](Runtime& rt){ rt.async(); });
+  -------------------------------------------------------------------------------------------------
+  */
 
   // from executor
   if(auto parent = node->_parent; parent == nullptr) {
     _decrement_topology();
   }
-  // from runtime
+  // from runtime or task group
   else {
     auto state = parent->_nstate;
     if(parent->_join_counter.fetch_sub(1, std::memory_order_acq_rel) == 1) {
-      if(state & NSTATE::PREEMPTED) {
-        _update_cache(worker, cache, parent);
+      // this async is spawned from a preempted parent, so we need to resume it
+      if(state & NSTATE::PREEMPTED) { 
+        _update_cache(worker, cache, static_cast<Node*>(parent));
       }
     }
   }
@@ -63,7 +73,7 @@ auto Executor::async(P&& params, F&& f) {
 
 // Function: _async
 template <typename P, typename F>
-auto Executor::_async(P&& params, F&& f, Topology* tpg, Node* parent) {
+auto Executor::_async(P&& params, F&& f, Topology* tpg, NodeBase* parent) {
   
   // async task with runtime: [] (tf::Runtime&) -> void {}
   if constexpr (is_runtime_task_v<F>) {
@@ -79,7 +89,7 @@ auto Executor::_async(P&& params, F&& f, Topology* tpg, Node* parent) {
           f(rt);
         }
         else {
-          auto& eptr = rt._parent->_exception_ptr;
+          auto& eptr = rt._node->_exception_ptr;
           eptr ? p.object.set_exception(eptr) : p.object.set_value();
         }
       }
@@ -127,7 +137,7 @@ void Executor::silent_async(P&& params, F&& f) {
 
 // Function: _silent_async
 template <typename P, typename F>
-void Executor::_silent_async(P&& params, F&& f, Topology* tpg, Node* parent) {
+void Executor::_silent_async(P&& params, F&& f, Topology* tpg, NodeBase* parent) {
   // silent task 
   if constexpr (is_runtime_task_v<F> || is_static_task_v<F>) {
     _schedule_async_task(animate(
@@ -198,7 +208,7 @@ template <typename P, typename F, typename I,
   std::enable_if_t<is_task_params_v<P> && !std::is_same_v<std::decay_t<I>, AsyncTask>, void>*
 >
 auto Executor::_silent_dependent_async(
-  P&& params, F&& func, I first, I last, Topology* tpg, Node* parent
+  P&& params, F&& func, I first, I last, Topology* tpg, NodeBase* parent
 ) {
 
   size_t num_predecessors = std::distance(first, last);
@@ -263,7 +273,7 @@ auto Executor::dependent_async(P&& params, F&& func, I first, I last) {
 template <typename P, typename F, typename I,
   std::enable_if_t<is_task_params_v<P> && !std::is_same_v<std::decay_t<I>, AsyncTask>, void>*
 >
-auto Executor::_dependent_async(P&& params, F&& func, I first, I last, Topology* tpg, Node* parent) {
+auto Executor::_dependent_async(P&& params, F&& func, I first, I last, Topology* tpg, NodeBase* parent) {
     
   size_t num_predecessors = std::distance(first, last);
   
@@ -281,7 +291,7 @@ auto Executor::_dependent_async(P&& params, F&& func, I first, I last, Topology*
           f(rt); 
         }
         else {
-          auto& eptr = rt._parent->_exception_ptr;
+          auto& eptr = rt._node->_exception_ptr;
           eptr ? p.object.set_exception(eptr) : p.object.set_value();
         }
       }
@@ -388,22 +398,32 @@ inline void Executor::_tear_down_dependent_async(Worker& worker, Node* node, Nod
     }
   }
   
-  // node->_topology  |  node->_parent  |  secenario
-  // nullptr          |  nullptr        |  exe.async();
-  // nullptr          |  0x---          |  exe.async([](Runtime rt){ rt.async(); });
-  // 0x---            |  nullptr        |  ?
-  // 0x---            |  0x---          |  tf.emplace([](Runtime& rt){ rt.async(); });
+  /*
+  -------------------------------------------------------------------------------------------------
+  node->_topology | node->_parent | secenario
+  -------------------------------------------------------------------------------------------------
+  nullptr         | nullptr       | exe.async();
+  -------------------------------------------------------------------------------------------------
+  nullptr         | 0x123         | exe.async([](Runtime rt){ rt.async(); });
+                  |               | task_group.async([](){});
+  -------------------------------------------------------------------------------------------------
+  0x123           | nullptr       | ?
+  -------------------------------------------------------------------------------------------------
+  0x123           | 0x123         | tf.emplace([](Runtime& rt){ rt.async(); });
+  -------------------------------------------------------------------------------------------------
+  */
 
   // from executor
   if(auto parent = node->_parent; parent == nullptr) {
     _decrement_topology();
   }
-  // from runtime
+  // from runtime or task group
   else {
     auto state = parent->_nstate;
     if(parent->_join_counter.fetch_sub(1, std::memory_order_acq_rel) == 1) {
+      // this async is spawned from a preempted parent, so we need to resume it
       if(state & NSTATE::PREEMPTED) {
-        _update_cache(worker, cache, parent);
+        _update_cache(worker, cache, static_cast<Node*>(parent));
       }
     }
   }
