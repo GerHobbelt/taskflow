@@ -1,9 +1,9 @@
 #pragma once
 
 #include "declarations.hpp"
-#include "tsq.hpp"
-#include "atomic_notifier.hpp"
+#include "wsq.hpp"
 #include "nonblocking_notifier.hpp"
+#include "atomic_notifier.hpp"
 
 
 /**
@@ -15,24 +15,28 @@ namespace tf {
 
 // ----------------------------------------------------------------------------
 // Default Notifier
+// Our experiments show that the performance of atomic notifier is the best.
 // ----------------------------------------------------------------------------
 
-
 /**
-@private
+@typedef DefaultNotifier
+
+@brief the default notifier type used by %Taskflow
+
+By default, %Taskflow uses tf::NonblockingNotifier due to its stable performance on most platforms.
+We do not use tf::AtomicNotifier since on some platforms and compiler versions,
+the atomic notification may exhibit suboptimal performance due to buggy wake-up mechanisms.
+These issues have been discussed in GCC bug reports and patch threads related to atomic wait/notify
+implementations.
+
+See also:
+  + [GCC Bugzilla report on atomic wait/notify behavior](https://gcc.gnu.org/bugzilla/show_bug.cgi?id=106772)
+  + [GCC patch discussions on refactoring and fixing atomic notify/race issues](https://gcc.gnu.org/pipermail/gcc-patches/2025-May/685050.html)
 */
 #ifdef TF_ENABLE_ATOMIC_NOTIFIER
-  using DefaultNotifier = AtomicNotifier;
-#elif TF_ENABLE_NONBLOCKING_NOTIFIER_V1
-  using DefaultNotifier = NonblockingNotifierV1;
-#elif TF_ENABLE_NONBLOCKING_NOTIFIER_V2
-  using DefaultNotifier = NonblockingNotifierV2;
+  using DefaultNotifier = AtomicNotifier
 #else
-  #if __cplusplus >= TF_CPP20
-    using DefaultNotifier = AtomicNotifier;
-  #else
-    using DefaultNotifier = NonblockingNotifierV2;
-  #endif
+  using DefaultNotifier = NonblockingNotifier;
 #endif
 
 // ----------------------------------------------------------------------------
@@ -57,53 +61,48 @@ class Worker {
 
   public:
 
-    /**
-    @brief queries the worker id associated with its parent executor
+  /**
+  @brief queries the worker id associated with its parent executor
 
-    A worker id is a unsigned integer in the range <tt>[0, N)</tt>,
-    where @c N is the number of workers spawned at the construction
-    time of the executor.
-    */
-    inline size_t id() const { return _id; }
+  A worker id is a unsigned integer in the range <tt>[0, N)</tt>,
+  where @c N is the number of workers spawned at the construction
+  time of the executor.
+  */
+  inline size_t id() const { return _id; }
 
-    /**
-    @brief queries the size of the queue (i.e., number of enqueued tasks to
-           run) associated with the worker
-    */
-    inline size_t queue_size() const { return _wsq.size(); }
-    
-    /**
-    @brief queries the current capacity of the queue
-    */
-    inline size_t queue_capacity() const { return static_cast<size_t>(_wsq.capacity()); }
-    
-    /**
-    @brief acquires the associated executor
-    */
-    inline Executor* executor() { return _executor; }
+  /**
+  @brief queries the size of the queue (i.e., number of enqueued tasks to
+         run) associated with the worker
+  */
+  inline size_t queue_size() const { return _wsq.size(); }
+  
+  /**
+  @brief queries the current capacity of the queue
+  */
+  inline size_t queue_capacity() const { return static_cast<size_t>(_wsq.capacity()); }
+  
+  /**
+  @brief acquires the associated executor
+  */
+  inline Executor* executor() { return _executor; }
 
-    /**
-    @brief acquires the associated thread
-    */
-    std::thread& thread() { return _thread; }
+  /**
+  @brief acquires the associated thread
+  */
+  std::thread& thread() { return _thread; }
 
   private:
   
-  #if __cplusplus >= TF_CPP20
-    std::atomic_flag _done = ATOMIC_FLAG_INIT; 
-  #else
-    std::atomic<bool> _done {false};
-  #endif
+  std::atomic_flag _done = ATOMIC_FLAG_INIT; 
 
-    size_t _id;
-    size_t _vtm;
-    Executor* _executor {nullptr};
-    DefaultNotifier::Waiter* _waiter;
-    std::thread _thread;
-    
-    std::default_random_engine _rdgen;
+  size_t _id;
+  size_t _vtm;
+  Executor* _executor {nullptr};
+  std::thread _thread;
+  
+  std::default_random_engine _rdgen;
 
-    BoundedTaskQueue<Node*> _wsq;
+  BoundedWSQ<Node*> _wsq;
 };
 
 // ----------------------------------------------------------------------------
@@ -126,32 +125,32 @@ class WorkerView {
 
   public:
 
-    /**
-    @brief queries the worker id associated with its parent executor
+  /**
+  @brief queries the worker id associated with its parent executor
 
-    A worker id is a unsigned integer in the range <tt>[0, N)</tt>,
-    where @c N is the number of workers spawned at the construction
-    time of the executor.
-    */
-    size_t id() const;
+  A worker id is a unsigned integer in the range <tt>[0, N)</tt>,
+  where @c N is the number of workers spawned at the construction
+  time of the executor.
+  */
+  size_t id() const;
 
-    /**
-    @brief queries the size of the queue (i.e., number of pending tasks to
-           run) associated with the worker
-    */
-    size_t queue_size() const;
+  /**
+  @brief queries the size of the queue (i.e., number of pending tasks to
+         run) associated with the worker
+  */
+  size_t queue_size() const;
 
-    /**
-    @brief queries the current capacity of the queue
-    */
-    size_t queue_capacity() const;
+  /**
+  @brief queries the current capacity of the queue
+  */
+  size_t queue_capacity() const;
 
   private:
 
-    WorkerView(const Worker&);
-    WorkerView(const WorkerView&) = default;
+  WorkerView(const Worker&);
+  WorkerView(const WorkerView&) = default;
 
-    const Worker& _worker;
+  const Worker& _worker;
 
 };
 

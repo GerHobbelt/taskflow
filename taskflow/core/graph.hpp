@@ -18,7 +18,7 @@
 #include "semaphore.hpp"
 #include "environment.hpp"
 #include "topology.hpp"
-#include "tsq.hpp"
+#include "wsq.hpp"
 
 
 /**
@@ -98,6 +98,8 @@ class Graph : public std::vector<std::unique_ptr<Node>> {
 @class TaskParams
 
 @brief class to create a task parameter object 
+
+tf::TaskParams is primarily used by asynchronous tasking.
 */
 class TaskParams {
 
@@ -751,6 +753,56 @@ TF_FORCE_INLINE Node* get_node_ptr(T& node) {
 } 
 
 }  // end of namespace tf::detail ---------------------------------------------
+
+/**
+@private
+*/
+template <typename I>
+class NodeIteratorAdapter {
+
+  public:
+
+  using difference_type = typename std::iterator_traits<I>::difference_type;
+
+  TF_FORCE_INLINE explicit NodeIteratorAdapter(I it) : _it(it) {}
+
+  // ----- custom dereference -----
+  TF_FORCE_INLINE auto operator*() const noexcept {
+    return detail::get_node_ptr(*_it);
+  }
+
+  TF_FORCE_INLINE auto operator[](difference_type n) const noexcept {
+    return detail::get_node_ptr(_it[n]);
+  }
+
+  // ----- iterator movement -----
+  TF_FORCE_INLINE NodeIteratorAdapter& operator+=(difference_type n) noexcept {
+    _it += n;
+    return *this;
+  }
+
+  TF_FORCE_INLINE NodeIteratorAdapter& operator-=(difference_type n) noexcept {
+    _it -= n;
+    return *this;
+  }
+
+  // ----- iterator arithmetic -----
+  friend TF_FORCE_INLINE NodeIteratorAdapter
+  operator+(NodeIteratorAdapter it, difference_type n) noexcept {
+    it += n;
+    return it;
+  }
+
+  friend TF_FORCE_INLINE NodeIteratorAdapter
+  operator-(NodeIteratorAdapter it, difference_type n) noexcept {
+    it -= n;
+    return it;
+  }
+
+  private:
+  I _it;
+};
+
 
 
 }  // end of namespace tf. ----------------------------------------------------
