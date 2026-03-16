@@ -5,6 +5,7 @@ include(${TF_3RD_PARTY_DIR}/doctest/doctest.cmake)
 list(APPEND TF_UNITTESTS 
   test_utility 
   test_wsq
+  test_spsc
   test_basics 
   test_notifiers
   test_work_stealing 
@@ -48,6 +49,11 @@ foreach(unittest IN LISTS TF_UNITTESTS)
   target_include_directories(${unittest} PRIVATE ${TF_3RD_PARTY_DIR}/doctest)
   doctest_discover_tests(${unittest})
 endforeach()
+
+# include C++ module tests
+if(TF_BUILD_MODULES)
+  add_subdirectory(${TF_UTEST_DIR}/modules)
+endif()
 
 # include CUDA tests
 if(TF_BUILD_CUDA)
