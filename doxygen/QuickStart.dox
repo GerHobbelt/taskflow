@@ -73,6 +73,21 @@ in an easy-to-use web-based interface.
 # paste the profiling json data to https://taskflow.github.io/tfprof/
 @endcode
 
+@htmlonly
+<p>Watch a quick-start video to learn Taskflow programming in just 5 minutes:</p>
+<div style="margin:1.5em 0;">
+  <div style="position:relative;padding-bottom:56.25%;height:0;overflow:hidden;">
+    <iframe
+      src="https://www.youtube.com/embed/u4vaY0cjzos"
+      title="Taskflow in 5 Minutes"
+      style="position:absolute;top:0;left:0;width:100%;height:100%;border:0;"
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+      allowfullscreen>
+    </iframe>
+  </div>
+</div>
+@endhtmlonly
+
 @section QuickStartCreateASubflowGraph Create a Subflow Graph
 
 %Taskflow supports <i>recursive tasking</i> for you to create a subflow
@@ -233,7 +248,7 @@ executor.wait_for_all();
 
 @section QuickStartOffloadTasksToGPU Offload Tasks to a GPU
 
-%Taskflow supports GPU tasking for you to accelerate a wide range of scientific computing applications by harnessing the power of CPU-GPU collaborative computing using Nvidia CUDA Graph.
+%Taskflow supports GPU tasking for you to accelerate a wide range of scientific computing applications by harnessing the power of CPU-GPU collaborative computing using Nvidia CUDA %Graph.
 
 @code{.cpp}
 __global__ void saxpy(int n, float a, float *x, float *y) {
@@ -320,18 +335,18 @@ If you are using %Taskflow, please cite the following paper we published at 2022
 More importantly, we appreciate all %Taskflow @ref contributors and 
 the following organizations for sponsoring the %Taskflow project!
 
-<table>
+<table class="sponsor-table">
 <tr>
-<td>@image html "images/utah-ece-logo.png"</td>
-<td>@image html "images/nsf.png"</td>
-<td>@image html "images/darpa.png"</td>
-<td>@image html "images/NumFocus.png"</td>
+  <td>@image html "images/utah-ece-logo.png"</td>
+  <td>@image html "images/nsf.png"</td>
+  <td>@image html "images/darpa.png"</td>
+  <td>@image html "images/NumFocus.png"</td>
 </tr>
 <tr>
-<td>@image html "images/nvidia-logo.png"</td>
-<td>@image html "images/uw-madison-ece-logo.png"</td>
-<td></td>
-<td></td>
+  <td>@image html "images/nvidia-logo.png"</td>
+  <td>@image html "images/uw-madison-ece-logo.png"</td>
+  <td></td>
+  <td></td>
 </tr>
 </table>
 

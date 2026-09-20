@@ -40,12 +40,19 @@ If your project does not support C++20, please use %Taskflow v3.11.0, which can 
 + added bulk cache update method in executor
 + added more unit tests to `test_notifiers.cpp`
 + added module support under `taskflow/modules/`
++ added adopted module task to support composable tasking with move semantics
+  + tf::Taskflow::adopt
+  + tf::Task::adopt
++ improved the dump format with proper indention
++ improved the dump format of `tf::Subflow` with cluster-level edges
 + optimized executor member variable data layout to reduce false sharing
   + aligned `num_topologies` to a cache line
   + aligned `notifier` to a cache line
-+ optimized tf::Executor::run(Taskflow&&)` with asynchronous tasking
++ optimized `tf::Executor::run(Taskflow&&)` with asynchronous tasking
   + removed satellite field from both taskflow and executor classes
 + optimized the locking cost of topology
++ refactored the codebase with C++20 concept to enhance readability
+  + credit goest to the amazing Anthropic Claude
 
 @subsection release-4-1-0_utilities Utilities
 
@@ -58,10 +65,16 @@ If your project does not support C++20, please use %Taskflow v3.11.0, which can 
 
 @section release-4-1-0_breaking_changes Breaking Changes
 
++ renamed `tf::IndexRange::discrete_domain` to `tf::IndexRange::unravel`
+
 @section release-4-1-0_documentation Documentation
 
++ switched to the native doxygen for C++20 support
 + revised @ref Cookbook
-  + added video tutorials
+  + added video tutorial links
++ revised @ref ComposableTasking
+  + added @ref CreateAnAdoptedModuleTask
++ revised @ref Profiler
 
 @section release-4-1-0_miscellaneous_items Miscellaneous Items
 

@@ -166,18 +166,28 @@ class TaskParams {
 class DefaultTaskParams {};
 
 /**
-@brief determines if the given type is a task parameter type
+@brief determines if a type is a task parameter type
 
-Task parameters can be specified in one of the following types:
+A type satisfies tf::TaskParams if it is one of the following:
   + tf::TaskParams
   + tf::DefaultTaskParams
-  + std::string
+  + any type constructible from std::string
 */
 template <typename P>
-constexpr bool is_task_params_v =
-  std::is_same_v<std::decay_t<P>, TaskParams> ||
-  std::is_same_v<std::decay_t<P>, DefaultTaskParams> ||
-  std::is_constructible_v<std::string, P>;
+concept TaskParameters =
+  std::same_as<std::decay_t<P>, TaskParams> ||
+  std::same_as<std::decay_t<P>, DefaultTaskParams> ||
+  std::constructible_from<std::string, P>;
+
+/**
+@brief determines if a type is a task parameter type (variable template)
+
+@tparam P type to check
+
+Equivalent to tf::TaskParameters<P>. Provided for backward compatibility.
+*/
+template <typename P>
+constexpr bool is_task_params_v = TaskParameters<P>;
 
 // ----------------------------------------------------------------------------
 // NodeBase
@@ -382,10 +392,17 @@ class Node : public NodeBase {
   // module work handle
   struct Module {
 
-    template <typename T>
-    Module(T&);
+    Module(Graph&);
 
     Graph& graph;
+  };
+  
+  // adopted module work handle
+  struct AdoptedModule {
+
+    AdoptedModule(Graph&&);
+
+    Graph graph;
   };
 
   // Async work
@@ -425,6 +442,7 @@ class Node : public NodeBase {
     Condition,            // conditional tasking
     MultiCondition,       // multi-conditional tasking
     Module,               // composable tasking
+    AdoptedModule,        // composable tasking with move semantics
     Async,                // async tasking
     DependentAsync        // dependent async tasking
   >;
@@ -445,6 +463,7 @@ class Node : public NodeBase {
   constexpr static auto CONDITION             = get_index_v<Condition, handle_t>;
   constexpr static auto MULTI_CONDITION       = get_index_v<MultiCondition, handle_t>;
   constexpr static auto MODULE                = get_index_v<Module, handle_t>;
+  constexpr static auto ADOPTED_MODULE        = get_index_v<AdoptedModule, handle_t>;
   constexpr static auto ASYNC                 = get_index_v<Async, handle_t>;
   constexpr static auto DEPENDENT_ASYNC       = get_index_v<DependentAsync, handle_t>;
 
@@ -545,8 +564,11 @@ Node::MultiCondition::MultiCondition(C&& c) : work {std::forward<C>(c)} {
 // ----------------------------------------------------------------------------
 
 // Constructor
-template <typename T>
-inline Node::Module::Module(T& obj) : graph{ obj.graph() } {
+inline Node::Module::Module(Graph& g) : graph(g){
+}
+
+// Constructor
+inline Node::AdoptedModule::AdoptedModule(Graph&& g) : graph(std::move(g)){
 }
 
 // ----------------------------------------------------------------------------
@@ -925,50 +947,37 @@ Node* Graph::_emplace_back(ArgsT&&... args) {
 // ----------------------------------------------------------------------------
 
 /**
-@private
- */
-template <typename T, typename = void>
-struct has_graph : std::false_type {};
+@brief determines if a type owns or provides a graph
+
+A type satisfies tf::HasGraph if it either derives from tf::Graph
+or provides a @c graph() method returning a reference convertible to
+<tt>tf::Graph&</tt>.
+*/
+template <typename T>
+concept HasGraph = std::derived_from<T, Graph> ||
+                   requires(T& t) {
+                     { t.graph() } -> std::convertible_to<Graph&>;
+                   };
 
 /**
-@private
- */
-template <typename T>
-struct has_graph<T, std::void_t<decltype(std::declval<T>().graph())>>
-    : std::is_same<decltype(std::declval<T>().graph()), Graph&> {};
+@brief retrieves a reference to the underlying tf::Graph from an object
 
-/**
- * @brief determines if the given type has a member function `Graph& graph()`
- *
- * This trait determines if the provided type `T` contains a member function
- * with the exact signature `tf::Graph& graph()`. It uses SFINAE and `std::void_t`
- * to detect the presence of the member function and its return type.
- *
- * @tparam T The type to inspect.
- * @retval true If the type `T` has a member function `tf::Graph& graph()`.
- * @retval false Otherwise.
- *
- * Example usage:
- * @code
- *
- * struct A {
- *   tf::Graph& graph() { return my_graph; };
- *   tf::Graph my_graph;
- *
- *   // other custom members to alter my_graph
- * };
- *
- * struct C {}; // No graph function
- *
- * static_assert(has_graph_v<A>, "A has graph()");
- * static_assert(!has_graph_v<C>, "C does not have graph()");
- * @endcode
- */
-template <typename T>
-constexpr bool has_graph_v = has_graph<T>::value;
+@tparam T type satisfying tf::HasGraph
 
+@param t the object from which to retrieve the graph
+
+@return a reference to the underlying tf::Graph
+
+If @c T provides a @c graph() method, that reference is returned.
+Otherwise, @c T is derived from tf::Graph and is returned via a static upcast.
+*/
+template <HasGraph T>
+Graph& retrieve_graph(T& t) {
+  if constexpr (requires { t.graph(); }) {
+    return t.graph();
+  } else {
+    return static_cast<Graph&>(t);
+  }
+}
 
 }  // end of namespace tf. ----------------------------------------------------
-
-
-

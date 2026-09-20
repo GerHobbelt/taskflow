@@ -1,18 +1,19 @@
 #pragma once
 
 #include "../taskflow.hpp"
-#include <cstddef>
 
 namespace tf {
+
+
 template <typename B1, typename E1, typename B2, typename E2, typename O,
           typename C, typename P = DefaultPartitioner>
 auto make_merge_task(B1 first1, E1 last1, B2 first2, E2 last2, C cmp, O d_first,
                      P part = P()) {
-  using B1_t = std::decay_t<unwrap_ref_decay_t<B1>>;
-  using E1_t = std::decay_t<unwrap_ref_decay_t<E1>>;
-  using B2_t = std::decay_t<unwrap_ref_decay_t<B2>>;
-  using E2_t = std::decay_t<unwrap_ref_decay_t<E2>>;
-  using O_t = std::decay_t<unwrap_ref_decay_t<O>>;
+  using B1_t = std::decay_t<std::unwrap_ref_decay_t<B1>>;
+  using E1_t = std::decay_t<std::unwrap_ref_decay_t<E1>>;
+  using B2_t = std::decay_t<std::unwrap_ref_decay_t<B2>>;
+  using E2_t = std::decay_t<std::unwrap_ref_decay_t<E2>>;
+  using O_t = std::decay_t<std::unwrap_ref_decay_t<O>>;
   return [=](Runtime &rt) mutable {
     B1_t beg1 = first1;
     E1_t end1 = last1;
@@ -64,27 +65,27 @@ auto make_merge_task(B1 first1, E1 last1, B2 first2, E2 last2, C cmp, O d_first,
       for (size_t w = 0, curr_b = 0; w < W && curr_b < N;) {
         auto chunk_size = part.adjusted_chunk_size(N, W, w);
         auto task = part([=]() mutable {
-          part.loop(
-              N, W, curr_b, chunk_size,
-              [=, prev_e = size_t{0}](size_t part_b, size_t part_e) mutable {
-                auto [b1_ind, b2_ind] = co_rank(beg1, beg2, part_b);
-                auto [e1_ind, e2_ind] = co_rank(beg1, beg2, part_e);
+          part.loop(N, W, curr_b, chunk_size,
+            [=, prev_e = size_t{0}](size_t part_b, size_t part_e) mutable {
+              auto [b1_ind, b2_ind] = co_rank(beg1, beg2, part_b);
+              auto [e1_ind, e2_ind] = co_rank(beg1, beg2, part_e);
 
-                auto b1 = beg1;
-                auto b2 = beg2;
-                auto e1 = beg1;
-                auto e2 = beg2;
+              auto b1 = beg1;
+              auto b2 = beg2;
+              auto e1 = beg1;
+              auto e2 = beg2;
 
-                std::advance(b1, b1_ind);
-                std::advance(b2, b2_ind);
-                std::advance(e1, e1_ind);
-                std::advance(e2, e2_ind);
+              std::advance(b1, b1_ind);
+              std::advance(b2, b2_ind);
+              std::advance(e1, e1_ind);
+              std::advance(e2, e2_ind);
 
-                std::advance(d_beg, part_b - prev_e);
+              std::advance(d_beg, part_b - prev_e);
 
-                d_beg = std::merge(b1, e1, b2, e2, d_beg, cmp);
-                prev_e = part_e;
-              });
+              d_beg = std::merge(b1, e1, b2, e2, d_beg, cmp);
+              prev_e = part_e;
+            }
+          );
         });
         (++w == W || (curr_b += chunk_size) >= N) ? task()
                                                   : rt.silent_async(task);
@@ -94,26 +95,27 @@ auto make_merge_task(B1 first1, E1 last1, B2 first2, E2 last2, C cmp, O d_first,
       for (size_t w = 0; w < W;) {
         auto task = part([=]() mutable {
           part.loop(
-              N, W, *next,
-              [=, prev_e = size_t{0}](size_t part_b, size_t part_e) mutable {
-                auto [b1_ind, b2_ind] = co_rank(beg1, beg2, part_b);
-                auto [e1_ind, e2_ind] = co_rank(beg1, beg2, part_e);
+            N, W, *next,
+            [=, prev_e = size_t{0}](size_t part_b, size_t part_e) mutable {
+              auto [b1_ind, b2_ind] = co_rank(beg1, beg2, part_b);
+              auto [e1_ind, e2_ind] = co_rank(beg1, beg2, part_e);
 
-                auto b1 = beg1;
-                auto b2 = beg2;
-                auto e1 = beg1;
-                auto e2 = beg2;
+              auto b1 = beg1;
+              auto b2 = beg2;
+              auto e1 = beg1;
+              auto e2 = beg2;
 
-                std::advance(b1, b1_ind);
-                std::advance(b2, b2_ind);
-                std::advance(e1, e1_ind);
-                std::advance(e2, e2_ind);
+              std::advance(b1, b1_ind);
+              std::advance(b2, b2_ind);
+              std::advance(e1, e1_ind);
+              std::advance(e2, e2_ind);
 
-                std::advance(d_beg, part_b - prev_e);
+              std::advance(d_beg, part_b - prev_e);
 
-                d_beg = std::merge(b1, e1, b2, e2, d_beg, cmp);
-                prev_e = part_e;
-              });
+              d_beg = std::merge(b1, e1, b2, e2, d_beg, cmp);
+              prev_e = part_e;
+            }
+          );
         });
         (++w == W) ? task() : rt.silent_async(task);
       }
@@ -126,9 +128,8 @@ auto make_merge_task(B1 first1, E1 last1, B2 first2, E2 last2, C cmp, O d_first,
 // ----------------------------------------------------------------------------
 
 // Function: merge
-template <typename B1, typename E1, typename B2, typename E2, typename O,
-          typename P,
-          std::enable_if_t<is_partitioner_v<std::decay_t<P>>, void> *>
+template <typename B1, typename E1, typename B2, typename E2, typename O, typename P>
+requires Partitioner<std::decay_t<P>>
 Task FlowBuilder::merge(B1 first1, E1 last1, B2 first2, E2 last2, O d_first,
                         P part) {
   return emplace(make_merge_task(first1, last1, first2, last2, std::less<>{},
@@ -136,13 +137,14 @@ Task FlowBuilder::merge(B1 first1, E1 last1, B2 first2, E2 last2, O d_first,
 }
 
 // Function: merge
-template <
-    typename B1, typename E1, typename B2, typename E2, typename O, typename C,
-    typename P,
-    std::enable_if_t<!is_partitioner_v<std::decay_t<C>>, void> *>
+template <typename B1, typename E1, typename B2, typename E2,
+          typename O, typename C, typename P>
+requires (!Partitioner<std::decay_t<C>>)
 Task FlowBuilder::merge(B1 first1, E1 last1, B2 first2, E2 last2, O d_first,
                         C cmp, P part) {
   return emplace(
       make_merge_task(first1, last1, first2, last2, cmp, d_first, part));
 }
+
+
 } // namespace tf

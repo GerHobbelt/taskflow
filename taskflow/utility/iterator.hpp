@@ -1,5 +1,6 @@
 #pragma once
 
+#include <concepts>
 #include <cstddef>
 #include <type_traits>
 
@@ -8,9 +9,9 @@ namespace tf {
 /**
 @brief checks if the given index range is invalid
 
-@tparam B type of the beginning index
-@tparam E type of the ending index
-@tparam S type of the step size
+@tparam B integral type of the beginning index
+@tparam E integral type of the ending index
+@tparam S integral type of the step size
 
 @param beg starting index of the range
 @param end ending index of the range
@@ -23,11 +24,8 @@ A range is considered invalid under the following conditions:
  + A positive range (begin < end) with a non-positive step.
  + A negative range (begin > end) with a non-negative step.
 */
-template <typename B, typename E, typename S>
-constexpr std::enable_if_t<std::is_integral_v<std::decay_t<B>> && 
-                           std::is_integral_v<std::decay_t<E>> && 
-                           std::is_integral_v<std::decay_t<S>>, bool>
-is_index_range_invalid(B beg, E end, S step) {
+template <std::integral B, std::integral E, std::integral S>
+constexpr bool is_index_range_invalid(B beg, E end, S step) {
   return ((step == 0 && beg != end) ||
           (beg < end && step <=  0) ||  // positive range
           (beg > end && step >=  0));   // negative range
@@ -36,9 +34,9 @@ is_index_range_invalid(B beg, E end, S step) {
 /**
 @brief calculates the number of iterations in the given index range
 
-@tparam B type of the beginning index
-@tparam E type of the ending index
-@tparam S type of the step size
+@tparam B integral type of the beginning index
+@tparam E integral type of the ending index
+@tparam S integral type of the step size
 
 @param beg starting index of the range
 @param end ending index of the range
@@ -71,11 +69,8 @@ size_t dist = distance(5, 20, 5);  // Returns 3, the sequence is [5, 10, 15]
 It is user's responsibility to ensure the given index range is valid.
 For instance, a range from 0 to 10 with a step size of -2 is invalid.
 */
-template <typename B, typename E, typename S>
-constexpr std::enable_if_t<std::is_integral_v<std::decay_t<B>> && 
-                           std::is_integral_v<std::decay_t<E>> && 
-                           std::is_integral_v<std::decay_t<S>>, size_t>
-distance(B beg, E end, S step) {
+template <std::integral B, std::integral E, std::integral S>
+constexpr size_t distance(B beg, E end, S step) {
   return (end - beg + step + (step > 0 ? -1 : 1)) / step;
 }
 
@@ -93,7 +88,7 @@ distance(B beg, E end, S step) {
 This class provides functionality for managing a range of indices, where the range 
 is defined by a starting index, an ending index, and a step size. 
 Indices must be an integral type.
-For example, the range `[0, 10) with a step size 2 represents the five elements,
+For example, the range `[0, 10)` with a step size 2 represents the five elements,
 0, 2, 4, 6, and 8.
 
 @code{.cpp}
@@ -199,24 +194,38 @@ class IndexRange {
   size_t size() const { return distance(_beg, _end, _step_size); }
 
   /**
-  @brief returns a range from the given discrete domain
-  @param part_beg starting index of the discrete domain
-  @param part_end ending index of the discrete domain
-  @return a new IndexRange object representing the given discrete domain
-  
-  The discrete domain of a range refers to a counter-based sequence indexed from 0
-  to @c N, where @c N is the size (i.e., number of iterated elements) of the range. 
-  For example, a discrete domain of the range [0, 10) with a step size of 2 corresponds 
-  to the sequence 0, 1, 2, 3, and 4, which map to the range elements 0, 2, 4, 6, and 8.
-  
-  For a partitioned domain [@c part_beg, @c part_end), this function returns
-  the corresponding range. For instance, the partitioned domain [2, 5) for the
-  above example returns the range [4, 10) with the same step size of 2.
-  
+  @brief maps a contiguous index partition back to the corresponding subrange
+
+  @param part_beg beginning index of the partition (inclusive)
+  @param part_end ending index of the partition (exclusive)
+  @return a new IndexRange covering the elements at positions [@c part_beg, @c part_end)
+          in the original range
+
+  Each element of the range can be addressed by a zero-based position index
+  from @c 0 to @c size()-1. This function unravels a contiguous slice of those
+  position indices back into the original iteration space, returning the
+  sub-range whose elements correspond exactly to positions
+  [@c part_beg, @c part_end).
+
+  For example, the range [0, 10) with step size 2 contains five elements at
+  positions 0->0, 1->2, 2->4, 3->6, 4->8. Unraveling the partition [1, 4) yields
+  the subrange [2, 8) with the same step size 2, whose elements are 2, 4, and 6.
+
+  @code{.cpp}
+  tf::IndexRange<int> range(0, 10, 2);   // elements: 0, 2, 4, 6, 8
+  auto sub = range.unravel(1, 4);        // elements at positions [1,4): 2, 4, 6
+  // sub.begin() == 2, sub.end() == 8, sub.step_size() == 2
+  @endcode
+
+  This is particularly useful when partitioning work across parallel workers:
+  each worker receives a position-space partition [@c part_beg, @c part_end) and
+  calls @c unravel to recover the actual index subrange it should process.
+
   @attention
-  Users must ensure the specified domain is valid with respect to the range.
+  Users must ensure [@c part_beg, @c part_end) is a valid partition of
+  [0, @c size()), i.e., @c part_end <= size().
   */
-  IndexRange discrete_domain(size_t part_beg, size_t part_end) const {
+  IndexRange unravel(size_t part_beg, size_t part_end) const {
     return IndexRange(
       static_cast<T>(part_beg) * _step_size + _beg,
       static_cast<T>(part_end) * _step_size + _beg,
