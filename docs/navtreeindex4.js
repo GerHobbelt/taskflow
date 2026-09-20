@@ -1,5 +1,10 @@
 var NAVTREEINDEX4 =
 {
+"guidelines.html#HowCanIContribute":[7,0,0],
+"guidelines.html#HowCanIEditTheDocumentation":[7,0,4],
+"guidelines.html#HowCanIGetCredit":[7,0,1],
+"guidelines.html#HowCanIGetStarted":[7,0,2],
+"guidelines.html#HowCanILeadAProject":[7,0,6],
 "guidelines.html#HowCanIReportAnIssue":[7,0,3],
 "guidelines.html#HowCanISubmitAPatch":[7,0,5],
 "guidelines.html#Step1LookAround":[7,0,2,0],
@@ -244,10 +249,5 @@ var NAVTREEINDEX4 =
 "release-3-8-0.html#release-3-8-0_utilities":[1,6,3,1],
 "release-3-9-0.html":[1,5],
 "release-3-9-0.html#release-3-9-0_breaking_changes":[1,5,5],
-"release-3-9-0.html#release-3-9-0_bug_fixes":[1,5,4],
-"release-3-9-0.html#release-3-9-0_documentation":[1,5,6],
-"release-3-9-0.html#release-3-9-0_download":[1,5,1],
-"release-3-9-0.html#release-3-9-0_miscellaneous_items":[1,5,7],
-"release-3-9-0.html#release-3-9-0_new_features":[1,5,3],
-"release-3-9-0.html#release-3-9-0_summary":[1,5,0]
+"release-3-9-0.html#release-3-9-0_bug_fixes":[1,5,4]
 };

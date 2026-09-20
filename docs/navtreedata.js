@@ -98,11 +98,11 @@ var NAVTREEINDEX =
 [
 "Algorithms.html",
 "ParallelIterations.html#ParallelIterationsIndexRangeBased",
-"classtf_1_1FlowBuilder.html#a90f3d9b9d6fcf4df8e7d7878dfdd130d",
-"classtf_1_1TaskGroup.html#aa199904b8123c345df37df4360950fa7",
-"guidelines.html#HowCanIReportAnIssue",
-"release-3-9-0.html#release-3-9-0_system_requirements"
+"classtf_1_1FlowBuilder.html#a4d52a7fe2814b264846a2085e931652c",
+"classtf_1_1TaskGroup.html#a65915370b458e982e04ebfbd46bb92c6",
+"guidelines.html#HowCanIContribute",
+"release-3-9-0.html#release-3-9-0_documentation"
 ];
 
-var SYNCONMSG = 'click to disable panel synchronization';
-var SYNCOFFMSG = 'click to enable panel synchronization';
+var SYNCONMSG = 'click to disable panel synchronisation';
+var SYNCOFFMSG = 'click to enable panel synchronisation';

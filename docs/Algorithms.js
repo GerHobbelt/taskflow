@@ -13,8 +13,11 @@ var Algorithms =
         [ "Capture Indices by Reference", "ParallelIterations.html#ParallelForEachCaptureIndicesByReference", null ]
       ] ],
       [ "Create an IndexRange-based Parallel-Iteration Task", "ParallelIterations.html#ParallelIterationsIndexRangeBased", [
-        [ "1D IndexRange", "ParallelIterations.html#ParallelIterationsIndexRange1D", null ],
-        [ "Multi-dimensional IndexRange", "ParallelIterations.html#ParallelIterationsIndexRangeMD", null ],
+        [ "What is an IndexRange?", "ParallelIterations.html#ParallelIterationsWhatIsIndexRange", null ],
+        [ "Create a Parallel-Iteration Task over a 1D IndexRange", "ParallelIterations.html#ParallelIterationsIndexRange1D", null ],
+        [ "Create a Parallel-Iteration Task over a Multi-dimensional IndexRange", "ParallelIterations.html#ParallelIterationsIndexRangeMD", null ],
+        [ "Zero-size Dimensions", "ParallelIterations.html#ParallelIterationsIndexRangeMDZeroSize", null ],
+        [ "Understand the Scheduling Algorithm", "ParallelIterations.html#ParallelIterationsIndexRangeScheduling", null ],
         [ "Capture Range by Reference", "ParallelIterations.html#ParallelIterationsIndexRangeByReference", null ]
       ] ],
       [ "Create an Iterator-based Parallel-Iteration Task", "ParallelIterations.html#ParallelIterationsIteratorBased", [
@@ -51,6 +54,18 @@ var Algorithms =
         [ "Capture Iterators by Reference", "ParallelSort.html#ParallelSortCaptureIteratorsByReference", null ]
       ] ],
       [ "Sort with a Custom Comparator", "ParallelSort.html#ParallelSortCustomComparator", null ]
+    ] ],
+    [ "Parallel Merge", "ParallelMerge.html", [
+      [ "Include the Header", "ParallelMerge.html#ParallelMergeInclude", null ],
+      [ "Motivation", "ParallelMerge.html#ParallelMergeMotivation", null ],
+      [ "Create a Parallel-Merge Task", "ParallelMerge.html#ParallelMergeCreate", null ],
+      [ "Capture Iterators by Reference", "ParallelMerge.html#ParallelMergeCaptureByReference", null ],
+      [ "Understanding the Parallel Merge Algorithm", "ParallelMerge.html#ParallelMergeAlgorithm", [
+        [ "Step 1: Flat Output Partitioning", "ParallelMerge.html#ParallelMergeAlgorithmOverview", null ],
+        [ "Step 2: Co-rank to Identify Input Subranges", "ParallelMerge.html#ParallelMergeAlgorithmCorank", null ],
+        [ "Step 3: How co_rank works? Binary Search!", "ParallelMerge.html#ParallelMergeAlgorithmBinarySearch", null ],
+        [ "Why parallel merge uses no partitioner", "ParallelMerge.html#ParallelMergeAlgorithmNoPartitioner", null ]
+      ] ]
     ] ],
     [ "Parallel Scan", "ParallelScan.html", [
       [ "Include the Header", "ParallelScan.html#ParallelScanInclude", null ],

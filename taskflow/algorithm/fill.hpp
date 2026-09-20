@@ -6,7 +6,8 @@
 #include <type_traits>
 
 namespace tf {
-template <typename B, typename E, typename V, typename P = DefaultPartitioner>
+
+template <typename B, typename E, typename V, PartitionerLike P = DefaultPartitioner>
 auto make_fill_task(B first, E last, V value, P part = P()) {
   using B_t = std::decay_t<std::unwrap_ref_decay_t<B>>;
   using E_t = std::decay_t<std::unwrap_ref_decay_t<E>>;
@@ -16,6 +17,10 @@ auto make_fill_task(B first, E last, V value, P part = P()) {
 
     size_t W = rt.executor().num_workers();
     size_t N = std::distance(beg, end);
+    
+    if(N == 0) {
+      return;
+    }
 
     // the workload should be sequential
     if (W <= 1 || N <= part.chunk_size()) {
@@ -68,7 +73,7 @@ auto make_fill_task(B first, E last, V value, P part = P()) {
   };
 }
 
-template <typename B, typename C, typename V, typename P = DefaultPartitioner>
+template <typename B, std::integral C, typename V, PartitionerLike P = DefaultPartitioner>
 auto make_fill_n_task(B first, C count, V value, P part = P()) {
   using B_t = std::decay_t<std::unwrap_ref_decay_t<B>>;
   return [=](Runtime &rt) mutable {
@@ -76,6 +81,10 @@ auto make_fill_n_task(B first, C count, V value, P part = P()) {
 
     size_t W = rt.executor().num_workers();
     size_t N = count;
+    
+    if(N == 0) {
+      return;
+    }
 
     // the workload should be sequential
     if (W <= 1 || N <= part.chunk_size()) {
@@ -128,15 +137,15 @@ auto make_fill_n_task(B first, C count, V value, P part = P()) {
   };
 }
 
-template <typename B, typename E, typename V, typename P>
-  requires Partitioner<std::decay_t<P>>
+template <typename B, typename E, typename V, PartitionerLike P>
 Task FlowBuilder::fill(B first, E last, V value, P part) {
   return emplace(make_fill_task(first, last, value, part));
 }
 
-template <typename B, typename C, typename V, typename P>
-  requires(Partitioner<std::decay_t<P>> && std::integral<C>)
+template <typename B, std::integral C, typename V, PartitionerLike P>
 Task FlowBuilder::fill_n(B first, C count, V value, P part) {
   return emplace(make_fill_n_task(first, count, value, part));
 }
-} // namespace tf
+
+
+} // namespace tf ---------------------------------------------------------------------------------

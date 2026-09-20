@@ -6,7 +6,7 @@ namespace tf {
 
 // Function: make_transform_task
 template <typename B, typename E, typename O, typename C,
-          Partitioner P = DefaultPartitioner>
+          PartitionerLike P = DefaultPartitioner>
 auto make_transform_task(B first1, E last1, O d_first, C c, P part = P()) {
   
   using namespace std::string_literals;
@@ -24,6 +24,10 @@ auto make_transform_task(B first1, E last1, O d_first, C c, P part = P()) {
 
     size_t W = rt.executor().num_workers();
     size_t N = std::distance(beg, end);
+    
+    if(N == 0) {
+      return;
+    }
 
     // only myself - no need to spawn another graph
     if(W <= 1 || N <= part.chunk_size()) {
@@ -74,8 +78,8 @@ auto make_transform_task(B first1, E last1, O d_first, C c, P part = P()) {
 
 // Function: make_transform_task
 template <typename B1, typename E1, typename B2, typename O, typename C,
-          Partitioner P = DefaultPartitioner>
-requires (!Partitioner<std::decay_t<C>>)
+          PartitionerLike P = DefaultPartitioner>
+requires (!PartitionerLike<std::decay_t<C>>)
 auto make_transform_task(B1 first1, E1 last1, B2 first2, O d_first, C c, P part = P()) {
   
   using namespace std::string_literals;
@@ -95,6 +99,10 @@ auto make_transform_task(B1 first1, E1 last1, B2 first2, O d_first, C c, P part 
 
     size_t W = rt.executor().num_workers();
     size_t N = std::distance(beg1, end1);
+    
+    if(N == 0) {
+      return;
+    }
 
     // only myself - no need to spawn another graph
     if(W <= 1 || N <= part.chunk_size()) {
@@ -150,7 +158,7 @@ auto make_transform_task(B1 first1, E1 last1, B2 first2, O d_first, C c, P part 
 // ----------------------------------------------------------------------------
 
 // Function: transform
-template <typename B, typename E, typename O, typename C, Partitioner P>
+template <typename B, typename E, typename O, typename C, PartitionerLike P>
 Task FlowBuilder::transform(B first1, E last1, O d_first, C c, P part) {
   return emplace(
     make_transform_task(first1, last1, d_first, c, part)
@@ -162,8 +170,8 @@ Task FlowBuilder::transform(B first1, E last1, O d_first, C c, P part) {
 // ----------------------------------------------------------------------------
   
 // Function: transform
-template <typename B1, typename E1, typename B2, typename O, typename C, Partitioner P>
-requires (!Partitioner<std::decay_t<C>>)
+template <typename B1, typename E1, typename B2, typename O, typename C, PartitionerLike P>
+requires (!PartitionerLike<std::decay_t<C>>)
 Task FlowBuilder::transform(
   B1 first1, E1 last1, B2 first2, O d_first, C c, P part
 ) {
