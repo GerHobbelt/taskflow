@@ -292,6 +292,26 @@ requires (!Partitioner&lt;std::decay_t&lt;C&gt;&gt;)</td></tr>
 <tr class="memitem:a993f0779950e82fcc0e9387a0326afba inherit pub_methods_classtf_1_1FlowBuilder"><td class="memTemplItemLeft" align="right" valign="top"><a class="el" href="classtf_1_1Task.html">Task</a>&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="classtf_1_1FlowBuilder.html#a993f0779950e82fcc0e9387a0326afba">merge</a> (B1 first1, E1 last1, B2 first2, E2 last2, O d_first, C cmp, P part=P())</td></tr>
 <tr class="memdesc:a993f0779950e82fcc0e9387a0326afba inherit pub_methods_classtf_1_1FlowBuilder"><td class="mdescLeft">&#160;</td><td class="mdescRight">merges two sorted ranges into a single sorted output using the supplied comparator  <br /></td></tr>
 <tr class="separator:a993f0779950e82fcc0e9387a0326afba inherit pub_methods_classtf_1_1FlowBuilder"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a2714ff1a2455b4e417b13744623061c0 inherit pub_methods_classtf_1_1FlowBuilder" id="r_a2714ff1a2455b4e417b13744623061c0"><td class="memTemplParams" colspan="2">template&lt;typename B, typename E, typename V, typename P = DefaultPartitioner&gt; <br />
+requires Partitioner&lt;std::decay_t&lt;P&gt;&gt;</td></tr>
+<tr class="memitem:a2714ff1a2455b4e417b13744623061c0 inherit pub_methods_classtf_1_1FlowBuilder"><td class="memTemplItemLeft" align="right" valign="top"><a class="el" href="classtf_1_1Task.html">Task</a>&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="classtf_1_1FlowBuilder.html#a2714ff1a2455b4e417b13744623061c0">fill</a> (B first, E last, V value, P part=P())</td></tr>
+<tr class="memdesc:a2714ff1a2455b4e417b13744623061c0 inherit pub_methods_classtf_1_1FlowBuilder"><td class="mdescLeft">&#160;</td><td class="mdescRight">fills a range with a given value in parallel  <br /></td></tr>
+<tr class="separator:a2714ff1a2455b4e417b13744623061c0 inherit pub_methods_classtf_1_1FlowBuilder"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:aae09dc18d5fbb8a36233016a9fd0b3ec inherit pub_methods_classtf_1_1FlowBuilder" id="r_aae09dc18d5fbb8a36233016a9fd0b3ec"><td class="memTemplParams" colspan="2">template&lt;typename B, typename C, typename V, typename P = DefaultPartitioner&gt; <br />
+requires (Partitioner&lt;std::decay_t&lt;P&gt;&gt; &amp;&amp; std::integral&lt;C&gt;)</td></tr>
+<tr class="memitem:aae09dc18d5fbb8a36233016a9fd0b3ec inherit pub_methods_classtf_1_1FlowBuilder"><td class="memTemplItemLeft" align="right" valign="top"><a class="el" href="classtf_1_1Task.html">Task</a>&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="classtf_1_1FlowBuilder.html#aae09dc18d5fbb8a36233016a9fd0b3ec">fill_n</a> (B first, C count, V value, P part=P())</td></tr>
+<tr class="memdesc:aae09dc18d5fbb8a36233016a9fd0b3ec inherit pub_methods_classtf_1_1FlowBuilder"><td class="mdescLeft">&#160;</td><td class="mdescRight">fills N elements with a given value in parallel  <br /></td></tr>
+<tr class="separator:aae09dc18d5fbb8a36233016a9fd0b3ec inherit pub_methods_classtf_1_1FlowBuilder"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a9c1df224bf71c408eda062a2230faa5b inherit pub_methods_classtf_1_1FlowBuilder" id="r_a9c1df224bf71c408eda062a2230faa5b"><td class="memTemplParams" colspan="2">template&lt;typename B, typename E, typename G, typename P = DefaultPartitioner&gt; <br />
+requires Partitioner&lt;std::decay_t&lt;P&gt;&gt;</td></tr>
+<tr class="memitem:a9c1df224bf71c408eda062a2230faa5b inherit pub_methods_classtf_1_1FlowBuilder"><td class="memTemplItemLeft" align="right" valign="top"><a class="el" href="classtf_1_1Task.html">Task</a>&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="classtf_1_1FlowBuilder.html#a9c1df224bf71c408eda062a2230faa5b">generate</a> (B first, E last, G gen, P part=P())</td></tr>
+<tr class="memdesc:a9c1df224bf71c408eda062a2230faa5b inherit pub_methods_classtf_1_1FlowBuilder"><td class="mdescLeft">&#160;</td><td class="mdescRight">generates values into a range in parallel using a callable  <br /></td></tr>
+<tr class="separator:a9c1df224bf71c408eda062a2230faa5b inherit pub_methods_classtf_1_1FlowBuilder"><td class="memSeparator" colspan="2">&#160;</td></tr>
+<tr class="memitem:a5209319ba1ce4df196f61614a12fdd8e inherit pub_methods_classtf_1_1FlowBuilder" id="r_a5209319ba1ce4df196f61614a12fdd8e"><td class="memTemplParams" colspan="2">template&lt;typename B, typename C, typename G, typename P = DefaultPartitioner&gt; <br />
+requires (Partitioner&lt;std::decay_t&lt;P&gt;&gt; &amp;&amp; std::integral&lt;C&gt;)</td></tr>
+<tr class="memitem:a5209319ba1ce4df196f61614a12fdd8e inherit pub_methods_classtf_1_1FlowBuilder"><td class="memTemplItemLeft" align="right" valign="top"><a class="el" href="classtf_1_1Task.html">Task</a>&#160;</td><td class="memTemplItemRight" valign="bottom"><a class="el" href="classtf_1_1FlowBuilder.html#a5209319ba1ce4df196f61614a12fdd8e">generate_n</a> (B first, C count, G gen, P part=P())</td></tr>
+<tr class="memdesc:a5209319ba1ce4df196f61614a12fdd8e inherit pub_methods_classtf_1_1FlowBuilder"><td class="mdescLeft">&#160;</td><td class="mdescRight">generates N values into a range in parallel using a callable  <br /></td></tr>
+<tr class="separator:a5209319ba1ce4df196f61614a12fdd8e inherit pub_methods_classtf_1_1FlowBuilder"><td class="memSeparator" colspan="2">&#160;</td></tr>
 </table><table class="memberdecls">
 <tr class="heading"><td colspan="2"><h2 class="groupheader"><a id="friends" name="friends"></a>
 Friends</h2></td></tr>
@@ -324,7 +344,7 @@ class&#160;</td><td class="memItemRight" valign="bottom"><b>FlowBuilder</b></td>
 <div class="line">A.<a class="code hl_function" href="classtf_1_1Task.html#a8c78c453295a553c1c016e4062da8588">precede</a>(C);  <span class="comment">// C runs after A</span></div>
 <div class="line">B.<a class="code hl_function" href="classtf_1_1Task.html#a8c78c453295a553c1c016e4062da8588">precede</a>(D);  <span class="comment">// D runs after B</span></div>
 <div class="line">C.<a class="code hl_function" href="classtf_1_1Task.html#a8c78c453295a553c1c016e4062da8588">precede</a>(D);  <span class="comment">// D runs after C</span></div>
-<div class="ttc" id="aclasstf_1_1FlowBuilder_html_a4d52a7fe2814b264846a2085e931652c"><div class="ttname"><a href="classtf_1_1FlowBuilder.html#a4d52a7fe2814b264846a2085e931652c">tf::FlowBuilder::emplace</a></div><div class="ttdeci">Task emplace(C &amp;&amp;callable)</div><div class="ttdoc">creates a static task</div><div class="ttdef"><b>Definition</b> flow_builder.hpp:1435</div></div>
+<div class="ttc" id="aclasstf_1_1FlowBuilder_html_a4d52a7fe2814b264846a2085e931652c"><div class="ttname"><a href="classtf_1_1FlowBuilder.html#a4d52a7fe2814b264846a2085e931652c">tf::FlowBuilder::emplace</a></div><div class="ttdeci">Task emplace(C &amp;&amp;callable)</div><div class="ttdoc">creates a static task</div><div class="ttdef"><b>Definition</b> flow_builder.hpp:1558</div></div>
 <div class="ttc" id="aclasstf_1_1Task_html"><div class="ttname"><a href="classtf_1_1Task.html">tf::Task</a></div><div class="ttdoc">class to create a task handle over a taskflow node</div><div class="ttdef"><b>Definition</b> task.hpp:263</div></div>
 <div class="ttc" id="aclasstf_1_1Task_html_a8c78c453295a553c1c016e4062da8588"><div class="ttname"><a href="classtf_1_1Task.html#a8c78c453295a553c1c016e4062da8588">tf::Task::precede</a></div><div class="ttdeci">Task &amp; precede(Ts &amp;&amp;... tasks)</div><div class="ttdoc">adds precedence links from this to other tasks</div><div class="ttdef"><b>Definition</b> task.hpp:952</div></div>
 </div><!-- fragment --> </div><h2 class="groupheader">Member Function Documentation</h2>
@@ -349,7 +369,7 @@ class&#160;</td><td class="memItemRight" valign="bottom"><b>FlowBuilder</b></td>
 <div class="line">  sf.<a class="code hl_function" href="classtf_1_1FlowBuilder.html#a4d52a7fe2814b264846a2085e931652c">emplace</a>([](){});</div>
 <div class="line">  sf.<a class="code hl_function" href="#a59fcac1323e70d920088dd37bd0be245">join</a>();  <span class="comment">// join the subflow of one task</span></div>
 <div class="line">});</div>
-<div class="ttc" id="aclasstf_1_1Subflow_html"><div class="ttname"><a href="classtf_1_1Subflow.html">tf::Subflow</a></div><div class="ttdoc">class to construct a subflow graph from the execution of a dynamic task</div><div class="ttdef"><b>Definition</b> flow_builder.hpp:1599</div></div>
+<div class="ttc" id="aclasstf_1_1Subflow_html"><div class="ttname"><a href="classtf_1_1Subflow.html">tf::Subflow</a></div><div class="ttdoc">class to construct a subflow graph from the execution of a dynamic task</div><div class="ttdef"><b>Definition</b> flow_builder.hpp:1722</div></div>
 <div class="ttc" id="aclasstf_1_1Subflow_html_a59fcac1323e70d920088dd37bd0be245"><div class="ttname"><a href="#a59fcac1323e70d920088dd37bd0be245">tf::Subflow::join</a></div><div class="ttdeci">void join()</div><div class="ttdoc">enables the subflow to join its parent task</div></div>
 </div><!-- fragment --><p>Only the worker that spawns this subflow can join it. </p>
 
@@ -386,7 +406,7 @@ class&#160;</td><td class="memItemRight" valign="bottom"><b>FlowBuilder</b></td>
 <div class="line">  sf.<a class="code hl_function" href="#a59fcac1323e70d920088dd37bd0be245">join</a>();</div>
 <div class="line">  std::cout &lt;&lt; sf.<a class="code hl_function" href="#ac3805e898b6a55b6e5173c74c5555e57">joinable</a>() &lt;&lt; <span class="charliteral">&#39;\n&#39;</span>;  <span class="comment">// false</span></div>
 <div class="line">});</div>
-<div class="ttc" id="aclasstf_1_1Subflow_html_ac3805e898b6a55b6e5173c74c5555e57"><div class="ttname"><a href="#ac3805e898b6a55b6e5173c74c5555e57">tf::Subflow::joinable</a></div><div class="ttdeci">bool joinable() const noexcept</div><div class="ttdoc">queries if the subflow is joinable</div><div class="ttdef"><b>Definition</b> flow_builder.hpp:1698</div></div>
+<div class="ttc" id="aclasstf_1_1Subflow_html_ac3805e898b6a55b6e5173c74c5555e57"><div class="ttname"><a href="#ac3805e898b6a55b6e5173c74c5555e57">tf::Subflow::joinable</a></div><div class="ttdeci">bool joinable() const noexcept</div><div class="ttdoc">queries if the subflow is joinable</div><div class="ttdef"><b>Definition</b> flow_builder.hpp:1821</div></div>
 </div><!-- fragment --> 
 </div>
 </div>

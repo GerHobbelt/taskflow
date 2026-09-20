@@ -33,6 +33,5 @@ var searchData=
   ['how_20does_20it_20compare_20to_20existing_20task_20programming_20systems_30',['Q9: How does it compare to existing task programming systems?',['../FAQ.html#GeneralQuestion9',1,'']]],
   ['how_20does_20taskflow_20schedule_20tasks_31',['Q7: How does Taskflow schedule tasks?',['../FAQ.html#GeneralQuestion7',1,'']]],
   ['how_20many_20tasks_20can_20taskflow_20handle_32',['Q4: How many tasks can Taskflow handle?',['../FAQ.html#GeneralQuestion4',1,'']]],
-  ['how_20taskflow_20handles_20exceptions_33',['How Taskflow Handles Exceptions',['../ExceptionHandling.html#ExceptionHandlingLogic',1,'']]],
-  ['http_20server_34',['Enable Taskflow Profiler on a HTTP Server',['../Profiler.html#ProfilerEnableTFProfServer',1,'']]]
+  ['how_20taskflow_20handles_20exceptions_33',['How Taskflow Handles Exceptions',['../ExceptionHandling.html#ExceptionHandlingLogic',1,'']]]
 ];
