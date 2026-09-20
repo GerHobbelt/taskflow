@@ -487,6 +487,16 @@ inline void Taskflow::_dump(
   os << ind << 'p' << node << "[label=\"";
   if(node->_name.empty()) os << 'p' << node;
   else os << node->_name;
+
+#ifdef TF_ENABLE_TASK_PRIORITY
+  // priority bits map directly to TaskPriority (HIGH=0, NORMAL=1, LOW=2)
+  switch (node->priority()) {
+    case 0: os << "\\npriority: HIGH";   break;
+    case 1: os << "\\npriority: NORMAL"; break;
+    case 2: os << "\\npriority: LOW";    break;
+    default: break;
+  }
+#endif
   os << "\" ";
 
   // shape of the node

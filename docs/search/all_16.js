@@ -49,7 +49,7 @@ var searchData=
   ['motivation_46',['Motivation',['../ParallelMerge.html#ParallelMergeMotivation',1,'Motivation'],['../ExamplesCholesky.html#CholeskyMotivation',1,'Motivation'],['../ExamplesSpeculativeExecution.html#SpecMotivation',1,'Motivation'],['../ProjectMotivation.html',1,'Project Motivation']]],
   ['move_20a_20taskflow_47',['Move a Taskflow',['../StaticTasking.html#MoveATaskflow',1,'']]],
   ['multi_20condition_20task_48',['Create a Multi-condition Task',['../ConditionalTasking.html#CreateAMultiConditionTask',1,'']]],
-  ['multi_20dimensional_20indexrange_49',['Create a Parallel-Iteration Task over a Multi-dimensional IndexRange',['../ParallelIterations.html#ParallelIterationsIndexRangeMD',1,'']]],
+  ['multiconditiontasklike_49',['MultiConditionTaskLike',['../concepttf_1_1MultiConditionTaskLike.html',1,'tf']]],
   ['multiple_20executors_50',['Multiple Executors',['../Profiler.html#ProfilerTipsMultiExecutor',1,'']]],
   ['multiple_20parallel_20pipelines_51',['Example 3: Define Multiple Parallel Pipelines',['../TaskParallelPipeline.html#DefineMultipleTaskParallelPipelines',1,'']]],
   ['multiple_20sweeps_52',['Multiple Sweeps',['../ExamplesStencil3D.html#Stencil3DMultipleSweeps',1,'']]],

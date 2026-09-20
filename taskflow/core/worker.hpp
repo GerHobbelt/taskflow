@@ -58,7 +58,11 @@ class Worker {
   friend class Runtime;
   friend class WorkerView;
   
+#ifdef TF_ENABLE_TASK_PRIORITY
+  using wsq_type = BoundedPriorityWSQ<BoundedWSQ<Node*>, 3>;
+#else
   using wsq_type = BoundedWSQ<Node*>;
+#endif
 
   public:
 
@@ -157,12 +161,12 @@ inline size_t WorkerView::id() const {
 
 // Function: queue_size
 inline size_t WorkerView::queue_size() const {
-  return _worker._wsq.size();
+  return _worker.queue_size();
 }
 
 // Function: queue_capacity
 inline size_t WorkerView::queue_capacity() const {
-  return static_cast<size_t>(_worker._wsq.capacity());
+  return _worker.queue_capacity();
 }
 
 // ----------------------------------------------------------------------------

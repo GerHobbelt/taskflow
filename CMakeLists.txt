@@ -14,6 +14,7 @@
 # To turn on/off taskflow macros:
 # -DTF_DISABLE_EXCEPTION_HANDLING
 # -DTF_ENABLE_ATOMIC_NOTIFIER         // default choice under C++20
+# -DTF_ENABLE_TASK_PRIORITY=ON
 #
 # To build different targets:
 # -DTF_BUILD_BENCHMARKS=OFF/ON        // default OFF
@@ -42,6 +43,9 @@ option(TF_BUILD_CUDA "Enables builds of cuda code" OFF)
 option(TF_BUILD_TESTS "Enables builds of tests" ON)
 option(TF_BUILD_EXAMPLES "Enables builds of examples" ON)
 option(TF_BUILD_MODULES "Enables C++ modules" OFF)
+
+# feature options
+option(TF_ENABLE_TASK_PRIORITY "Enables task priority scheduling" OFF)
 
 # project-specific variables
 set(TF_UTEST_DIR ${PROJECT_SOURCE_DIR}/unittests)
@@ -272,6 +276,7 @@ message(STATUS "TF_BUILD_CUDA: " ${TF_BUILD_CUDA})
 message(STATUS "TF_BUILD_TESTS: " ${TF_BUILD_TESTS})
 message(STATUS "TF_BUILD_EXAMPLES: " ${TF_BUILD_EXAMPLES})
 message(STATUS "TF_BUILD_MODULES: " ${TF_BUILD_MODULES})
+message(STATUS "TF_ENABLE_TASK_PRIORITY: " ${TF_ENABLE_TASK_PRIORITY})
 message(STATUS "TF_UTEST_DIR: " ${TF_UTEST_DIR})
 message(STATUS "TF_EXAMPLE_DIR: " ${TF_EXAMPLE_DIR})
 message(STATUS "TF_BENCHMARK_DIR: " ${TF_BENCHMARK_DIR})
@@ -301,6 +306,12 @@ target_include_directories(${PROJECT_NAME} INTERFACE
 # When building with MSVC compiler disable warnings on variables padding changed
 # for taskflow/core/tsq.hpp and taskflow/utility/mpmc.hpp
 target_compile_options(${PROJECT_NAME} INTERFACE $<$<BOOL:${MSVC}>:/wd4324>)
+
+# opt-in task priority scheduling; propagated to all consumers of the library so
+# that when disabled (default) there is zero priority-related overhead
+if(TF_ENABLE_TASK_PRIORITY)
+  target_compile_definitions(${PROJECT_NAME} INTERFACE TF_ENABLE_TASK_PRIORITY)
+endif()
 
 # -----------------------------------------------------------------------------
 # Example program 

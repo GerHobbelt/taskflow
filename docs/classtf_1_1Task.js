@@ -28,6 +28,8 @@ var classtf_1_1Task =
     [ "operator=", "classtf_1_1Task.html#a4b0e3d6a1985a353626c15970c51c820", null ],
     [ "operator==", "classtf_1_1Task.html#ad87bb498b0a4eae0c375bc59b66dbba8", null ],
     [ "precede", "classtf_1_1Task.html#a8c78c453295a553c1c016e4062da8588", null ],
+    [ "priority", "classtf_1_1Task.html#ab90b3e898dfb4a8d24ccc99b615bbd9a", null ],
+    [ "priority", "classtf_1_1Task.html#a65ba160c1464b4084f85bd9d3dd41291", null ],
     [ "release", "classtf_1_1Task.html#a1c64e317dba24a8cf4f8da6123bc33af", null ],
     [ "release", "classtf_1_1Task.html#a26709523eb112f2d024f4c0e9d2f0019", null ],
     [ "remove_predecessors", "classtf_1_1Task.html#ac44d868e1ab0897799ce41786c649037", null ],

@@ -1,4 +1,5 @@
 var searchData=
 [
-  ['partitionerlike_0',['PartitionerLike',['../concepttf_1_1PartitionerLike.html',1,'tf']]]
+  ['indexrangeslike_0',['IndexRangesLike',['../concepttf_1_1IndexRangesLike.html',1,'tf']]],
+  ['inputiteratorlike_1',['InputIteratorLike',['../concepttf_1_1InputIteratorLike.html',1,'tf']]]
 ];

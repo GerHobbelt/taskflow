@@ -84,3 +84,22 @@ dark-mode-toggle {
 dark-mode-toggle:hover {
   background-color: rgba(128, 128, 128, 0.18);
 }
+
+/* Auto-number @par blocks per section.
+   dl.section.user is Doxygen's element for @par specifically
+   (@note / @warning / @attention use .note / .warning / .attention).
+   The counter resets at every h1/h2 boundary, so each @section
+   gets its own independent 1, 2, 3, ... sequence. */
+h1, h2 {
+  counter-reset: par-counter;
+}
+
+/* @par title size */
+dl.section.user > dt {
+  font-size: 17px;
+}
+
+dl.section.user > dt::before {
+  counter-increment: par-counter;
+  content: counter(par-counter) ". ";
+}

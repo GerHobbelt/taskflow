@@ -39,6 +39,13 @@ list(APPEND TF_UNITTESTS
   test_generate
 )
 
+# task-priority tests exercise end-to-end priority ordering, which only holds
+# when the feature is compiled in; register them only then
+if(TF_ENABLE_TASK_PRIORITY)
+  message(STATUS "Add test_graph_priorities to unit tests")
+  list(APPEND TF_UNITTESTS test_graph_priorities)
+endif()
+
 # we only do exception tests if sanitizer is not enabled
 string(FIND '${CMAKE_CXX_FLAGS}' "-fsanitize" sanitize)
 #message("sanitize='${sanitize}'")

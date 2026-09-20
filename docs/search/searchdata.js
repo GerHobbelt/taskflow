@@ -7,10 +7,10 @@ var indexSectionsWithContent =
   4: "bdeinprst",
   5: "bcdioptv",
   6: "pt",
-  7: "acdmprsu",
+  7: "acdhlmnprsu",
   8: "o",
   9: "0123456789abcdefghiklmnopqrstuvwx",
-  10: "t"
+  10: "abcgimprstu"
 };
 
 var indexSectionNames =

@@ -21,8 +21,18 @@ struct NSTATE {
   constexpr static underlying_type RETAIN_SUBFLOW      = 0x40000000;
   constexpr static underlying_type JOINED_SUBFLOW      = 0x80000000;
 
-  // mask to isolate state bits - non-state bits store # weak dependents
+#ifdef TF_ENABLE_TASK_PRIORITY
+  // priority encoding (2 bits): 00=HIGH, 01=NORMAL, 10=LOW (11 unused)
+  constexpr static underlying_type PRIORITY_SHIFT      = 26;
+  constexpr static underlying_type PRIORITY_MASK       = 0x0C000000;
+
+  // mask to isolate state bits - non-state bits store # strong dependents
+  // (2 fewer bits than baseline to make room for the priority bits above)
+  constexpr static underlying_type STRONG_DEPENDENCIES_MASK = 0x03FFFFFF;
+#else
+  // mask to isolate state bits - non-state bits store # strong dependents
   constexpr static underlying_type STRONG_DEPENDENCIES_MASK = 0x0FFFFFFF;
+#endif
 };
 
 using nstate_t = NSTATE::underlying_type;
