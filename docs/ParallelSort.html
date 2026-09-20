@@ -19,6 +19,7 @@
 <link href="search/search.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="search/searchdata.js"></script>
 <script type="text/javascript" src="search/search.js"></script>
+<script type="text/javascript" src="darkmode_toggle.js"></script>
 <link href="doxygen.css" rel="stylesheet" type="text/css" />
 <link href="custom.css" rel="stylesheet" type="text/css"/>
 </head>
@@ -144,7 +145,7 @@ Sort a Range of Items</h1>
 <div class="ttc" id="aclasstf_1_1Executor_html"><div class="ttname"><a href="classtf_1_1Executor.html">tf::Executor</a></div><div class="ttdoc">class to create an executor</div><div class="ttdef"><b>Definition</b> executor.hpp:62</div></div>
 <div class="ttc" id="aclasstf_1_1Executor_html_a519777f5783981d534e9e53b99712069"><div class="ttname"><a href="classtf_1_1Executor.html#a519777f5783981d534e9e53b99712069">tf::Executor::run</a></div><div class="ttdeci">tf::Future&lt; void &gt; run(Taskflow &amp;taskflow)</div><div class="ttdoc">runs a taskflow once</div></div>
 <div class="ttc" id="aclasstf_1_1FlowBuilder_html_a35e180eb63de6c9f28e43185e837a4fa"><div class="ttname"><a href="classtf_1_1FlowBuilder.html#a35e180eb63de6c9f28e43185e837a4fa">tf::FlowBuilder::sort</a></div><div class="ttdeci">Task sort(B first, E last, C cmp)</div><div class="ttdoc">constructs a dynamic task to perform STL-styled parallel sort</div></div>
-<div class="ttc" id="aclasstf_1_1Task_html"><div class="ttname"><a href="classtf_1_1Task.html">tf::Task</a></div><div class="ttdoc">class to create a task handle over a taskflow node</div><div class="ttdef"><b>Definition</b> task.hpp:263</div></div>
+<div class="ttc" id="aclasstf_1_1Task_html"><div class="ttname"><a href="classtf_1_1Task.html">tf::Task</a></div><div class="ttdoc">class to create a task handle over a taskflow node</div><div class="ttdef"><b>Definition</b> task.hpp:569</div></div>
 <div class="ttc" id="aclasstf_1_1Taskflow_html"><div class="ttname"><a href="classtf_1_1Taskflow.html">tf::Taskflow</a></div><div class="ttdoc">class to create a taskflow object</div><div class="ttdef"><b>Definition</b> taskflow.hpp:64</div></div>
 </div><!-- fragment --><p>By default, elements are compared using the operator "&lt;" during the sorting process.</p>
 <dl class="section note"><dt>Note</dt><dd><a class="el" href="classtf_1_1FlowBuilder.html#a35e180eb63de6c9f28e43185e837a4fa" title="constructs a dynamic task to perform STL-styled parallel sort">tf::Taskflow::sort</a> is <em>not</em> a stable sorter. Elements that compare equal may appear in any order in the sorted output.</dd></dl>
@@ -173,8 +174,8 @@ Capture Iterators by Reference</h2>
 <div class="line">executor.<a class="code hl_function" href="classtf_1_1Executor.html#a519777f5783981d534e9e53b99712069">run</a>(taskflow).wait();</div>
 <div class="line"> </div>
 <div class="line">assert(std::is_sorted(data.begin(), data.end()));</div>
-<div class="ttc" id="aclasstf_1_1FlowBuilder_html_a4d52a7fe2814b264846a2085e931652c"><div class="ttname"><a href="classtf_1_1FlowBuilder.html#a4d52a7fe2814b264846a2085e931652c">tf::FlowBuilder::emplace</a></div><div class="ttdeci">Task emplace(C &amp;&amp;callable)</div><div class="ttdoc">creates a static task</div><div class="ttdef"><b>Definition</b> flow_builder.hpp:1562</div></div>
-<div class="ttc" id="aclasstf_1_1Task_html_a8c78c453295a553c1c016e4062da8588"><div class="ttname"><a href="classtf_1_1Task.html#a8c78c453295a553c1c016e4062da8588">tf::Task::precede</a></div><div class="ttdeci">Task &amp; precede(Ts &amp;&amp;... tasks)</div><div class="ttdoc">adds precedence links from this to other tasks</div><div class="ttdef"><b>Definition</b> task.hpp:952</div></div>
+<div class="ttc" id="aclasstf_1_1FlowBuilder_html_a4d52a7fe2814b264846a2085e931652c"><div class="ttname"><a href="classtf_1_1FlowBuilder.html#a4d52a7fe2814b264846a2085e931652c">tf::FlowBuilder::emplace</a></div><div class="ttdeci">Task emplace(C &amp;&amp;callable)</div><div class="ttdoc">creates a static task</div><div class="ttdef"><b>Definition</b> flow_builder.hpp:1631</div></div>
+<div class="ttc" id="aclasstf_1_1Task_html_a8c78c453295a553c1c016e4062da8588"><div class="ttname"><a href="classtf_1_1Task.html#a8c78c453295a553c1c016e4062da8588">tf::Task::precede</a></div><div class="ttdeci">Task &amp; precede(Ts &amp;&amp;... tasks)</div><div class="ttdoc">adds precedence links from this to other tasks</div><div class="ttdef"><b>Definition</b> task.hpp:1258</div></div>
 </div><!-- fragment --><p>When <code>init</code> finishes, <code>first</code> and <code>last</code> point to the initialized data range of <code>data</code>, and the sort task performs parallel sort over all elements.</p>
 <h1><a class="anchor" id="ParallelSortCustomComparator"></a>
 Sort with a Custom Comparator</h1>

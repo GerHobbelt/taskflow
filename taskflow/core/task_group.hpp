@@ -144,8 +144,8 @@ class TaskGroup {
   /**
   @brief runs the given callable asynchronously
 
-  @tparam F callable type
   @tparam P task parameters type satisfying tf::TaskParamsLike
+  @tparam F callable type
 
   @param params task parameters
   @param f callable
@@ -162,7 +162,7 @@ class TaskGroup {
   @endcode
 
   */
-  template <typename P, typename F>
+  template <TaskParamsLike P, typename F>
   auto async(P&& params, F&& f);
   
   // ----------------------------------------------------------------------------------------------
@@ -197,7 +197,9 @@ class TaskGroup {
   /**
   @brief runs the given function asynchronously without returning any future object
 
+  @tparam P task parameters type satisfying tf::TaskParamsLike
   @tparam F callable type
+
   @param params task parameters
   @param f callable
 
@@ -212,7 +214,7 @@ class TaskGroup {
   });
   @endcode
   */
-  template <typename P, typename F>
+  template <TaskParamsLike P, typename F>
   void silent_async(P&& params, F&& f);
   
   // ----------------------------------------------------------------------------------------------
@@ -254,8 +256,7 @@ class TaskGroup {
   });
   @endcode
   */
-  template <typename F, typename... Tasks>
-requires (std::same_as<std::decay_t<Tasks>, AsyncTask> && ...)
+  template <typename F, AsyncTaskLike... Tasks>
   auto dependent_async(F&& func, Tasks&&... tasks);
   
   /**
@@ -297,8 +298,7 @@ requires (std::same_as<std::decay_t<Tasks>, AsyncTask> && ...)
   });
   @endcode
   */
-  template <TaskParamsLike P, typename F, typename... Tasks>
-      requires (std::same_as<std::decay_t<Tasks>, AsyncTask> && ...)
+  template <TaskParamsLike P, typename F, AsyncTaskLike... Tasks>
   auto dependent_async(P&& params, F&& func, Tasks&&... tasks);
   
   /**
@@ -339,8 +339,7 @@ requires (std::same_as<std::decay_t<Tasks>, AsyncTask> && ...)
   }); 
   @endcode
   */
-  template <typename F, typename I>
-requires (!std::same_as<std::decay_t<I>, AsyncTask>)
+  template <typename F, std::input_iterator I>
   auto dependent_async(F&& func, I first, I last);
   
   /**
@@ -385,8 +384,7 @@ requires (!std::same_as<std::decay_t<I>, AsyncTask>)
   });
   @endcode
   */
-  template <TaskParamsLike P, typename F, typename I>
-      requires (!std::same_as<std::decay_t<I>, AsyncTask>)
+  template <TaskParamsLike P, typename F, std::input_iterator I>
   auto dependent_async(P&& params, F&& func, I first, I last);
 
   
@@ -422,14 +420,14 @@ requires (!std::same_as<std::decay_t<I>, AsyncTask>)
   });
   @endcode
   */
-  template <typename F, typename... Tasks>
-requires (std::same_as<std::decay_t<Tasks>, AsyncTask> && ...)
+  template <typename F, AsyncTaskLike... Tasks>
   tf::AsyncTask silent_dependent_async(F&& func, Tasks&&... tasks);
   
   /**
   @brief runs the given function asynchronously 
          when the given predecessors finish
   
+  @tparam P task parameters type satisfying tf::TaskParamsLike
   @tparam F callable type
   @tparam Tasks tasks of type tf::AsyncTask
 
@@ -458,8 +456,7 @@ requires (std::same_as<std::decay_t<Tasks>, AsyncTask> && ...)
   }); 
   @endcode
   */
-  template <TaskParamsLike P, typename F, typename... Tasks>
-      requires (std::same_as<std::decay_t<Tasks>, AsyncTask> && ...)
+  template <TaskParamsLike P, typename F, AsyncTaskLike... Tasks>
   tf::AsyncTask silent_dependent_async(P&& params, F&& func, Tasks&&... tasks);
   
   /**
@@ -495,14 +492,14 @@ requires (std::same_as<std::decay_t<Tasks>, AsyncTask> && ...)
   }); 
   @endcode
   */
-  template <typename F, typename I>
-  requires (!std::same_as<std::decay_t<I>, AsyncTask>)
+  template <typename F, std::input_iterator I>
   tf::AsyncTask silent_dependent_async(F&& func, I first, I last);
   
   /**
   @brief runs the given function asynchronously 
          when the given range of predecessors finish
   
+  @tparam P task parameters type satisfying tf::TaskParamsLike
   @tparam F callable type
   @tparam I iterator type 
 
@@ -534,8 +531,7 @@ requires (std::same_as<std::decay_t<Tasks>, AsyncTask> && ...)
   }); 
   @endcode
   */
-  template <TaskParamsLike P, typename F, typename I>
-  requires (!std::same_as<std::decay_t<I>, AsyncTask>)
+  template <TaskParamsLike P, typename F, std::input_iterator I>
   tf::AsyncTask silent_dependent_async(P&& params, F&& func, I first, I last);
 
 
@@ -758,7 +754,7 @@ void TaskGroup::silent_async(F&& f) {
 }
 
 // Function: silent_async
-template <typename P, typename F>
+template <TaskParamsLike P, typename F>
 void TaskGroup::silent_async(P&& params, F&& f) {
   _node_base._join_counter.fetch_add(1, std::memory_order_relaxed);
   _executor._silent_async(
@@ -777,7 +773,7 @@ auto TaskGroup::async(F&& f) {
 }
 
 // Function: async
-template <typename P, typename F>
+template <TaskParamsLike P, typename F>
 auto TaskGroup::async(P&& params, F&& f) {
   _node_base._join_counter.fetch_add(1, std::memory_order_relaxed);
   return _executor._async(
@@ -790,8 +786,7 @@ auto TaskGroup::async(P&& params, F&& f) {
 // ------------------------------------------------------------------------------------------------
 
 // Function: silent_dependent_async
-template <typename F, typename... Tasks>
-requires (std::same_as<std::decay_t<Tasks>, AsyncTask> && ...)
+template <typename F, AsyncTaskLike... Tasks>
 tf::AsyncTask TaskGroup::silent_dependent_async(F&& func, Tasks&&... tasks) {
   return silent_dependent_async(
     DefaultTaskParams{}, std::forward<F>(func), std::forward<Tasks>(tasks)...
@@ -799,27 +794,24 @@ tf::AsyncTask TaskGroup::silent_dependent_async(F&& func, Tasks&&... tasks) {
 }
 
 // Function: silent_dependent_async
-template <TaskParamsLike P, typename F, typename... Tasks>
-requires (std::same_as<std::decay_t<Tasks>, AsyncTask> && ...)
+template <TaskParamsLike P, typename F, AsyncTaskLike... Tasks>
 tf::AsyncTask TaskGroup::silent_dependent_async(
   P&& params, F&& func, Tasks&&... tasks 
 ){
-  std::array<AsyncTask, sizeof...(Tasks)> array = { std::forward<Tasks>(tasks)... };
+  std::array<AsyncTask*, sizeof...(Tasks)> array = { (&tasks)... };
   return silent_dependent_async(
     std::forward<P>(params), std::forward<F>(func), array.begin(), array.end()
   );
 }
 
 // Function: silent_dependent_async
-template <typename F, typename I>
-requires (!std::same_as<std::decay_t<I>, AsyncTask>)
+template <typename F, std::input_iterator I>
 tf::AsyncTask TaskGroup::silent_dependent_async(F&& func, I first, I last) {
   return silent_dependent_async(DefaultTaskParams{}, std::forward<F>(func), first, last);
 }
 
 // Function: silent_dependent_async
-template <TaskParamsLike P, typename F, typename I>
-requires (!std::same_as<std::decay_t<I>, AsyncTask>)
+template <TaskParamsLike P, typename F, std::input_iterator I>
 tf::AsyncTask TaskGroup::silent_dependent_async(
   P&& params, F&& func, I first, I last
 ) {
@@ -834,32 +826,28 @@ tf::AsyncTask TaskGroup::silent_dependent_async(
 // ------------------------------------------------------------------------------------------------
 
 // Function: dependent_async
-template <typename F, typename... Tasks>
-requires (std::same_as<std::decay_t<Tasks>, AsyncTask> && ...)
+template <typename F, AsyncTaskLike... Tasks>
 auto TaskGroup::dependent_async(F&& func, Tasks&&... tasks) {
   return dependent_async(DefaultTaskParams{}, std::forward<F>(func), std::forward<Tasks>(tasks)...);
 }
 
 // Function: dependent_async
-template <TaskParamsLike P, typename F, typename... Tasks>
-requires (std::same_as<std::decay_t<Tasks>, AsyncTask> && ...)
+template <TaskParamsLike P, typename F, AsyncTaskLike... Tasks>
 auto TaskGroup::dependent_async(P&& params, F&& func, Tasks&&... tasks) {
-  std::array<AsyncTask, sizeof...(Tasks)> array = { std::forward<Tasks>(tasks)... };
+  std::array<AsyncTask*, sizeof...(Tasks)> array = { (&tasks)... };
   return dependent_async(
     std::forward<P>(params), std::forward<F>(func), array.begin(), array.end()
   );
 }
 
 // Function: dependent_async
-template <typename F, typename I>
-requires (!std::same_as<std::decay_t<I>, AsyncTask>)
+template <typename F, std::input_iterator I>
 auto TaskGroup::dependent_async(F&& func, I first, I last) {
   return dependent_async(DefaultTaskParams{}, std::forward<F>(func), first, last);
 }
 
 // Function: dependent_async
-template <TaskParamsLike P, typename F, typename I>
-requires (!std::same_as<std::decay_t<I>, AsyncTask>)
+template <TaskParamsLike P, typename F, std::input_iterator I>
 auto TaskGroup::dependent_async(P&& params, F&& func, I first, I last) {
   _node_base._join_counter.fetch_add(1, std::memory_order_relaxed);
   return _executor._dependent_async(

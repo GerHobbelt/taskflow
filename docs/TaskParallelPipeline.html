@@ -19,6 +19,7 @@
 <link href="search/search.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="search/searchdata.js"></script>
 <script type="text/javascript" src="search/search.js"></script>
+<script type="text/javascript" src="darkmode_toggle.js"></script>
 <link href="doxygen.css" rel="stylesheet" type="text/css" />
 <link href="custom.css" rel="stylesheet" type="text/css"/>
 </head>
@@ -203,12 +204,12 @@ Create a Task-parallel Pipeline Module Task</h1>
 <div class="line">48: executor.<a class="code hl_function" href="classtf_1_1Executor.html#a519777f5783981d534e9e53b99712069">run</a>(taskflow).wait();</div>
 <div class="ttc" id="aclasstf_1_1Executor_html"><div class="ttname"><a href="classtf_1_1Executor.html">tf::Executor</a></div><div class="ttdoc">class to create an executor</div><div class="ttdef"><b>Definition</b> executor.hpp:62</div></div>
 <div class="ttc" id="aclasstf_1_1Executor_html_a519777f5783981d534e9e53b99712069"><div class="ttname"><a href="classtf_1_1Executor.html#a519777f5783981d534e9e53b99712069">tf::Executor::run</a></div><div class="ttdeci">tf::Future&lt; void &gt; run(Taskflow &amp;taskflow)</div><div class="ttdoc">runs a taskflow once</div></div>
-<div class="ttc" id="aclasstf_1_1FlowBuilder_html_ac6f22228d4c2ea2e643c4b0d42c0e92a"><div class="ttname"><a href="classtf_1_1FlowBuilder.html#ac6f22228d4c2ea2e643c4b0d42c0e92a">tf::FlowBuilder::composed_of</a></div><div class="ttdeci">Task composed_of(T &amp;object)</div><div class="ttdoc">creates a module task for the target object</div><div class="ttdef"><b>Definition</b> flow_builder.hpp:1612</div></div>
+<div class="ttc" id="aclasstf_1_1FlowBuilder_html_ac6f22228d4c2ea2e643c4b0d42c0e92a"><div class="ttname"><a href="classtf_1_1FlowBuilder.html#ac6f22228d4c2ea2e643c4b0d42c0e92a">tf::FlowBuilder::composed_of</a></div><div class="ttdeci">Task composed_of(T &amp;object)</div><div class="ttdoc">creates a module task for the target object</div><div class="ttdef"><b>Definition</b> flow_builder.hpp:1681</div></div>
 <div class="ttc" id="aclasstf_1_1Pipe_html"><div class="ttname"><a href="classtf_1_1Pipe.html">tf::Pipe</a></div><div class="ttdoc">class to create a pipe object for a pipeline stage</div><div class="ttdef"><b>Definition</b> pipeline.hpp:144</div></div>
 <div class="ttc" id="aclasstf_1_1Pipeflow_html"><div class="ttname"><a href="classtf_1_1Pipeflow.html">tf::Pipeflow</a></div><div class="ttdoc">class to create a pipeflow object used by the pipe callable</div><div class="ttdef"><b>Definition</b> pipeline.hpp:43</div></div>
 <div class="ttc" id="aclasstf_1_1Pipeline_html"><div class="ttname"><a href="classtf_1_1Pipeline.html">tf::Pipeline</a></div><div class="ttdoc">class to create a pipeline scheduling framework</div><div class="ttdef"><b>Definition</b> pipeline.hpp:307</div></div>
-<div class="ttc" id="aclasstf_1_1Task_html"><div class="ttname"><a href="classtf_1_1Task.html">tf::Task</a></div><div class="ttdoc">class to create a task handle over a taskflow node</div><div class="ttdef"><b>Definition</b> task.hpp:263</div></div>
-<div class="ttc" id="aclasstf_1_1Task_html_a08ada0425b490997b6ff7f310107e5e3"><div class="ttname"><a href="classtf_1_1Task.html#a08ada0425b490997b6ff7f310107e5e3">tf::Task::name</a></div><div class="ttdeci">const std::string &amp; name() const</div><div class="ttdoc">queries the name of the task</div><div class="ttdef"><b>Definition</b> task.hpp:1082</div></div>
+<div class="ttc" id="aclasstf_1_1Task_html"><div class="ttname"><a href="classtf_1_1Task.html">tf::Task</a></div><div class="ttdoc">class to create a task handle over a taskflow node</div><div class="ttdef"><b>Definition</b> task.hpp:569</div></div>
+<div class="ttc" id="aclasstf_1_1Task_html_a08ada0425b490997b6ff7f310107e5e3"><div class="ttname"><a href="classtf_1_1Task.html#a08ada0425b490997b6ff7f310107e5e3">tf::Task::name</a></div><div class="ttdeci">const std::string &amp; name() const</div><div class="ttdoc">queries the name of the task</div><div class="ttdef"><b>Definition</b> task.hpp:1388</div></div>
 <div class="ttc" id="aclasstf_1_1Taskflow_html"><div class="ttname"><a href="classtf_1_1Taskflow.html">tf::Taskflow</a></div><div class="ttdoc">class to create a taskflow object</div><div class="ttdef"><b>Definition</b> taskflow.hpp:64</div></div>
 <div class="ttc" id="anamespacetf_html_abb7a11e41fd457f69e7ff45d4c769564a7b804a28d6154ab8007287532037f1d0"><div class="ttname"><a href="namespacetf.html#abb7a11e41fd457f69e7ff45d4c769564a7b804a28d6154ab8007287532037f1d0">tf::PipeType::SERIAL</a></div><div class="ttdeci">@ SERIAL</div><div class="ttdoc">serial type</div></div>
 <div class="ttc" id="anamespacetf_html_abb7a11e41fd457f69e7ff45d4c769564adf13a99b035d6f0bce4f44ab18eec8eb"><div class="ttname"><a href="namespacetf.html#abb7a11e41fd457f69e7ff45d4c769564adf13a99b035d6f0bce4f44ab18eec8eb">tf::PipeType::PARALLEL</a></div><div class="ttdeci">@ PARALLEL</div><div class="ttdoc">parallel type</div></div>
@@ -333,8 +334,8 @@ Example 1: Iterate a Pipeline</h2>
 <div class="line">67:</div>
 <div class="line">68: <span class="comment">// execute the taskflow</span></div>
 <div class="line">69: executor.<a class="code hl_function" href="classtf_1_1Executor.html#a519777f5783981d534e9e53b99712069">run</a>(taskflow).wait();</div>
-<div class="ttc" id="aclasstf_1_1FlowBuilder_html_a4d52a7fe2814b264846a2085e931652c"><div class="ttname"><a href="classtf_1_1FlowBuilder.html#a4d52a7fe2814b264846a2085e931652c">tf::FlowBuilder::emplace</a></div><div class="ttdeci">Task emplace(C &amp;&amp;callable)</div><div class="ttdoc">creates a static task</div><div class="ttdef"><b>Definition</b> flow_builder.hpp:1562</div></div>
-<div class="ttc" id="aclasstf_1_1Task_html_a8c78c453295a553c1c016e4062da8588"><div class="ttname"><a href="classtf_1_1Task.html#a8c78c453295a553c1c016e4062da8588">tf::Task::precede</a></div><div class="ttdeci">Task &amp; precede(Ts &amp;&amp;... tasks)</div><div class="ttdoc">adds precedence links from this to other tasks</div><div class="ttdef"><b>Definition</b> task.hpp:952</div></div>
+<div class="ttc" id="aclasstf_1_1FlowBuilder_html_a4d52a7fe2814b264846a2085e931652c"><div class="ttname"><a href="classtf_1_1FlowBuilder.html#a4d52a7fe2814b264846a2085e931652c">tf::FlowBuilder::emplace</a></div><div class="ttdeci">Task emplace(C &amp;&amp;callable)</div><div class="ttdoc">creates a static task</div><div class="ttdef"><b>Definition</b> flow_builder.hpp:1631</div></div>
+<div class="ttc" id="aclasstf_1_1Task_html_a8c78c453295a553c1c016e4062da8588"><div class="ttname"><a href="classtf_1_1Task.html#a8c78c453295a553c1c016e4062da8588">tf::Task::precede</a></div><div class="ttdeci">Task &amp; precede(Ts &amp;&amp;... tasks)</div><div class="ttdoc">adds precedence links from this to other tasks</div><div class="ttdef"><b>Definition</b> task.hpp:1258</div></div>
 </div><!-- fragment --><p>Debrief:</p>
 <ul>
 <li>Lines 4-5 define the structure of the pipeline scheduling framework </li>

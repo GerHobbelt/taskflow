@@ -19,6 +19,7 @@
 <link href="search/search.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="search/searchdata.js"></script>
 <script type="text/javascript" src="search/search.js"></script>
+<script type="text/javascript" src="darkmode_toggle.js"></script>
 <link href="doxygen.css" rel="stylesheet" type="text/css" />
 <link href="custom.css" rel="stylesheet" type="text/css"/>
 </head>
@@ -513,7 +514,7 @@ $(function(){initNavTree('data__pipeline_8hpp_source.html',''); initResizable(tr
 <div class="line"><a id="l00637" name="l00637"></a><span class="lineno">  637</span> </div>
 <div class="line"><a id="l00638" name="l00638"></a><span class="lineno">  638</span> </div>
 <div class="line"><a id="l00639" name="l00639"></a><span class="lineno">  639</span> </div>
-<div class="ttc" id="aclasstf_1_1CachelineAligned_html"><div class="ttname"><a href="classtf_1_1CachelineAligned.html">tf::CachelineAligned</a></div><div class="ttdoc">class to ensure cacheline-aligned storage for an object.</div><div class="ttdef"><b>Definition</b> os.hpp:148</div></div>
+<div class="ttc" id="aclasstf_1_1CachelineAligned_html"><div class="ttname"><a href="classtf_1_1CachelineAligned.html">tf::CachelineAligned</a></div><div class="ttdoc">class to ensure cacheline-aligned storage for an object.</div><div class="ttdef"><b>Definition</b> os.hpp:219</div></div>
 <div class="ttc" id="aclasstf_1_1DataPipe_html"><div class="ttname"><a href="classtf_1_1DataPipe.html">tf::DataPipe</a></div><div class="ttdoc">class to create a stage in a data-parallel pipeline</div><div class="ttdef"><b>Definition</b> data_pipeline.hpp:52</div></div>
 <div class="ttc" id="aclasstf_1_1DataPipe_html_a542531895cb9363c6291e0ce9d126974"><div class="ttname"><a href="classtf_1_1DataPipe.html#a542531895cb9363c6291e0ce9d126974">tf::DataPipe::DataPipe</a></div><div class="ttdeci">DataPipe(PipeType d, callable_t &amp;&amp;callable)</div><div class="ttdoc">constructs a data pipe</div><div class="ttdef"><b>Definition</b> data_pipeline.hpp:86</div></div>
 <div class="ttc" id="aclasstf_1_1DataPipe_html_a5931f0ae2db8e00f4ad4c42a26adbeae"><div class="ttname"><a href="classtf_1_1DataPipe.html#a5931f0ae2db8e00f4ad4c42a26adbeae">tf::DataPipe::callable</a></div><div class="ttdeci">void callable(U &amp;&amp;callable)</div><div class="ttdoc">assigns a new callable to the data pipe</div><div class="ttdef"><b>Definition</b> data_pipeline.hpp:117</div></div>
@@ -533,7 +534,7 @@ $(function(){initNavTree('data__pipeline_8hpp_source.html',''); initResizable(tr
 <div class="ttc" id="aclasstf_1_1DataPipeline_html_ae3bce106a357267223e5a6c5884d57c4"><div class="ttname"><a href="classtf_1_1DataPipeline.html#ae3bce106a357267223e5a6c5884d57c4">tf::DataPipeline::data_t</a></div><div class="ttdeci">unique_variant_t&lt; std::variant&lt; std::conditional_t&lt; std::is_void_v&lt; typename Ps::output_t &gt;, std::monostate, std::decay_t&lt; typename Ps::output_t &gt; &gt;... &gt; &gt; data_t</div><div class="ttdoc">internal storage type for each data token (default std::variant)</div><div class="ttdef"><b>Definition</b> data_pipeline.hpp:278</div></div>
 <div class="ttc" id="aclasstf_1_1Graph_html"><div class="ttname"><a href="classtf_1_1Graph.html">tf::Graph</a></div><div class="ttdoc">class to create a graph object</div><div class="ttdef"><b>Definition</b> graph.hpp:47</div></div>
 <div class="ttc" id="aclasstf_1_1Pipeflow_html"><div class="ttname"><a href="classtf_1_1Pipeflow.html">tf::Pipeflow</a></div><div class="ttdoc">class to create a pipeflow object used by the pipe callable</div><div class="ttdef"><b>Definition</b> pipeline.hpp:43</div></div>
-<div class="ttc" id="aclasstf_1_1Task_html"><div class="ttname"><a href="classtf_1_1Task.html">tf::Task</a></div><div class="ttdoc">class to create a task handle over a taskflow node</div><div class="ttdef"><b>Definition</b> task.hpp:263</div></div>
+<div class="ttc" id="aclasstf_1_1Task_html"><div class="ttname"><a href="classtf_1_1Task.html">tf::Task</a></div><div class="ttdoc">class to create a task handle over a taskflow node</div><div class="ttdef"><b>Definition</b> task.hpp:569</div></div>
 <div class="ttc" id="anamespacetf_html"><div class="ttname"><a href="namespacetf.html">tf</a></div><div class="ttdoc">taskflow namespace</div><div class="ttdef"><b>Definition</b> small_vector.hpp:20</div></div>
 <div class="ttc" id="anamespacetf_html_a8975fa5762088789adb0b60f38208309"><div class="ttname"><a href="namespacetf.html#a8975fa5762088789adb0b60f38208309">tf::make_data_pipe</a></div><div class="ttdeci">auto make_data_pipe(PipeType d, C &amp;&amp;callable)</div><div class="ttdoc">function to construct a data pipe (tf::DataPipe)</div><div class="ttdef"><b>Definition</b> data_pipeline.hpp:171</div></div>
 <div class="ttc" id="anamespacetf_html_abb7a11e41fd457f69e7ff45d4c769564"><div class="ttname"><a href="namespacetf.html#abb7a11e41fd457f69e7ff45d4c769564">tf::PipeType</a></div><div class="ttdeci">PipeType</div><div class="ttdoc">enumeration of all pipe types</div><div class="ttdef"><b>Definition</b> pipeline.hpp:113</div></div>

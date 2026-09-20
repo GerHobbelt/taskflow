@@ -26,7 +26,7 @@ void Executor::_schedule_async_task(ArgsT&&... args) {
 }
 
 // Procedure: _schedule_dependent_async_task
-template <typename I, typename... ArgsT>
+template <std::input_iterator I, typename... ArgsT>
 AsyncTask Executor::_schedule_dependent_async_task(I first, I last, size_t num_predecessors, ArgsT&&... args) {  
     
   // We need to create an async-task first to acquire an ownership.
@@ -105,14 +105,14 @@ auto Executor::async(F&& f) {
 }
 
 // Function: async
-template <typename P, typename F>
+template <TaskParamsLike P, typename F>
 auto Executor::async(P&& params, F&& f) {
   _increment_topology();
   return _async(std::forward<P>(params), std::forward<F>(f), nullptr, nullptr);
 }
 
 // Function: _async
-template <typename P, typename F>
+template <TaskParamsLike P, typename F>
 auto Executor::_async(P&& params, F&& f, Topology* tpg, NodeBase* parent) {
   
   // async task with runtime: [] (tf::Runtime&) -> void {}
@@ -169,14 +169,14 @@ void Executor::silent_async(F&& f) {
 }
 
 // Function: silent_async
-template <typename P, typename F>
+template <TaskParamsLike P, typename F>
 void Executor::silent_async(P&& params, F&& f) {
   _increment_topology();
   _silent_async(std::forward<P>(params), std::forward<F>(f), nullptr, nullptr);
 }
 
 // Function: _silent_async
-template <typename P, typename F>
+template <TaskParamsLike P, typename F>
 void Executor::_silent_async(P&& params, F&& f, Topology* tpg, NodeBase* parent) {
   // silent task 
   if constexpr (is_runtime_task_v<F> || is_static_task_v<F>) {
@@ -200,8 +200,7 @@ void Executor::_silent_async(P&& params, F&& f, Topology* tpg, NodeBase* parent)
 // ----------------------------------------------------------------------------
 
 // Function: silent_dependent_async
-template <typename F, typename... Tasks>
-requires (std::same_as<std::decay_t<Tasks>, AsyncTask> && ...)
+template <typename F, AsyncTaskLike... Tasks>
 tf::AsyncTask Executor::silent_dependent_async(F&& func, Tasks&&... tasks) {
   return silent_dependent_async(
     DefaultTaskParams{}, std::forward<F>(func), std::forward<Tasks>(tasks)...
@@ -209,8 +208,7 @@ tf::AsyncTask Executor::silent_dependent_async(F&& func, Tasks&&... tasks) {
 }
 
 // Function: silent_dependent_async
-template <TaskParamsLike P, typename F, typename... Tasks>
-requires (std::same_as<std::decay_t<Tasks>, AsyncTask> && ...)
+template <TaskParamsLike P, typename F, AsyncTaskLike... Tasks>
 tf::AsyncTask Executor::silent_dependent_async(
   P&& params, F&& func, Tasks&&... tasks 
 ){
@@ -221,15 +219,13 @@ tf::AsyncTask Executor::silent_dependent_async(
 }
 
 // Function: silent_dependent_async
-template <typename F, typename I>
-requires (!std::same_as<std::decay_t<I>, AsyncTask>)
+template <typename F, std::input_iterator I>
 tf::AsyncTask Executor::silent_dependent_async(F&& func, I first, I last) {
   return silent_dependent_async(DefaultTaskParams{}, std::forward<F>(func), first, last);
 }
 
 // Function: silent_dependent_async
-template <TaskParamsLike P, typename F, typename I>
-requires (!std::same_as<std::decay_t<I>, AsyncTask>)
+template <TaskParamsLike P, typename F, std::input_iterator I>
 tf::AsyncTask Executor::silent_dependent_async(
   P&& params, F&& func, I first, I last
 ) {
@@ -240,8 +236,7 @@ tf::AsyncTask Executor::silent_dependent_async(
 }
 
 // Function: _silent_dependent_async
-template <TaskParamsLike P, typename F, typename I>
-requires (!std::same_as<std::decay_t<I>, AsyncTask>)
+template <TaskParamsLike P, typename F, std::input_iterator I>
 auto Executor::_silent_dependent_async(
   P&& params, F&& func, I first, I last, Topology* tpg, NodeBase* parent
 ) {
@@ -257,15 +252,13 @@ auto Executor::_silent_dependent_async(
 // ----------------------------------------------------------------------------
 
 // Function: dependent_async
-template <typename F, typename... Tasks>
-requires (std::same_as<std::decay_t<Tasks>, AsyncTask> && ...)
+template <typename F, AsyncTaskLike... Tasks>
 auto Executor::dependent_async(F&& func, Tasks&&... tasks) {
   return dependent_async(DefaultTaskParams{}, std::forward<F>(func), std::forward<Tasks>(tasks)...);
 }
 
 // Function: dependent_async
-template <TaskParamsLike P, typename F, typename... Tasks>
-requires (std::same_as<std::decay_t<Tasks>, AsyncTask> && ...)
+template <TaskParamsLike P, typename F, AsyncTaskLike... Tasks>
 auto Executor::dependent_async(P&& params, F&& func, Tasks&&... tasks) {
   std::array<AsyncTask*, sizeof...(Tasks)> array{ (&tasks)... };
   return dependent_async(
@@ -274,23 +267,20 @@ auto Executor::dependent_async(P&& params, F&& func, Tasks&&... tasks) {
 }
 
 // Function: dependent_async
-template <typename F, typename I>
-requires (!std::same_as<std::decay_t<I>, AsyncTask>)
+template <typename F, std::input_iterator I>
 auto Executor::dependent_async(F&& func, I first, I last) {
   return dependent_async(DefaultTaskParams{}, std::forward<F>(func), first, last);
 }
 
 // Function: dependent_async
-template <TaskParamsLike P, typename F, typename I>
-requires (!std::same_as<std::decay_t<I>, AsyncTask>)
+template <TaskParamsLike P, typename F, std::input_iterator I>
 auto Executor::dependent_async(P&& params, F&& func, I first, I last) {
   _increment_topology();
   return _dependent_async(std::forward<P>(params), std::forward<F>(func), first, last, nullptr, nullptr);
 }
 
 // Function: _dependent_async
-template <TaskParamsLike P, typename F, typename I>
-requires (!std::same_as<std::decay_t<I>, AsyncTask>)
+template <TaskParamsLike P, typename F, std::input_iterator I>
 auto Executor::_dependent_async(P&& params, F&& func, I first, I last, Topology* tpg, NodeBase* parent) {
     
   size_t num_predecessors = std::distance(first, last);

@@ -19,6 +19,7 @@
 <link href="search/search.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="search/searchdata.js"></script>
 <script type="text/javascript" src="search/search.js"></script>
+<script type="text/javascript" src="darkmode_toggle.js"></script>
 <link href="doxygen.css" rel="stylesheet" type="text/css" />
 <link href="custom.css" rel="stylesheet" type="text/css"/>
 </head>
@@ -103,7 +104,7 @@ $(function(){initNavTree('concepttf_1_1TaskParamsLike.html',''); initResizable(t
 </div><!--header-->
 <div class="contents">
 
-<p>determines if a type is a task parameter type  
+<p>concept that determines if a type is a task parameter type  
 <a href="#details">More...</a></p>
 
 <p><code>#include &lt;<a class="el" href="graph_8hpp_source.html">taskflow/core/graph.hpp</a>&gt;</code></p>
@@ -114,9 +115,9 @@ $(function(){initNavTree('concepttf_1_1TaskParamsLike.html',''); initResizable(t
 <div class="line">  std::same_as&lt;std::decay_t&lt;P&gt;, DefaultTaskParams&gt; ||</div>
 <div class="line">  <a class="code hl_concept" href="concepttf_1_1StringLike.html">StringLike&lt;P&gt;</a></div>
 <div class="ttc" id="aconcepttf_1_1StringLike_html"><div class="ttname"><a href="concepttf_1_1StringLike.html">tf::StringLike</a></div><div class="ttdoc">concept that determines if a type is string-like</div><div class="ttdef"><b>Definition</b> graph.hpp:162</div></div>
-<div class="ttc" id="aconcepttf_1_1TaskParamsLike_html"><div class="ttname"><a href="concepttf_1_1TaskParamsLike.html">tf::TaskParamsLike</a></div><div class="ttdoc">determines if a type is a task parameter type</div><div class="ttdef"><b>Definition</b> graph.hpp:202</div></div>
+<div class="ttc" id="aconcepttf_1_1TaskParamsLike_html"><div class="ttname"><a href="concepttf_1_1TaskParamsLike.html">tf::TaskParamsLike</a></div><div class="ttdoc">concept that determines if a type is a task parameter type</div><div class="ttdef"><b>Definition</b> graph.hpp:202</div></div>
 </div><!-- fragment --><a name="details" id="details"></a><h2 class="groupheader">Detailed Description</h2>
-<div class="textblock"><p>determines if a type is a task parameter type </p>
+<div class="textblock"><p>concept that determines if a type is a task parameter type </p>
 <p>A type satisfies <a class="el" href="classtf_1_1TaskParams.html" title="class to create a task parameter object">tf::TaskParams</a> if it is one of the following:</p><ul>
 <li><a class="el" href="classtf_1_1TaskParams.html" title="class to create a task parameter object">tf::TaskParams</a></li>
 <li><a class="el" href="classtf_1_1DefaultTaskParams.html" title="class to create an empty task parameter for compile-time optimization">tf::DefaultTaskParams</a></li>

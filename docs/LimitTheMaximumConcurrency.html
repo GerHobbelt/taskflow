@@ -19,6 +19,7 @@
 <link href="search/search.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="search/searchdata.js"></script>
 <script type="text/javascript" src="search/search.js"></script>
+<script type="text/javascript" src="darkmode_toggle.js"></script>
 <link href="doxygen.css" rel="stylesheet" type="text/css" />
 <link href="custom.css" rel="stylesheet" type="text/css"/>
 </head>
@@ -145,7 +146,7 @@ Define a Semaphore</h1>
 <div class="line"> </div>
 <div class="line">executor.run(taskflow).wait();</div>
 <div class="ttc" id="aclasstf_1_1Executor_html"><div class="ttname"><a href="classtf_1_1Executor.html">tf::Executor</a></div><div class="ttdoc">class to create an executor</div><div class="ttdef"><b>Definition</b> executor.hpp:62</div></div>
-<div class="ttc" id="aclasstf_1_1FlowBuilder_html_a4d52a7fe2814b264846a2085e931652c"><div class="ttname"><a href="classtf_1_1FlowBuilder.html#a4d52a7fe2814b264846a2085e931652c">tf::FlowBuilder::emplace</a></div><div class="ttdeci">Task emplace(C &amp;&amp;callable)</div><div class="ttdoc">creates a static task</div><div class="ttdef"><b>Definition</b> flow_builder.hpp:1562</div></div>
+<div class="ttc" id="aclasstf_1_1FlowBuilder_html_a4d52a7fe2814b264846a2085e931652c"><div class="ttname"><a href="classtf_1_1FlowBuilder.html#a4d52a7fe2814b264846a2085e931652c">tf::FlowBuilder::emplace</a></div><div class="ttdeci">Task emplace(C &amp;&amp;callable)</div><div class="ttdoc">creates a static task</div><div class="ttdef"><b>Definition</b> flow_builder.hpp:1631</div></div>
 <div class="ttc" id="aclasstf_1_1Semaphore_html"><div class="ttname"><a href="classtf_1_1Semaphore.html">tf::Semaphore</a></div><div class="ttdoc">class to create a semophore object for building a concurrency constraint</div><div class="ttdef"><b>Definition</b> semaphore.hpp:68</div></div>
 <div class="ttc" id="aclasstf_1_1Taskflow_html"><div class="ttname"><a href="classtf_1_1Taskflow.html">tf::Taskflow</a></div><div class="ttdoc">class to create a taskflow object</div><div class="ttdef"><b>Definition</b> taskflow.hpp:64</div></div>
 </div><!-- fragment --><div class="dotgraph">
@@ -202,10 +203,10 @@ Define a Semaphore</h1>
 <div class="line">executor.run(taskflow).wait();</div>
 <div class="line"> </div>
 <div class="line">assert(counter == 2*N);</div>
-<div class="ttc" id="aclasstf_1_1Task_html"><div class="ttname"><a href="classtf_1_1Task.html">tf::Task</a></div><div class="ttdoc">class to create a task handle over a taskflow node</div><div class="ttdef"><b>Definition</b> task.hpp:263</div></div>
-<div class="ttc" id="aclasstf_1_1Task_html_a076ab9c6f3a0346e16cfb5fee7dc4ce8"><div class="ttname"><a href="classtf_1_1Task.html#a076ab9c6f3a0346e16cfb5fee7dc4ce8">tf::Task::acquire</a></div><div class="ttdeci">Task &amp; acquire(Semaphore &amp;semaphore)</div><div class="ttdoc">makes the task acquire the given semaphore</div><div class="ttdef"><b>Definition</b> task.hpp:1024</div></div>
-<div class="ttc" id="aclasstf_1_1Task_html_a26709523eb112f2d024f4c0e9d2f0019"><div class="ttname"><a href="classtf_1_1Task.html#a26709523eb112f2d024f4c0e9d2f0019">tf::Task::release</a></div><div class="ttdeci">Task &amp; release(Semaphore &amp;semaphore)</div><div class="ttdoc">makes the task release the given semaphore</div><div class="ttdef"><b>Definition</b> task.hpp:1048</div></div>
-<div class="ttc" id="aclasstf_1_1Task_html_a8c78c453295a553c1c016e4062da8588"><div class="ttname"><a href="classtf_1_1Task.html#a8c78c453295a553c1c016e4062da8588">tf::Task::precede</a></div><div class="ttdeci">Task &amp; precede(Ts &amp;&amp;... tasks)</div><div class="ttdoc">adds precedence links from this to other tasks</div><div class="ttdef"><b>Definition</b> task.hpp:952</div></div>
+<div class="ttc" id="aclasstf_1_1Task_html"><div class="ttname"><a href="classtf_1_1Task.html">tf::Task</a></div><div class="ttdoc">class to create a task handle over a taskflow node</div><div class="ttdef"><b>Definition</b> task.hpp:569</div></div>
+<div class="ttc" id="aclasstf_1_1Task_html_a076ab9c6f3a0346e16cfb5fee7dc4ce8"><div class="ttname"><a href="classtf_1_1Task.html#a076ab9c6f3a0346e16cfb5fee7dc4ce8">tf::Task::acquire</a></div><div class="ttdeci">Task &amp; acquire(Semaphore &amp;semaphore)</div><div class="ttdoc">makes the task acquire the given semaphore</div><div class="ttdef"><b>Definition</b> task.hpp:1330</div></div>
+<div class="ttc" id="aclasstf_1_1Task_html_a26709523eb112f2d024f4c0e9d2f0019"><div class="ttname"><a href="classtf_1_1Task.html#a26709523eb112f2d024f4c0e9d2f0019">tf::Task::release</a></div><div class="ttdeci">Task &amp; release(Semaphore &amp;semaphore)</div><div class="ttdoc">makes the task release the given semaphore</div><div class="ttdef"><b>Definition</b> task.hpp:1354</div></div>
+<div class="ttc" id="aclasstf_1_1Task_html_a8c78c453295a553c1c016e4062da8588"><div class="ttname"><a href="classtf_1_1Task.html#a8c78c453295a553c1c016e4062da8588">tf::Task::precede</a></div><div class="ttdeci">Task &amp; precede(Ts &amp;&amp;... tasks)</div><div class="ttdoc">adds precedence links from this to other tasks</div><div class="ttdef"><b>Definition</b> task.hpp:1258</div></div>
 </div><!-- fragment --><div class="dotgraph">
 <iframe scrolling="no" frameborder="0" src="dot_semaphore2.svg" width="600" height="155"><p><b>This browser is not able to show SVG: try Firefox, Chrome, Safari, or Opera instead.</b></p></iframe></div>
 <p>Without semaphores, each pair of tasks, e.g., <code>from-0 -&gt; to-0</code>, will run independently and concurrently. However, the program forces each <code>from</code> task to acquire the semaphore before running its work and not to release it until its paired <code>to</code> task is done. This constraint forces each pair of tasks to run sequentially, while the order of which pair runs first is up to the scheduler.</p>

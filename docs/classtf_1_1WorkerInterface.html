@@ -19,6 +19,7 @@
 <link href="search/search.css" rel="stylesheet" type="text/css"/>
 <script type="text/javascript" src="search/searchdata.js"></script>
 <script type="text/javascript" src="search/search.js"></script>
+<script type="text/javascript" src="darkmode_toggle.js"></script>
 <link href="doxygen.css" rel="stylesheet" type="text/css" />
 <link href="custom.css" rel="stylesheet" type="text/css"/>
 </head>
@@ -189,12 +190,12 @@ virtual&#160;</td><td class="memItemRight" valign="bottom"><b>~WorkerInterface</
 <div class="line">  <span class="keywordflow">return</span> 0;</div>
 <div class="line">}</div>
 <div class="ttc" id="aclasstf_1_1Executor_html"><div class="ttname"><a href="classtf_1_1Executor.html">tf::Executor</a></div><div class="ttdoc">class to create an executor</div><div class="ttdef"><b>Definition</b> executor.hpp:62</div></div>
-<div class="ttc" id="aclasstf_1_1WorkerInterface_html"><div class="ttname"><a href="classtf_1_1WorkerInterface.html">tf::WorkerInterface</a></div><div class="ttdoc">class to configure worker behavior in an executor</div><div class="ttdef"><b>Definition</b> worker.hpp:275</div></div>
+<div class="ttc" id="aclasstf_1_1WorkerInterface_html"><div class="ttname"><a href="classtf_1_1WorkerInterface.html">tf::WorkerInterface</a></div><div class="ttdoc">class to configure worker behavior in an executor</div><div class="ttdef"><b>Definition</b> worker.hpp:273</div></div>
 <div class="ttc" id="aclasstf_1_1WorkerInterface_html_a3e6d68fd4041f433d1b7ca9e5786b57c"><div class="ttname"><a href="#a3e6d68fd4041f433d1b7ca9e5786b57c">tf::WorkerInterface::scheduler_epilogue</a></div><div class="ttdeci">virtual void scheduler_epilogue(Worker &amp;worker, std::exception_ptr ptr)=0</div><div class="ttdoc">method to call after a worker leaves the scheduling loop</div></div>
 <div class="ttc" id="aclasstf_1_1WorkerInterface_html_a41c3b931a36bde8eff4aa8d375e8888a"><div class="ttname"><a href="#a41c3b931a36bde8eff4aa8d375e8888a">tf::WorkerInterface::scheduler_prologue</a></div><div class="ttdeci">virtual void scheduler_prologue(Worker &amp;worker)=0</div><div class="ttdoc">method to call before a worker enters the scheduling loop</div></div>
 <div class="ttc" id="aclasstf_1_1Worker_html_a0180ea51cc46551157eaae451b50c7d8"><div class="ttname"><a href="classtf_1_1Worker.html#a0180ea51cc46551157eaae451b50c7d8">tf::Worker::id</a></div><div class="ttdeci">size_t id() const</div><div class="ttdoc">queries the worker id associated with its parent executor</div><div class="ttdef"><b>Definition</b> worker.hpp:72</div></div>
 <div class="ttc" id="aclasstf_1_1Worker_html_a6158f91db3b980e3072cc0329cbe3c14"><div class="ttname"><a href="classtf_1_1Worker.html#a6158f91db3b980e3072cc0329cbe3c14">tf::Worker::thread</a></div><div class="ttdeci">std::thread &amp; thread()</div><div class="ttdoc">acquires the associated thread</div><div class="ttdef"><b>Definition</b> worker.hpp:88</div></div>
-<div class="ttc" id="anamespacetf_html_a277bf0914351f67a59f54d6b1fa0b08f"><div class="ttname"><a href="namespacetf.html#a277bf0914351f67a59f54d6b1fa0b08f">tf::make_worker_interface</a></div><div class="ttdeci">std::shared_ptr&lt; T &gt; make_worker_interface(ArgsT &amp;&amp;... args)</div><div class="ttdoc">helper function to create an instance derived from tf::WorkerInterface</div><div class="ttdef"><b>Definition</b> worker.hpp:314</div></div>
+<div class="ttc" id="anamespacetf_html_a277bf0914351f67a59f54d6b1fa0b08f"><div class="ttname"><a href="namespacetf.html#a277bf0914351f67a59f54d6b1fa0b08f">tf::make_worker_interface</a></div><div class="ttdeci">std::shared_ptr&lt; T &gt; make_worker_interface(ArgsT &amp;&amp;... args)</div><div class="ttdoc">helper function to create an instance derived from tf::WorkerInterface</div><div class="ttdef"><b>Definition</b> worker.hpp:312</div></div>
 </div><!-- fragment --><p>When running the program, we see the following one possible output:</p>
 <div class="fragment"><div class="line">worker 3 prepares to enter the work-stealing loop</div>
 <div class="line">successfully affines worker 3 to CPU core 3</div>
