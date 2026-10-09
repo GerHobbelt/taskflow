@@ -29,7 +29,7 @@ c(*b);
 @endcode
 */
 template <typename C, typename B>
-concept UnaryOperationLike =
+concept UnaryOperatorLike =
 requires(C c, B b) {
   c(*b);
 };
@@ -50,7 +50,7 @@ c(*b1, *b2);
 @endcode
 */
 template <typename C, typename B1, typename B2>
-concept BinaryOperationLike =
+concept BinaryOperatorLike =
 requires(C c, B1 b1, B2 b2) {
   c(*b1, *b2);
 };
@@ -553,7 +553,7 @@ class FlowBuilder {
   Please refer to @ref ParallelIterations for details.
   */
   template <InputIteratorLike B, InputIteratorLike E, typename C, PartitionerLike P = DefaultPartitioner>
-  requires UnaryOperationLike<C, std::decay_t<std::unwrap_ref_decay_t<B>>> 
+  requires UnaryOperatorLike<C, std::decay_t<std::unwrap_ref_decay_t<B>>> 
   Task for_each(B first, E last, C callable, P part = P());
   
   /**
@@ -1032,7 +1032,7 @@ class FlowBuilder {
   
   template <InputIteratorLike B1, InputIteratorLike E1, InputIteratorLike B2, typename T,
             typename BOP_R, typename BOP_T, PartitionerLike P = DefaultPartitioner>
-  requires BinaryOperationLike<
+  requires BinaryOperatorLike<
     BOP_T,
     std::decay_t<std::unwrap_ref_decay_t<B1>>,
     std::decay_t<std::unwrap_ref_decay_t<B2>>

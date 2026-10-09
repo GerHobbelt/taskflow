@@ -533,6 +533,275 @@ TEST_CASE("StatefulParallelFor.Random.12threads" * doctest::timeout(300)) {
   stateful_for_each<tf::RandomPartitioner<>>(12);
 }
 
+// --------------------------------------------------------
+// Testcase: for_each_from_runtime
+// --------------------------------------------------------
+
+template <typename P>
+void for_each_from_runtime(unsigned W) {
+
+  tf::Executor executor(W);
+  tf::Taskflow taskflow;
+
+  std::vector<int> vec(1024);
+  for(int n = 0; n <= 150; n++) {
+
+    std::fill_n(vec.begin(), vec.size(), -1);
+
+    int beg = ::rand()%300 - 150;
+    int end = beg + n;
+
+    for(int s=1; s<=16; s*=2) {
+      for(size_t c : {0, 1, 3, 7, 99}) {
+        taskflow.clear();
+        std::atomic<int> counter {0};
+        
+        taskflow.emplace([&](tf::Runtime& rt){
+          tf::make_for_each_index_task(
+            beg, end, s, [&](int i) { counter++; vec[i-beg] = i; }, P(c)
+          )(rt);
+        });
+
+        executor.run(taskflow).wait();
+        REQUIRE(counter == (n + s - 1) / s);
+
+        for(int i=beg; i<end; i+=s) {
+          REQUIRE(vec[i-beg] == i);
+          vec[i-beg] = -1;
+        }
+
+        for(const auto i : vec) {
+          REQUIRE(i == -1);
+        }
+      }
+    }
+  }
+
+  for(size_t n = 0; n < 150; n++) {
+    for(size_t c : {0, 1, 3, 7, 99}) {
+
+      std::fill_n(vec.begin(), vec.size(), -1);
+
+      taskflow.clear();
+      std::atomic<int> counter {0};
+
+      taskflow.emplace([&](tf::Runtime& rt){
+        tf::make_for_each_task(vec.begin(), vec.begin() + n, [&](int& i){
+          counter++;
+          i = 1;
+        }, P(c))(rt);
+      });
+
+      executor.run(taskflow).wait();
+      REQUIRE(counter == n);
+
+      for(size_t i=0; i<n; ++i) {
+        REQUIRE(vec[i] == 1);
+      }
+
+      for(size_t i=n; i<vec.size(); ++i) {
+        REQUIRE(vec[i] == -1);
+      }
+    }
+  }
+}
+
+// guided
+TEST_CASE("ParallelForFromRuntime.Guided.1thread" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::GuidedPartitioner<>>(1);
+}
+
+TEST_CASE("ParallelForFromRuntime.Guided.2threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::GuidedPartitioner<>>(2);
+}
+
+TEST_CASE("ParallelForFromRuntime.Guided.3threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::GuidedPartitioner<>>(3);
+}
+
+TEST_CASE("ParallelForFromRuntime.Guided.4threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::GuidedPartitioner<>>(4);
+}
+
+TEST_CASE("ParallelForFromRuntime.Guided.5threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::GuidedPartitioner<>>(5);
+}
+
+TEST_CASE("ParallelForFromRuntime.Guided.6threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::GuidedPartitioner<>>(6);
+}
+
+TEST_CASE("ParallelForFromRuntime.Guided.7threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::GuidedPartitioner<>>(7);
+}
+
+TEST_CASE("ParallelForFromRuntime.Guided.8threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::GuidedPartitioner<>>(8);
+}
+
+TEST_CASE("ParallelForFromRuntime.Guided.9threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::GuidedPartitioner<>>(9);
+}
+
+TEST_CASE("ParallelForFromRuntime.Guided.10threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::GuidedPartitioner<>>(10);
+}
+
+TEST_CASE("ParallelForFromRuntime.Guided.11threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::GuidedPartitioner<>>(11);
+}
+
+TEST_CASE("ParallelForFromRuntime.Guided.12threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::GuidedPartitioner<>>(12);
+}
+
+// dynamic
+TEST_CASE("ParallelForFromRuntime.Dynamic.1thread" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::DynamicPartitioner<>>(1);
+}
+
+TEST_CASE("ParallelForFromRuntime.Dynamic.2threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::DynamicPartitioner<>>(2);
+}
+
+TEST_CASE("ParallelForFromRuntime.Dynamic.3threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::DynamicPartitioner<>>(3);
+}
+
+TEST_CASE("ParallelForFromRuntime.Dynamic.4threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::DynamicPartitioner<>>(4);
+}
+
+TEST_CASE("ParallelForFromRuntime.Dynamic.5threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::DynamicPartitioner<>>(5);
+}
+
+TEST_CASE("ParallelForFromRuntime.Dynamic.6threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::DynamicPartitioner<>>(6);
+}
+
+TEST_CASE("ParallelForFromRuntime.Dynamic.7threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::DynamicPartitioner<>>(7);
+}
+
+TEST_CASE("ParallelForFromRuntime.Dynamic.8threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::DynamicPartitioner<>>(8);
+}
+
+TEST_CASE("ParallelForFromRuntime.Dynamic.9threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::DynamicPartitioner<>>(9);
+}
+
+TEST_CASE("ParallelForFromRuntime.Dynamic.10threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::DynamicPartitioner<>>(10);
+}
+
+TEST_CASE("ParallelForFromRuntime.Dynamic.11threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::DynamicPartitioner<>>(11);
+}
+
+TEST_CASE("ParallelForFromRuntime.Dynamic.12threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::DynamicPartitioner<>>(12);
+}
+
+// static
+TEST_CASE("ParallelForFromRuntime.Static.1thread" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::StaticPartitioner<>>(1);
+}
+
+TEST_CASE("ParallelForFromRuntime.Static.2threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::StaticPartitioner<>>(2);
+}
+
+TEST_CASE("ParallelForFromRuntime.Static.3threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::StaticPartitioner<>>(3);
+}
+
+TEST_CASE("ParallelForFromRuntime.Static.4threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::StaticPartitioner<>>(4);
+}
+
+TEST_CASE("ParallelForFromRuntime.Static.5threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::StaticPartitioner<>>(5);
+}
+
+TEST_CASE("ParallelForFromRuntime.Static.6threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::StaticPartitioner<>>(6);
+}
+
+TEST_CASE("ParallelForFromRuntime.Static.7threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::StaticPartitioner<>>(7);
+}
+
+TEST_CASE("ParallelForFromRuntime.Static.8threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::StaticPartitioner<>>(8);
+}
+
+TEST_CASE("ParallelForFromRuntime.Static.9threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::StaticPartitioner<>>(9);
+}
+
+TEST_CASE("ParallelForFromRuntime.Static.10threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::StaticPartitioner<>>(10);
+}
+
+TEST_CASE("ParallelForFromRuntime.Static.11threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::StaticPartitioner<>>(11);
+}
+
+TEST_CASE("ParallelForFromRuntime.Static.12threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::StaticPartitioner<>>(12);
+}
+
+// random
+TEST_CASE("ParallelForFromRuntime.Random.1thread" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::RandomPartitioner<>>(1);
+}
+
+TEST_CASE("ParallelForFromRuntime.Random.2threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::RandomPartitioner<>>(2);
+}
+
+TEST_CASE("ParallelForFromRuntime.Random.3threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::RandomPartitioner<>>(3);
+}
+
+TEST_CASE("ParallelForFromRuntime.Random.4threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::RandomPartitioner<>>(4);
+}
+
+TEST_CASE("ParallelForFromRuntime.Random.5threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::RandomPartitioner<>>(5);
+}
+
+TEST_CASE("ParallelForFromRuntime.Random.6threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::RandomPartitioner<>>(6);
+}
+
+TEST_CASE("ParallelForFromRuntime.Random.7threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::RandomPartitioner<>>(7);
+}
+
+TEST_CASE("ParallelForFromRuntime.Random.8threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::RandomPartitioner<>>(8);
+}
+
+TEST_CASE("ParallelForFromRuntime.Random.9threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::RandomPartitioner<>>(9);
+}
+
+TEST_CASE("ParallelForFromRuntime.Random.10threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::RandomPartitioner<>>(10);
+}
+
+TEST_CASE("ParallelForFromRuntime.Random.11threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::RandomPartitioner<>>(11);
+}
+
+TEST_CASE("ParallelForFromRuntime.Random.12threads" * doctest::timeout(300)) {
+  for_each_from_runtime<tf::RandomPartitioner<>>(12);
+}
+
 // ----------------------------------------------------------------------------
 // for_each_index negative index
 // ----------------------------------------------------------------------------

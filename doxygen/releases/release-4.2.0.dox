@@ -44,6 +44,7 @@ If your project does not support C++20, please use %Taskflow v3.11.0, which can 
   + must be explicitly enabled through `-DTF_ENABLE_TASK_PRIORITY`
 + added the support for ND-index-range-based reduce
   + tf::Taskflow::reduce_by_index
++ added unittests for testing running parallel algorithms from tf::Runtime
 + refactored the core with several new concepts to enhance type safety and readability
   + tf::InputIteratorLike to check if a type is a stateful iterator
   + tf::UnaryOperationLike to check if a unary operation is valid

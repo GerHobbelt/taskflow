@@ -2189,3 +2189,193 @@ TEST_CASE("Reduce.SilentDependentAsync.7threads" * doctest::timeout(300)) {
 TEST_CASE("Reduce.SilentDependentAsync.8threads" * doctest::timeout(300)) {
   silent_dependent_async(8);
 }
+
+// --------------------------------------------------------
+// Testcase: reduce_by_index_from_runtime
+// --------------------------------------------------------
+
+template <typename P>
+void reduce_by_index_from_runtime(unsigned W) {
+
+  tf::Executor executor(W);
+  tf::Taskflow taskflow;
+
+  std::vector<int> vec(1000);
+
+  for(auto& i : vec) i = ::rand() % 100 - 50;
+
+  for(size_t n=1; n<vec.size(); n++) {
+    for(size_t c : {0, 1, 3, 7, 99}) {
+      
+      taskflow.clear();
+
+      int sum = 10;
+      int sol = 10;
+      tf::IndexRange<size_t> range;
+
+      auto stask = taskflow.emplace([&](){
+        range.reset(0, vec.size(), 1);
+        REQUIRE(range.size() == vec.size());
+        for(auto itr = vec.begin(); itr != vec.end(); itr++) {
+          sum += *itr;
+        }
+      });
+
+      tf::Task ptask;
+
+      ptask = taskflow.emplace([&](tf::Runtime& rt){
+        tf::make_reduce_by_index_task(
+          std::ref(range),
+          sol,
+          [&](tf::IndexRange<size_t> subrange, std::optional<int> running_total){
+            int lsum = running_total ? *running_total : 0;
+            for(size_t i=subrange.begin(); i<subrange.end(); i+=subrange.step_size()) {
+              lsum += vec[i];
+            }
+            return lsum;
+          },
+          std::plus<int>(), 
+          P(c)
+        )(rt);
+      });
+
+      stask.precede(ptask);
+
+      executor.run(taskflow).wait();
+
+      REQUIRE(sol == sum);
+    }
+  }
+}
+
+// guided
+TEST_CASE("ReduceByIndexFromRuntime.Guided.1thread" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::GuidedPartitioner<>>(1);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Guided.2threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::GuidedPartitioner<>>(2);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Guided.3threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::GuidedPartitioner<>>(3);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Guided.4threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::GuidedPartitioner<>>(4);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Guided.5threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::GuidedPartitioner<>>(5);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Guided.6threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::GuidedPartitioner<>>(6);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Guided.7threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::GuidedPartitioner<>>(7);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Guided.8threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::GuidedPartitioner<>>(8);
+}
+
+// dynamic
+TEST_CASE("ReduceByIndexFromRuntime.Dynamic.1thread" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::DynamicPartitioner<>>(1);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Dynamic.2threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::DynamicPartitioner<>>(2);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Dynamic.3threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::DynamicPartitioner<>>(3);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Dynamic.4threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::DynamicPartitioner<>>(4);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Dynamic.5threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::DynamicPartitioner<>>(5);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Dynamic.6threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::DynamicPartitioner<>>(6);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Dynamic.7threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::DynamicPartitioner<>>(7);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Dynamic.8threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::DynamicPartitioner<>>(8);
+}
+
+// static
+TEST_CASE("ReduceByIndexFromRuntime.Static.1thread" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::StaticPartitioner<>>(1);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Static.2threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::StaticPartitioner<>>(2);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Static.3threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::StaticPartitioner<>>(3);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Static.4threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::StaticPartitioner<>>(4);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Static.5threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::StaticPartitioner<>>(5);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Static.6threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::StaticPartitioner<>>(6);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Static.7threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::StaticPartitioner<>>(7);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Static.8threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::StaticPartitioner<>>(8);
+}
+
+// random
+TEST_CASE("ReduceByIndexFromRuntime.Random.1thread" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::RandomPartitioner<>>(1);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Random.2threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::RandomPartitioner<>>(2);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Random.3threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::RandomPartitioner<>>(3);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Random.4threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::RandomPartitioner<>>(4);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Random.5threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::RandomPartitioner<>>(5);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Random.6threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::RandomPartitioner<>>(6);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Random.7threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::RandomPartitioner<>>(7);
+}
+
+TEST_CASE("ReduceByIndexFromRuntime.Random.8threads" * doctest::timeout(300)) {
+  reduce_by_index_from_runtime<tf::RandomPartitioner<>>(8);
+}
